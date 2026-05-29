@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm;
+  }
+
+  /* Hide everything by default when printing */
+  body > div > *:not(.print-container) {
+    display: none !important;
+  }
+
+  /* Only show print container */
+  .print-container {
+    position: static !important;
+    overflow: visible !important;
+    background: white !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-page {
+    page-break-after: always;
+    page-break-inside: avoid;
+  }
+
+  .print-page:last-child {
+    page-break-after: avoid;
+  }
+
+  /* Remove all backgrounds and shadows for clean print */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Remove URL/date/title from browser print headers */
+  @page {
+    margin-top: 10mm;
+    margin-bottom: 10mm;
+  }
+}
