@@ -286,3 +286,64 @@ export async function syncFromCloud() {
     }
   } catch (e) { console.error('Sync from cloud failed:', e); }
 }
+// ==================== REGISTERED STUDENTS (per class) ====================
+// Reads/writes DIRECTLY to Supabase so all devices see the same numbers instantly.
+
+export async function getRegisteredStudents(): Promise<Record<string, { regB: number; regG: number }>> {
+  if (IS_CLOUD) {
+    try {
+      const data = await supabaseRequest(
+        'app_data', 'GET', undefined,
+        `?key=eq.sms_registered_students&select=value`
+      );
+      if (Array.isArray(data) && data.length > 0 && data[0].value) {
+        const parsed = JSON.parse(data[0].value);
+        // Keep a local copy so the Duty Report form still works offline
+        localStorage.setItem('sms_registered_students', data[0].value);
+        return parsed;
+      }
+    } catch (e) {
+      console.error('Cloud getRegisteredStudents failed:', e);
+    }
+  }
+  const saved = localStorage.getItem('sms_registered_students');
+  return saved ? JSON.parse(saved) : {};
+}
+
+export async function saveRegisteredStudents(
+  data: Record<string, { regB: number; regG: number }>
+) {
+  const value = JSON.stringify(data);
+  // Always keep local copy
+  localStorage.setItem('sms_registered_students', value);
+
+  if (IS_CLOUD) {
+    const payload = { value, updated_at: new Date().toISOString() };
+    try {
+      // Try update first
+      await supabaseRequest(
+        'app_data', 'PATCH', payload,
+        `?key=eq.sms_registered_students`
+      );
+      // Verify a row actually existed; if not, insert
+      const check = await supabaseRequest(
+        'app_data', 'GET', undefined,
+        `?key=eq.sms_registered_students&select=key`
+      );
+      if (!Array.isArray(check) || check.length === 0) {
+        await supabaseRequest('app_data', 'POST', {
+          key: 'sms_registered_students', value, updated_at: new Date().toISOString()
+        });
+      }
+    } catch (e) {
+      // Fallback: insert
+      try {
+        await supabaseRequest('app_data', 'POST', {
+          key: 'sms_registered_students', value, updated_at: new Date().toISOString()
+        });
+      } catch (e2) {
+        console.error('Cloud saveRegisteredStudents failed:', e2);
+      }
+    }
+  }
+}
