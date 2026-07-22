@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import * as cloud from '../lib/cloud';
 
 function getSchoolLogo(): string {
   return localStorage.getItem('sms_school_logo') || '';
