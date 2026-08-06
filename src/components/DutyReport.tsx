@@ -1,6 +1,9 @@
 // @ts-nocheck
-// ✅ FIXED VERSION OF src/components/DutyReport.tsx
-// 2 bugs fixed: Admin now syncs to Supabase, Teacher auto-polls cloud
+// ✅ FIXED V2 — src/components/DutyReport.tsx
+// Fixes:
+// 1) Admin Registered Students synced to Supabase (was localStorage only)
+// 2) Teacher Duty Report polling + live update from Supabase
+// 3) ✅ NEW: Madarasa yanayotoka ADMIN > Classes & Streams ndiyo yanaonekana kwa Registered Students + Duty Report (sio hardcoded Form IA etc.)
 // Replace your current DutyReport.tsx with this file
 
 import { useState, useRef, useEffect } from 'react';
@@ -19,6 +22,7 @@ function getHeadmasterNameSetting(): string {
   return localStorage.getItem('sms_headmaster_name') || 'Saidi Mpambika';
 }
 
+// Legacy helper kept for instant fallback (used before cloud loads)
 function getSchoolClasses(): string[] {
   try {
     const saved = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
@@ -128,85 +132,82 @@ function generateHeadmasterComment(attendance: ClassRow[], sections: Record<stri
 
   const pct = totals.reg > 0 ? ((totals.pres / totals.reg) * 100) : 0;
   let comment = '';
-
-  if (pct >= 90) {
-    comment += `Attendance is excellent at ${pct.toFixed(1)}%. `;
-  } else if (pct >= 75) {
-    comment += `Attendance is good at ${pct.toFixed(1)}%. `;
-  } else if (pct >= 60) {
-    comment += `Attendance needs improvement at ${pct.toFixed(1)}%. Class teachers should follow up on absent students. `;
-  } else if (totals.reg > 0) {
-    comment += `Attendance is critically low at ${pct.toFixed(1)}%. Urgent action required to address absenteeism. `;
-  }
-
-  if (totals.sick > 0) {
-    comment += `${totals.sick} student(s) reported sick. `;
-  }
-  if (totals.abs > 5) {
-    comment += `${totals.abs} student(s) absent requires follow-up. `;
-  }
-
+  if (pct >= 90) comment += `Attendance is excellent at ${pct.toFixed(1)}%. `;
+  else if (pct >= 75) comment += `Attendance is good at ${pct.toFixed(1)}%. `;
+  else if (pct >= 60) comment += `Attendance needs improvement at ${pct.toFixed(1)}%. Class teachers should follow up on absent students. `;
+  else if (totals.reg > 0) comment += `Attendance is critically low at ${pct.toFixed(1)}%. Urgent action required to address absenteeism. `;
+  if (totals.sick > 0) comment += `${totals.sick} student(s) reported sick. `;
+  if (totals.abs > 5) comment += `${totals.abs} student(s) absent requires follow-up. `;
   const events = sections['special_events'] || '';
-  if (events && events !== 'No special events today' && events.trim()) {
-    comment += `Special events noted. `;
-  }
-
+  if (events && events !== 'No special events today' && events.trim()) comment += `Special events noted. `;
   const discipline = sections['discipline'] || '';
-  if (discipline.toLowerCase().includes('major')) {
-    comment += `Disciplinary matters should be addressed by the discipline committee. `;
-  }
-
-  if (comment) {
-    comment += 'The TOD report is acknowledged.';
-  } else {
-    comment = 'No data entered yet.';
-  }
-
+  if (discipline.toLowerCase().includes('major')) comment += `Disciplinary matters should be addressed by the discipline committee. `;
+  if (comment) comment += 'The TOD report is acknowledged.';
+  else comment = 'No data entered yet.';
   return comment;
 }
 
-// Get registered students set by admin
 function getRegistered(): Record<string, { regB: number; regG: number }> {
   try {
     const saved = localStorage.getItem('sms_registered_students');
     return saved ? JSON.parse(saved) : {};
-  } catch {
-    return {};
-  }
+  } catch { return {}; }
 }
-
 function saveRegistered(data: Record<string, { regB: number; regG: number }>) {
   localStorage.setItem('sms_registered_students', JSON.stringify(data));
 }
 
-// ✅ FIXED Admin component to set registered students per class
+// ================= ADMIN: Registered Students — NOW LINKED TO CLASSES FROM ADMIN =================
 export function AdminRegisteredStudents() {
   const [data, setData] = useState<Record<string, { regB: number; regG: number }>>(() => getRegistered());
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
+  // ✅ NEW: madarasa yanatoka kwa cloud, sio hardcoded
+  const [schoolClasses, setSchoolClasses] = useState<string[]>(() => getSchoolClasses());
+  const [syncInfo, setSyncInfo] = useState('');
 
-  // ✅ Load from Supabase on mount — so admin sees latest if edited from another device
   useEffect(() => {
     let mounted = true;
-    cloud.getRegisteredStudents().then(cloudData => {
-      if (mounted && cloudData && Object.keys(cloudData).length > 0) {
-        setData(cloudData);
-        localStorage.setItem('sms_registered_students', JSON.stringify(cloudData));
+    // Load classes + registered from Supabase
+    const load = async () => {
+      try {
+        const [cls, reg] = await Promise.all([
+          (cloud.getSchoolClassesFromCloud ? cloud.getSchoolClassesFromCloud() : Promise.resolve(getSchoolClasses())),
+          cloud.getRegisteredStudents()
+        ]);
+        if (!mounted) return;
+        if (cls && cls.length) setSchoolClasses(cls);
+        if (reg && Object.keys(reg).length > 0) {
+          setData(reg);
+          localStorage.setItem('sms_registered_students', JSON.stringify(reg));
+          setSyncInfo(`🔄 Synced from cloud at ${new Date().toLocaleTimeString()}`);
+        }
+      } catch {}
+    };
+    load();
+    // Poll classes + registered every 30s + on focus so new class appears without refresh
+    const id = setInterval(load, 30000);
+    const onSync = () => load();
+    window.addEventListener('cloud-sync-complete', onSync);
+    window.addEventListener('focus', onSync);
+    // Also listen to storage event (when App.tsx adds a class in same browser)
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'sms_school_classes' && e.newValue) {
+        try { const v = JSON.parse(e.newValue); if (Array.isArray(v) && v.length) setSchoolClasses(v); } catch {}
       }
-    });
-    return () => { mounted = false; };
+    };
+    window.addEventListener('storage', onStorage);
+    return () => { mounted=false; clearInterval(id); window.removeEventListener('cloud-sync-complete', onSync); window.removeEventListener('focus', onSync); window.removeEventListener('storage', onStorage); };
   }, []);
 
   const update = async (cls: string, field: 'regB' | 'regG', val: number) => {
     const newData = { ...data, [cls]: { ...(data[cls] || { regB: 0, regG: 0 }), [field]: val } };
     setData(newData);
-    // keep local immediately for instant UI
     saveRegistered(newData);
-    // ✅ ALSO save to Supabase so teachers on other devices get it
     setSaving(true);
     try {
       await cloud.saveRegisteredStudents(newData);
-      setMsg('✅ Saved & synced to cloud — teachers will see it within 30s or on refresh');
+      setMsg('✅ Saved & synced to cloud — walimu wataiona ndani ya 30s au wakirefresh');
       setTimeout(() => setMsg(''), 4000);
     } catch (e: any) {
       setMsg('❌ Cloud sync failed: ' + (e.message || e));
@@ -217,21 +218,24 @@ export function AdminRegisteredStudents() {
   return (
     <div className="bg-white p-6 rounded-2xl border">
       <h2 className="font-bold text-lg mb-2">Set Registered Students Per Class</h2>
-      <p className="text-xs text-slate-500 mb-2">These numbers are used in the Teacher Duty Report. Only admin can change them.</p>
+      <p className="text-xs text-slate-500 mb-2">Madarasa yanayotoka <b>Admin → Classes & Streams</b> ndiyo yanaonekana hapa. Only admin can change them.</p>
+      {syncInfo && <div className="text-[11px] text-emerald-600 mb-2">{syncInfo} • {schoolClasses.length} classes • {cloud.isCloudMode() ? '🟢 Cloud ON' : '🟡 Local only'}</div>}
       {msg && <div className={`text-xs p-2.5 rounded-xl border mb-3 ${msg.startsWith('✅') ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-700'}`}>{msg}</div>}
       {saving && <div className="text-xs text-indigo-600 mb-2 animate-pulse">⏳ Syncing to cloud...</div>}
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse border border-slate-300">
           <thead>
             <tr className="bg-slate-100">
-              <th className="border border-slate-300 p-2">Class</th>
+              <th className="border border-slate-300 p-2">Class (Stream)</th>
               <th className="border border-slate-300 p-2">Boys (B)</th>
               <th className="border border-slate-300 p-2">Girls (G)</th>
               <th className="border border-slate-300 p-2">Total</th>
             </tr>
           </thead>
           <tbody>
-            {getSchoolClasses().map(cls => {
+            {schoolClasses.length === 0 ? (
+              <tr><td colSpan={4} className="border border-slate-300 p-4 text-center text-slate-500">Hakuna darasa lililosajiliwa. Nenda ADMIN → Classes & Streams ukaongeze darasa.</td></tr>
+            ) : schoolClasses.map(cls => {
               const row = data[cls] || { regB: 0, regG: 0 };
               return (
                 <tr key={cls}>
@@ -251,11 +255,12 @@ export function AdminRegisteredStudents() {
       </div>
       <p className="text-xs text-emerald-600 mt-2 font-semibold">✅ Changes are saved automatically {cloud.isCloudMode() ? 'to cloud + locally' : '(local only — check VITE_SUPABASE_URL)'}</p>
       {!cloud.isCloudMode() && <p className="text-xs text-red-600 mt-1">⚠️ Cloud mode OFF — check Netlify env vars (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)</p>}
+      <p className="text-[11px] text-slate-500 mt-2">💡 Ukiongeza darasa jipya kwenye <b>Classes & Streams</b>, litajitokeza hapa kiotomatiki (na kwa walimu kwenye Duty Report).</p>
     </div>
   );
 }
 
-// ✅ FIXED TeacherDutyForm — now polls cloud and updates registered numbers live
+// ================= TEACHER Duty Form — NOW DYNAMIC CLASSES FROM ADMIN =================
 export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherName: string; onSubmit: (data: any) => void; loading: boolean }) {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [sections, setSections] = useState<Record<string, string>>(() => {
@@ -266,8 +271,8 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
   const [specialEventManual, setSpecialEventManual] = useState('');
   const [visitorDetails, setVisitorDetails] = useState('');
 
-  // ✅ FIXED: registered is now state + synced from cloud, not a one-time local read
   const [registered, setRegistered] = useState<Record<string, { regB: number; regG: number }>>(() => getRegistered());
+  const [schoolClasses, setSchoolClasses] = useState<string[]>(() => getSchoolClasses());
   const [lastSync, setLastSync] = useState<string>('');
 
   const [attendance, setAttendance] = useState<ClassRow[]>(
@@ -278,47 +283,56 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
     }))
   );
 
-  // ✅ Poll cloud + listen for sync events
   useEffect(() => {
     let mounted = true;
-    const fetchReg = async () => {
+    const fetchAll = async () => {
       try {
-        const data = await cloud.getRegisteredStudents();
-        if (mounted && data && Object.keys(data).length > 0) {
-          setRegistered(data);
+        const [cls, reg] = await Promise.all([
+          (cloud.getSchoolClassesFromCloud ? cloud.getSchoolClassesFromCloud() : Promise.resolve(getSchoolClasses())),
+          cloud.getRegisteredStudents()
+        ]);
+        if (!mounted) return;
+        if (cls && cls.length) setSchoolClasses(cls);
+        if (reg && Object.keys(reg).length > 0) {
+          setRegistered(reg);
           setLastSync(new Date().toLocaleTimeString());
         }
       } catch {}
     };
-    fetchReg();
-    const interval = setInterval(fetchReg, 30000); // 30s poll so admin edits appear without refresh
-    const onSync = () => fetchReg();
+    fetchAll();
+    const interval = setInterval(fetchAll, 30000);
+    const onSync = () => fetchAll();
     window.addEventListener('cloud-sync-complete', onSync);
     window.addEventListener('focus', onSync);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'sms_school_classes' && e.newValue) {
+        try { const v = JSON.parse(e.newValue); if (Array.isArray(v) && v.length) setSchoolClasses(v); } catch {}
+      }
+    };
+    window.addEventListener('storage', onStorage);
     return () => {
       mounted = false;
       clearInterval(interval);
       window.removeEventListener('cloud-sync-complete', onSync);
       window.removeEventListener('focus', onSync);
+      window.removeEventListener('storage', onStorage);
     };
   }, []);
 
-  // ✅ When registered updates from cloud, patch attendance reg numbers but keep teacher's pres/sick/perm inputs
   useEffect(() => {
     setAttendance(prev => {
       const map = new Map(prev.map(r => [r.className, r]));
-      return getSchoolClasses().map(cls => {
+      return schoolClasses.map(cls => {
         const existing = map.get(cls);
         const reg = registered[cls] || { regB: 0, regG: 0 };
         if (existing) {
-          // keep teacher entries, only update registered counts
-          if (existing.regB === reg.regB && existing.regG === reg.regG) return existing;
-          return { ...existing, regB: reg.regB, regG: reg.regG };
+          if (existing.regB === reg.regB && existing.regG === reg.regG && existing.className === cls) return existing;
+          return { ...existing, className: cls, regB: reg.regB, regG: reg.regG };
         }
         return { ...emptyRow(cls), regB: reg.regB, regG: reg.regG };
       });
     });
-  }, [registered]);
+  }, [registered, schoolClasses]);
 
   const [todComment, setTodComment] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -330,20 +344,16 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
     const rows = [...attendance];
     const row = { ...rows[idx] };
     (row as any)[field] = val;
-
     const reg = row.regB + row.regG;
     const pres = row.presB + row.presG;
     const abs = Math.max(0, reg - pres);
     const totalSickPerm = row.sickB + row.sickG + row.permB + row.permG;
-
     if (totalSickPerm > abs) {
       alert(`Sick + Permitted (${totalSickPerm}) cannot exceed Absent students (${abs}) for class ${row.className}`);
       return;
     }
-
     if (row.presB > row.regB) { alert(`Present Boys cannot exceed Registered Boys for ${row.className}`); return; }
     if (row.presG > row.regG) { alert(`Present Girls cannot exceed Registered Girls for ${row.className}`); return; }
-
     rows[idx] = row;
     setAttendance(rows);
   };
@@ -382,13 +392,8 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
     if (sections['breakfast_meal']?.toLowerCase().includes('improvement') || sections['breakfast_meal']?.toLowerCase().includes('delays')) issues.push('meal services');
     if (sections['health']?.toLowerCase().includes('referred') || sections['health']?.toLowerCase().includes('cases')) issues.push('health matters');
     if (sections['security']?.toLowerCase().includes('concern') || sections['security']?.toLowerCase().includes('breach')) issues.push('security');
-
-    const improvePart = issues.length > 0
-      ? ` We are committed to improving ${issues.join(', ')} in the coming days to ensure a better learning environment for all students.`
-      : '';
-
+    const improvePart = issues.length > 0 ? ` We are committed to improving ${issues.join(', ')} in the coming days to ensure a better learning environment for all students.` : '';
     const comments: string[] = [];
-
     if (pct >= 85) {
       comments.push(`Alhamdulillah, the day was productive with a good attendance of ${percentage}%. School activities were conducted well and the environment was conducive for learning.${improvePart} We look forward to an even better day tomorrow.`);
       comments.push(`Today was a successful school day with ${percentage}% attendance. The students and staff cooperated well in maintaining school standards.${improvePart} We remain optimistic and committed to continuous improvement in all areas.`);
@@ -399,14 +404,11 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
       comments.push(`Despite lower attendance of ${percentage}% today, the school day was conducted peacefully. We acknowledge the challenges and remain committed to working with parents and students to improve attendance.${improvePart} Every day is an opportunity to do better, and we will strive for improvement.`);
       comments.push(`Today's attendance stood at ${percentage}%. We appreciate all students who made it to school and the staff who ensured smooth operations.${improvePart} We are dedicated to finding solutions to improve attendance and will continue working towards a better school experience for everyone.`);
     }
-
     return comments;
   };
 
   const todCommentOptions = generateTodComments();
-
   const autoHmComment = generateHeadmasterComment(attendance, finalSections);
-
   const HEADMASTER_NAME = getHeadmasterNameSetting();
 
   const handleSubmit = () => {
@@ -444,7 +446,7 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
           <p className="text-xs text-slate-500 uppercase font-semibold">{getDistrictName()}</p>
           <h2 className="font-bold text-lg">{getSchoolName()}</h2>
           <h3 className="font-bold">TEACHER'S DUTY REPORT</h3>
-          {lastSync && <p className="text-[11px] text-emerald-600 mt-1">🔄 Registered synced from cloud at {lastSync} — auto-updates every 30s</p>}
+          {lastSync && <p className="text-[11px] text-emerald-600 mt-1">🔄 Registered synced from cloud at {lastSync} — {schoolClasses.length} classes (kama admin alivyosajili) — auto-updates every 30s</p>}
         </div>
         <div className="flex justify-between items-center mb-4">
           <div className="text-sm"><span className="font-semibold">TEACHER ON DUTY:</span> {teacherName}</div>
@@ -493,7 +495,7 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
           <p className="text-xs text-slate-500 uppercase font-semibold">{getDistrictName()}</p>
           <h2 className="font-bold text-lg">{getSchoolName()}</h2>
           <h3 className="font-bold">TEACHER'S DUTY REPORT</h3>
-          <p className="text-sm mt-1">STUDENTS ATTENDANCE ON <strong>{date}</strong></p>
+          <p className="text-sm mt-1">STUDENTS ATTENDANCE ON <strong>{date}</strong> • {schoolClasses.length} classes</p>
         </div>
 
         <div className="overflow-x-auto">
@@ -515,11 +517,13 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
               </tr>
             </thead>
             <tbody>
-              {attendance.map((row, idx) => {
+              {attendance.length === 0 ? (
+                <tr><td colSpan={17} className="border border-slate-300 p-4 text-center text-slate-500">Hakuna madarasa. Admin bado hajaongeza darasa kwenye Classes & Streams.</td></tr>
+              ) : attendance.map((row, idx) => {
                 const absB = Math.max(0, row.regB - row.presB);
                 const absG = Math.max(0, row.regG - row.presG);
                 return (
-                  <tr key={idx}>
+                  <tr key={row.className}>
                     <td className="border border-slate-300 p-1 font-bold text-center bg-slate-50">{row.className}</td>
                     <td className="border border-slate-300 p-1 text-center bg-gray-100 font-semibold">{row.regB}</td>
                     <td className="border border-slate-300 p-1 text-center bg-gray-100 font-semibold">{row.regG}</td>
@@ -564,8 +568,8 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
         </div>
 
         <div className="mt-2 text-xs text-slate-500 space-y-0.5">
-          <p>🔒 <strong>Registered</strong> = Set by Admin only (now synced via Supabase every 30s)</p>
-          <p>✏️ <strong>Presents, Sick, Permitted</strong> = Entered by Teacher</p>
+          <p>🔒 <strong>Registered</strong> = Kutoka Admin → Registered Students (kama admin alivyoweka kila darasa)</p>
+          <p>🏫 <strong>Madarasa</strong> = Yanatoka Admin → Classes & Streams (kama admin alivyosajili)</p>
           <p>🔄 <strong>Absents</strong> = Auto-calculated (Registered - Presents)</p>
         </div>
 
@@ -619,11 +623,9 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
 
 export function DutyReportPrint({ report, onClose }: { report: any; onClose: () => void }) {
   const printRef = useRef<HTMLDivElement>(null);
-
   const att = report.attendance || [];
   const sections = report.sections || {};
   const logo = getSchoolLogo();
-
   const totals = att.reduce((acc: any, r: any) => ({
     regB: acc.regB + (r.regB||0), regG: acc.regG + (r.regG||0),
     presB: acc.presB + (r.presB||0), presG: acc.presG + (r.presG||0),
@@ -631,15 +633,12 @@ export function DutyReportPrint({ report, onClose }: { report: any; onClose: () 
     sickB: acc.sickB + (r.sickB||0), sickG: acc.sickG + (r.sickG||0),
     permB: acc.permB + (r.permB||0), permG: acc.permG + (r.permG||0),
   }), { regB: 0, regG: 0, presB: 0, presG: 0, absB: 0, absG: 0, sickB: 0, sickG: 0, permB: 0, permG: 0 });
-
   const totalReg = totals.regB + totals.regG;
   const totalPres = totals.presB + totals.presG;
   const pct = totalReg > 0 ? ((totalPres / totalReg) * 100).toFixed(1) : '0.0';
-
   const handlePrint = () => {
     const printWindow = window.open('', '', 'width=800,height=1000');
     if (!printWindow) { window.print(); return; }
-
     printWindow.document.write(`<!DOCTYPE html><html><head><title> </title>
 <style>
   @page { size: A4 portrait; margin: 10mm 12mm 6mm 12mm; }
@@ -672,7 +671,6 @@ export function DutyReportPrint({ report, onClose }: { report: any; onClose: () 
     @page { margin-top: 5mm; margin-bottom: 5mm; }
   }
 </style></head><body>`);
-
     printWindow.document.write(`<div class="header">`);
     if (logo) printWindow.document.write(`<img src="${logo}" alt="Logo" />`);
     printWindow.document.write(`<div class="council">${getDistrictName()}</div>
@@ -680,19 +678,15 @@ export function DutyReportPrint({ report, onClose }: { report: any; onClose: () 
       <div class="title">TEACHER'S DUTY REPORT</div></div>
       <div class="meta"><span>TEACHER ON DUTY: <strong>${report.teacher_name}</strong></span>
       <span>DATE: <strong>${report.date}</strong></span></div>`);
-
     REPORT_SECTIONS.forEach(s => {
       const val = sections[s.id] || '.............................................................................................';
       printWindow.document.write(`<div class="section"><div class="section-title">${s.label}</div><div class="section-text">${val}</div></div>`);
     });
-
     printWindow.document.write(`<div class="att-title">STUDENTS ATTENDANCE ON ${report.date}</div>`);
-
     printWindow.document.write(`<table><thead><tr>
       <th rowspan="2" style="font-size:9px;padding:3px">CLASS</th><th colspan="3" style="font-size:9px">REGISTERED</th><th colspan="3" style="font-size:9px">PRESENTS</th>
       <th colspan="3" style="font-size:9px">ABSENTS</th><th colspan="3" style="font-size:9px">SICK</th><th colspan="3" style="font-size:9px">PERMITTED</th><th rowspan="2" style="font-size:9px">TOTAL</th></tr>
       <tr>${['B','G','T','B','G','T','B','G','T','B','G','T','B','G','T'].map(h => `<th style="font-size:9px">${h}</th>`).join('')}</tr></thead><tbody>`);
-
     att.forEach((r: any) => {
       printWindow.document.write(`<tr>
         <td style="font-weight:bold;font-size:9px">${r.className}</td>
@@ -703,7 +697,6 @@ export function DutyReportPrint({ report, onClose }: { report: any; onClose: () 
         <td>${r.permB}</td><td>${r.permG}</td><td style="font-weight:bold">${r.permB+r.permG}</td>
         <td style="font-weight:bold">${r.regB+r.regG}</td></tr>`);
     });
-
     printWindow.document.write(`<tr class="total-row">
       <td>TOTAL</td>
       <td>${totals.regB}</td><td>${totals.regG}</td><td>${totalReg}</td>
@@ -712,28 +705,19 @@ export function DutyReportPrint({ report, onClose }: { report: any; onClose: () 
       <td>${totals.sickB}</td><td>${totals.sickG}</td><td>${totals.sickB+totals.sickG}</td>
       <td>${totals.permB}</td><td>${totals.permG}</td><td>${totals.permB+totals.permG}</td>
       <td>${totalReg}</td></tr></tbody></table>`);
-
     printWindow.document.write(`<div class="pct-box">PERCENTAGE OF ATTENDANCE: PRESENT / TOTAL × 100 = <span class="pct-value">${pct}%</span></div>`);
-
     printWindow.document.write(`<div class="comment-block">
       <div class="comment-title">T.O.D'S COMMENT(S):</div>
       <div class="comment-text">${report.tod_comment || '.....................................................................................................................'}</div>
       <div class="sig-row"><span>NAME: <span class="sig-name">${report.tod_name || ''}</span></span><span>SIGNATURE: ____________________________</span></div></div>`);
-
     printWindow.document.write(`<div class="comment-block divider">
       <div class="comment-title">HEADMASTER'S COMMENT(S):</div>
       <div class="comment-text">${report.headmaster_comment || '.....................................................................................................................'}</div>
       <div class="sig-row"><span>NAME: <span class="sig-name">${report.headmaster_name || ''}</span></span><span>SIGNATURE: ____________________________</span></div></div>`);
-
     printWindow.document.write(`<div style="text-align:center;margin-top:15px;font-size:10px;color:#555;font-style:italic;border-top:1px solid #ccc;padding-top:6px">${getSchoolName()}: ${localStorage.getItem('sms_school_motto') || 'Honor All Build Together'}</div></body></html>`);
     printWindow.document.close();
-
-    setTimeout(() => {
-      printWindow.focus();
-      printWindow.print();
-    }, 500);
+    setTimeout(() => { printWindow.focus(); printWindow.print(); }, 500);
   };
-
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center space-y-4" style={{ fontFamily: 'sans-serif' }}>
