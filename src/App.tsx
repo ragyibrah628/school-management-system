@@ -338,27 +338,41 @@ function AppInner() {
     if (!selectedExam || !examScoreClass || !examScoreSubject) return;
     setLoading(true);
     const studentList = getStudentsForSubject(examScoreClass, examScoreSubject);
-    for (const student of studentList) {
+    let saved = 0;
+    let failed = 0;
+    let lastError = '';
+    // use stable timestamp base to avoid duplicate ids in fast loop
+    const base = Date.now();
+    for (let i = 0; i < studentList.length; i++) {
+      const student = studentList[i];
       const score = examScores[student];
-      if (score && Number(score) >= 0) {
-        await cloud.addScore({
-          id: 'sc-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
-          teacher_name: user?.name,
-          student_name: student,
-          subject: examScoreSubject,
-          class_name: examScoreClass,
-          score: Number(score),
-          max_score: 100,
-          term: selectedExam.term,
-          exam_name: selectedExam.name,
-          exam_id: selectedExam.id
-        });
+      if (score !== '' && score != null && Number(score) >= 0) {
+        try {
+          await cloud.addScore({
+            id: 'sc-' + base + '-' + i + '-' + Math.random().toString(36).substr(2, 5),
+            teacher_name: user?.name,
+            student_name: student,
+            subject: examScoreSubject,
+            class_name: examScoreClass,
+            score: Number(score),
+            max_score: 100,
+            term: selectedExam.term,
+            exam_name: selectedExam.name,
+            exam_id: selectedExam.id
+          });
+          saved++;
+        } catch (e: any) {
+          failed++;
+          lastError = e?.message || String(e);
+          console.error('addScore failed for', student, e);
+        }
       }
     }
     await loadData();
     setLoading(false);
     setExamScores({});
-    alert('Scores saved!');
+    if (failed === 0) alert('✅ Scores saved! (' + saved + ' students) — visible to admin & other teachers');
+    else alert('⚠️ Saved ' + saved + ', failed ' + failed + ' — ' + lastError + '\nCheck: Supabase Table Editor → scores → does exam_id column exist? And Netlify env vars VITE_SUPABASE_URL/KEY correct?');
   };
 
   const [schoolSubjects, setSchoolSubjects] = useState<string[]>(() => {
@@ -436,6 +450,7 @@ function AppInner() {
         setUser(found);
         // Sync all data from cloud on login
         await cloud.syncFromCloud();
+        try { if ((cloud as any).syncScoresToCloud) await (cloud as any).syncScoresToCloud(); } catch {}
         if (found.role === 'admin') { setScreen('admin'); setActiveMenu('dashboard'); }
         else if (found.role === 'parent') { setScreen('parent'); setActiveMenu('report_cards'); }
         else { setScreen('teacher'); setActiveMenu('my_timetable'); }
