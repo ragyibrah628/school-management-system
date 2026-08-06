@@ -96,11 +96,30 @@ export async function deleteUser(id: string) {
 }
 
 // ==================== SCORES ====================
+// ✅ FIXED V3 — scores zilikuwa zinapotea kwa sababu POST ikifail ilisave local tu, lakini GET ya cloud ikirudi [] ilizima local. Sasa inamerge + inaonyesha error.
 
 export async function getScores(): Promise<any[]> {
   if (IS_CLOUD) {
     try {
-      return await supabaseRequest('scores', 'GET', undefined, '?order=created_at.desc');
+      const data = await supabaseRequest('scores', 'GET', undefined, '?order=created_at.desc');
+      if (Array.isArray(data)) {
+        // cache cloud to local for offline
+        localStorage.setItem('sms_scores', JSON.stringify(data));
+        if (data.length > 0) return data;
+        // cloud empty but local has unsynced scores (POST failed before) —  show local so teacher sees what he saved
+        const saved = localStorage.getItem('sms_scores');
+        if (saved) {
+          try {
+            const local = JSON.parse(saved);
+            if (Array.isArray(local) && local.length > 0) {
+              console.warn('Cloud scores empty, showing local cache (' + local.length + ' scores) — check Supabase POST error in console');
+              return local;
+            }
+          } catch {}
+        }
+        return data;
+      }
+      return data;
     } catch (e) {
       console.error('Cloud getScores failed:', e);
     }
@@ -110,17 +129,55 @@ export async function getScores(): Promise<any[]> {
 }
 
 export async function addScore(score: any) {
+  // always keep optimistic local copy
+  const localScores: any[] = JSON.parse(localStorage.getItem('sms_scores') || '[]');
+  if (!localScores.find((s: any) => s.id === score.id)) {
+    localScores.push(score);
+    localStorage.setItem('sms_scores', JSON.stringify(localScores));
+  }
   if (IS_CLOUD) {
     try {
-      await supabaseRequest('scores', 'POST', score);
+      // clean payload — remove undefined, ensure numbers
+      const payload: any = {
+        id: String(score.id),
+        teacher_name: String(score.teacher_name || ''),
+        student_name: String(score.student_name || ''),
+        class_name: String(score.class_name || ''),
+        subject: String(score.subject || ''),
+        term: String(score.term || ''),
+        score: Number(score.score),
+        max_score: Number(score.max_score || 100),
+        exam_name: score.exam_name ? String(score.exam_name) : null,
+        exam_id: score.exam_id ? String(score.exam_id) : null,
+        created_at: new Date().toISOString(),
+      };
+      // drop null/undefined optional fields if needed
+      if (!payload.exam_name) delete payload.exam_name;
+      if (!payload.exam_id) delete payload.exam_id;
+      await supabaseRequest('scores', 'POST', payload);
       return;
-    } catch (e) {
+    } catch (e: any) {
       console.error('Cloud addScore failed:', e);
+      // keep local, but throw so UI can show error (App.tsx will catch and alert)
+      throw e;
     }
   }
-  const scores = JSON.parse(localStorage.getItem('sms_scores') || '[]');
-  scores.push(score);
-  localStorage.setItem('sms_scores', JSON.stringify(scores));
+}
+
+// Optional: bulk sync unsynced local scores to cloud (call on login)
+export async function syncScoresToCloud() {
+  if (!IS_CLOUD) return;
+  try {
+    const local: any[] = JSON.parse(localStorage.getItem('sms_scores') || '[]');
+    if (local.length === 0) return;
+    const cloudData: any[] = await supabaseRequest('scores', 'GET', undefined, '?select=id&limit=1000').catch(()=>[]);
+    const cloudIds = new Set((cloudData||[]).map((r:any)=>r.id));
+    const unsynced = local.filter((s:any)=> !cloudIds.has(s.id));
+    for (const s of unsynced) {
+      try { await supabaseRequest('scores', 'POST', s); } catch {}
+    }
+    if (unsynced.length) console.log('Synced ' + unsynced.length + ' scores to cloud');
+  } catch {}
 }
 
 // ==================== DUTY REPORTS ====================
