@@ -308,6 +308,27 @@ export async function getRegisteredStudents(): Promise<Record<string, { regB: nu
   return saved ? JSON.parse(saved) : {};
 }
 
+export async function getSchoolClassesFromCloud(): Promise<string[]> {
+  if (IS_CLOUD) {
+    try {
+      const data = await supabaseRequest('app_data', 'GET', undefined, '?key=eq.sms_school_classes&select=value');
+      if (Array.isArray(data) && data.length > 0 && data[0].value) {
+        const parsed = JSON.parse(data[0].value);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          localStorage.setItem('sms_school_classes', data[0].value);
+          localStorage.setItem('tt_shared_classes', data[0].value);
+          return parsed;
+        }
+      }
+    } catch (e) { console.error('getSchoolClassesFromCloud failed', e); }
+  }
+  try {
+    const saved = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
+    if (saved.length > 0) return saved;
+  } catch {}
+  return ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
+}
+
 export async function saveRegisteredStudents(
   data: Record<string, { regB: number; regG: number }>
 ) {
