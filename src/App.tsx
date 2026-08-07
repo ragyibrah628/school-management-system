@@ -1315,28 +1315,81 @@ function AppInner() {
                 const rr = row as any;
                 const grade = (score: number) => score >= 75 ? 'A' : score >= 65 ? 'B' : score >= 45 ? 'C' : score >= 30 ? 'D' : 'F';
                 const point = (score: number) => score >= 75 ? 1 : score >= 65 ? 2 : score >= 45 ? 3 : score >= 30 ? 4 : 5;
-                const remark = (score: number) => score >= 75 ? 'Excellent' : score >= 65 ? 'Very Good' : score >= 45 ? 'Good' : score >= 30 ? 'Satisfactory' : 'Needs Improvement';
+                const remark = (score: number) => score >= 75 ? 'Bora Sana' : score >= 65 ? 'Vizuri Sana' : score >= 45 ? 'Vizuri' : score >= 30 ? 'Wastani' : 'Inahitaji Jitihada';
                 const classTotal = allStudentRows.filter(r => r.cls === row.cls).length;
 
-                // Auto-generate comments
-                let acComment = '';
-                let hmComment = '';
-                if (row.avg >= 75) {
-                  acComment = `Congratulations ${row.student.split(' ')[0]}! Outstanding performance with Division ${rr.division}. You have demonstrated exceptional academic ability. Keep up the excellent work and continue to be a role model to your fellow students.`;
-                  hmComment = `Excellent results. The school is proud of your achievement. Continue with the same spirit of hard work and dedication. You are an asset to ${schoolNameSetting}.`;
-                } else if (row.avg >= 65) {
-                  acComment = `Well done ${row.student.split(' ')[0]}! Very good performance. You have shown great potential and dedication to your studies. With a little more effort, you can achieve even greater results in the next examination.`;
-                  hmComment = `Good performance. The school appreciates your effort and commitment. Continue working hard and aim higher in your next examinations. We believe in your potential.`;
-                } else if (row.avg >= 45) {
-                  acComment = `Good effort ${row.student.split(' ')[0]}. You have passed your examinations which shows your capability. Focus more on your weaker subjects and seek help from your teachers. You can definitely improve in the next examination.`;
-                  hmComment = `Satisfactory performance. The school encourages you to put more effort into your studies. Attend all classes, complete assignments on time, and seek guidance from your teachers. You have the ability to do better.`;
-                } else if (row.avg >= 30) {
-                  acComment = `Dear ${row.student.split(' ')[0]}, your performance needs improvement. Do not be discouraged — every great achiever started somewhere. Dedicate more time to studying, attend extra classes, and ask your teachers for help. You can improve significantly.`;
-                  hmComment = `The school believes in every student's potential to succeed. Work harder, be more focused, and manage your time wisely. With determination and support from teachers and parents, you will achieve better results next time.`;
-                } else {
-                  acComment = `Dear ${row.student.split(' ')[0]}, this result is a wake-up call, not a final verdict. You have the ability to do much better. Start by identifying your challenges and working closely with your teachers. Every day is a new opportunity to learn and grow. We are here to support you.`;
-                  hmComment = `The school has not given up on you and neither should you give up on yourself. Education is a journey, and setbacks are part of learning. Come to school every day ready to learn, participate in class, and study consistently. Better results are ahead of you.`;
+                // Auto-generate comments — KWA KISWAHILI, kulingana na Daraja na Wastani (4 comments kwa kila daraja)
+                const firstName = row.student.split(' ')[0];
+                const avgFix = row.avg;
+                const div = rr.division;
+
+                function getAcademicCommentSw(name: string, division: string, avg: number): string {
+                  const a = avg.toFixed(1);
+                  if (division === 'I') {
+                    if (avg >= 80) return `Hongera sana ${name}! Umefanya vizuri sana kwa kupata Daraja la I kwa wastani wa ${a}%. Umeonyesha nidhamu, bidii na umakini mkubwa masomoni. Endelea na moyo huo huo na uwe mfano kwa wenzako.`;
+                    if (avg >= 70) return `Hongera ${name} kwa Daraja la I! Wastani wa ${a}% unaonyesha juhudi zako kubwa. Bado una nafasi ya kupanda zaidi — tilia mkazo kwenye masomo uliyopata alama za chini na utafanya vizuri zaidi mtihani ujao.`;
+                    if (avg >= 60) return `Vizuri sana ${name}! Daraja la I kwa wastani wa ${a}% ni mafanikio makubwa. Usibweteke, endelea kupanga muda vizuri, fanya mazoezi mengi na shauriana na walimu wako ili udumishe kiwango hiki.`;
+                    return `Hongera ${name} kwa kufikia Daraja la I hata kwa wastani wa ${a}%. Umeonyesha kuwa una uwezo mkubwa. Jitahidi kuongeza bidii hasa kwenye masomo dhaifu ili wastani wako uongezeke mtihani ujao.`;
+                  }
+                  if (division === 'II') {
+                    if (avg >= 65) return `Hongera sana ${name}! Daraja la II kwa wastani wa ${a}% ni juhudi nzuri sana. Uko karibu na Daraja la I — ongeza umakini kwenye masomo ya sayansi na hisabati na utafikia kilele.`;
+                    if (avg >= 55) return `Vizuri sana ${name}! Daraja la II kwa wastani wa ${a}% linaonyesha uwezo wako. Endelea kusoma kwa mpangilio, fanya mitihani ya mazoezi na usisite kuuliza msaada kwa walimu.`;
+                    if (avg >= 45) return `Hongera ${name} kwa Daraja la II! Wastani wa ${a}% ni wa kuridhisha. Kuna masomo umefanya vizuri na mengine bado — yaweke kipaumbele na utapanda hadi Daraja la I.`;
+                    return `Hongera ${name} kwa Daraja la II kwa wastani wa ${a}%. Umejitahidi, lakini bado una nafasi kubwa ya kuboresha. Punguza utoro, hudhuria vipindi vyote na jifunze kwa bidii zaidi.`;
+                  }
+                  if (division === 'III') {
+                    if (avg >= 55) return `Hongera ${name}! Daraja la III kwa wastani wa ${a}% — uko kwenye njia sahihi. Umeonyesha juhudi, na kwa kuongeza extra hours za kujisomea unaweza kupanda hadi Daraja la II.`;
+                    if (avg >= 45) return `Vizuri ${name}, Daraja la III kwa wastani wa ${a}% ni hatua nzuri. Tambua masomo uliyofeli na yafanyie kazi kwa karibu na mwalimu wa somo husika.`;
+                    if (avg >= 35) return `${name}, Daraja la III kwa wastani wa ${a}% linaonyesha juhudi za wastani. Usikate tamaa — weka ratiba ya kusoma kila siku, epuka kelele na zingatia darasani.`;
+                    return `${name}, umepata Daraja la III kwa wastani wa ${a}%. Bado unahitaji juhudi zaidi. Anza mapema kujiandaa kwa mtihani ujao na tumia maktaba ya shule.`;
+                  }
+                  if (division === 'IV') {
+                    if (avg >= 45) return `${name}, Daraja la IV kwa wastani wa ${a}% — umefaulu lakini kwa wastani wa chini. Una uwezo wa kupanda hadi Daraja la III kama utaongeza bidii na kushirikiana na walimu.`;
+                    if (avg >= 35) return `${name}, umepata Daraja la IV kwa wastani wa ${a}%. Hii ni ishara ya kuanza kujituma zaidi. Hudhuria masomo yote, fanya kazi za nyumbani kwa wakati na omba msaada.`;
+                    if (avg >= 25) return `${name}, Daraja la IV kwa wastani wa ${a}% linahitaji jitihada za ziada. Usikate tamaa — kila hatua unayopiga kuelekea mbele ni muhimu. Shauriana na wazazi na walimu.`;
+                    return `${name}, Daraja la IV kwa wastani wa ${a}% linaonyesha changamoto. Lakini una nafasi ya kubadilika — anza leo, soma kwa ratiba na uamini kuwa unaweza.`;
+                  }
+                  // Division 0 — Fail
+                  if (avg >= 30) return `Pole sana ${name}, umepata Daraja 0 kwa wastani wa ${a}%. Uko karibu kufaulu — ongeza juhudi maradufu, hudhuria darasani kila siku na fanya mazoezi ya masomo yote.`;
+                  if (avg >= 20) return `${name}, Daraja 0 kwa wastani wa ${a}% ni changamoto, lakini si mwisho. Tambua udhaifu wako, weka malengo madogo ya kila wiki na yafanyie kazi na mwalimu wako.`;
+                  if (avg >= 10) return `${name}, umepata Daraja 0 kwa wastani wa ${a}%. Hii ni wito wa kuamka — acha kukata tamaa, anza upya kwa nidhamu, soma kwa bidii na utaona mabadiliko.`;
+                  return `${name}, Daraja 0 kwa wastani wa ${a}% linahitaji msaada wa haraka. Shule iko tayari kukusaidia — njoo mapema, shiriki darasani na fanya juhudi za ziada. Unaweza kuinuka tena.`;
                 }
+
+                function getHeadmasterCommentSw(name: string, division: string, avg: number): string {
+                  const a = avg.toFixed(1);
+                  if (division === 'I') {
+                    if (avg >= 80) return `${name} ni fahari ya shule! Daraja la I kwa wastani wa ${a}% linaonyesha nidhamu na juhudi zisizo na kifani. Shule inakutegemea kuwa kiongozi na mfano kwa wenzako.`;
+                    if (avg >= 70) return `Hongera sana ${name}! Shule inajivunia Daraja la I kwa wastani wa ${a}%. Endelea na moyo wa kujifunza na heshima kwa walimu — mafanikio makubwa yanakusubiri.`;
+                    if (avg >= 60) return `${name} hongera kwa Daraja la I! Wastani wa ${a}% unaonyesha kuwa juhudi zako zinalipa. Shule inakutia moyo uzidishe bidii ili uendelee kung'ara.`;
+                    return `Hongera ${name} kwa Daraja la I kwa wastani wa ${a}%. Shule inatambua juhudi zako na inakuhimiza usichoke — bado una nafasi ya kuwa bora zaidi.`;
+                  }
+                  if (division === 'II') {
+                    if (avg >= 65) return `${name}, Daraja la II kwa wastani wa ${a}% ni hatua kubwa. Shule inakupa hongera na inakuamini unaweza kufika Daraja la I mtihani ujao kwa juhudi kidogo zaidi.`;
+                    if (avg >= 55) return `Hongera ${name}! Daraja la II kwa wastani wa ${a}% linaonyesha kuwa unasonga mbele vizuri. Shule inakuhimiza uzingatie muda na nidhamu zaidi.`;
+                    if (avg >= 45) return `${name}, Daraja la II kwa wastani wa ${a}% — shule inaona juhudi zako. Endelea kushirikiana na wazazi na walimu ili uboreshe zaidi.`;
+                    return `${name}, Daraja la II kwa wastani wa ${a}% linaonyesha umejitahidi. Shule inakushauri kupunguza utovu wa nidhamu na kuongeza mahudhurio.`;
+                  }
+                  if (division === 'III') {
+                    if (avg >= 55) return `${name}, Daraja la III kwa wastani wa ${a}% — shule inakupa hongera. Umeonyesha maendeleo na tuna imani ukiongeza bidii utapanda daraja.`;
+                    if (avg >= 45) return `Hongera ${name} kwa Daraja la III! Wastani wa ${a}% unaonyesha juhudi za wastani. Shule inakuhimiza kutumia vizuri vipindi vya ziada na maktaba.`;
+                    if (avg >= 35) return `${name}, Daraja la III kwa wastani wa ${a}% — shule inakuhimiza kujituma zaidi. Epuka marafiki wanaokupotezea muda na zingatia malengo yako.`;
+                    return `${name}, Daraja la III kwa wastani wa ${a}% linahitaji mabadiliko ya mtindo wa kusoma. Shule iko tayari kukupa msaada — jitokeze.`;
+                  }
+                  if (division === 'IV') {
+                    if (avg >= 45) return `${name}, Daraja la IV kwa wastani wa ${a}% — shule inakutia moyo. Bado una nafasi ya kupanda — zingatia masomo dhaifu na shauriana na walimu.`;
+                    if (avg >= 35) return `Pole ${name} kwa Daraja la IV kwa wastani wa ${a}%. Shule inakushauri kuongeza nidhamu, mahudhurio na kufanya kazi kwa bidii zaidi.`;
+                    if (avg >= 25) return `${name}, Daraja la IV kwa wastani wa ${a}% — shule inakukumbusha kuwa kila siku ni nafasi mpya ya kujifunza. Usikate tamaa.`;
+                    return `${name}, Daraja la IV kwa wastani wa ${a}% linahitaji juhudi za dharura. Shule, wazazi na walimu tuko pamoja kukusaidia kuinuka.`;
+                  }
+                  if (avg >= 30) return `Pole sana ${name}, Daraja 0 kwa wastani wa ${a}%. Shule haijakata tamaa kwako — tunaamini ukibadilika na kujituma utafaulu mtihani ujao.`;
+                  if (avg >= 20) return `${name}, Daraja 0 kwa wastani wa ${a}% — shule inakuhimiza uanze upya leo. Njoo shule kila siku, sikiliza kwa makini na fanya mazoezi.`;
+                  if (avg >= 10) return `${name}, Daraja 0 kwa wastani wa ${a}% — shule inakupa pole na inakualika kwenye ushauri wa kitaaluma ili tukupangie mpango wa kuinuka.`;
+                  return `${name}, Daraja 0 kwa wastani wa ${a}% — shule bado inakuamini. Elimu ni safari, si kituo. Anza hatua ndogo leo na utafika mbali.`;
+                }
+
+                let acComment = getAcademicCommentSw(firstName, div, avgFix);
+                let hmComment = getHeadmasterCommentSw(firstName, div, avgFix);
 
                 pw.document.write(`<!DOCTYPE html><html><head><title>\u00A0</title><style>
                   @page { size: A4 portrait; margin: 10mm 12mm 8mm 12mm; }
@@ -1363,19 +1416,19 @@ function AppInner() {
                 pw.document.write(`<div style="font-size:14px;font-weight:bold;letter-spacing:1.5px">${districtName}</div>
                   <div style="font-size:22px;font-weight:bold;letter-spacing:2px;margin:3px 0">${schoolNameSetting}</div>
                   <div style="font-size:11px;margin-bottom:4px">${schoolAddress}</div>
-                  <div style="font-size:16px;font-weight:bold;text-decoration:underline;margin-top:4px">STUDENT REPORT CARD</div>
+                  <div style="font-size:16px;font-weight:bold;text-decoration:underline;margin-top:4px">RIPOTI YA MAENDELEO YA MWANAFUNZI</div>
                   <div style="font-size:13px;margin-top:3px">${examName}</div></div>`);
 
-                // Student info grid
+                // Student info grid — KISWAHILI
                 pw.document.write(`<div class="info-grid">
-                  <div class="info-cell">Student Name: <strong style="font-size:14px">${row.student}</strong></div>
-                  <div class="info-cell">Class: <strong style="font-size:14px">${row.cls}</strong></div>
-                  <div class="info-cell">Position: <strong style="font-size:14px">${row.rank} out of ${classTotal}</strong></div>
-                  <div class="info-cell">Division: <strong style="font-size:14px">${rr.division}</strong> | Points: <strong style="font-size:14px">${rr.totalPoints}</strong></div>
+                  <div class="info-cell">Jina la Mwanafunzi: <strong style="font-size:14px">${row.student}</strong></div>
+                  <div class="info-cell">Darasa: <strong style="font-size:14px">${row.cls}</strong></div>
+                  <div class="info-cell">Nafasi: <strong style="font-size:14px">${row.rank} kati ya ${classTotal}</strong></div>
+                  <div class="info-cell">Daraja: <strong style="font-size:14px">${rr.division}</strong> | Pointi: <strong style="font-size:14px">${rr.totalPoints}</strong></div>
                 </div>`);
 
-                // Scores table
-                pw.document.write(`<table><thead><tr><th style="text-align:left">SUBJECT</th><th style="width:70px">SCORE</th><th style="width:60px">GRADE</th><th style="width:60px">POINTS</th><th>REMARK</th></tr></thead><tbody>`);
+                // Scores table — KISWAHILI
+                pw.document.write(`<table><thead><tr><th style="text-align:left">SOMO</th><th style="width:70px">ALAMA</th><th style="width:60px">GREDI</th><th style="width:60px">POINTI</th><th>MAELEZO</th></tr></thead><tbody>`);
                 allSubjects.forEach(sub => {
                   const v = row.scores[sub];
                   if (v !== null) {
@@ -1387,11 +1440,11 @@ function AppInner() {
                   }
                 });
                 const validCount = Object.values(row.scores).filter(v => v !== null).length;
-                pw.document.write(`<tr style="font-weight:bold;background:#d4edda"><td style="text-align:left">TOTAL (${validCount} subjects)</td><td style="text-align:center;font-size:14px">${row.total}</td><td style="text-align:center;font-size:14px">${grade(row.avg)}</td><td style="text-align:center;font-size:13px">${rr.totalPoints}</td><td style="text-align:center">${remark(row.avg)}</td></tr>`);
+                pw.document.write(`<tr style="font-weight:bold;background:#d4edda"><td style="text-align:left">JUMLA (Masomo ${validCount})</td><td style="text-align:center;font-size:14px">${row.total}</td><td style="text-align:center;font-size:14px">${grade(row.avg)}</td><td style="text-align:center;font-size:13px">${rr.totalPoints}</td><td style="text-align:center">${remark(row.avg)}</td></tr>`);
                 pw.document.write(`</tbody></table>`);
 
-                // Overall box
-                pw.document.write(`<div class="grade-box"><strong style="font-size:14px">Average: ${row.avg.toFixed(1)}% &nbsp;|&nbsp; Grade: ${grade(row.avg)} &nbsp;|&nbsp; Points: ${rr.totalPoints} &nbsp;|&nbsp; Division: ${rr.division} &nbsp;|&nbsp; Position: ${row.rank} / ${classTotal}</strong></div>`);
+                // Overall box — KISWAHILI
+                pw.document.write(`<div class="grade-box"><strong style="font-size:14px">Wastani: ${row.avg.toFixed(1)}% &nbsp;|&nbsp; Gredi: ${grade(row.avg)} &nbsp;|&nbsp; Pointi: ${rr.totalPoints} &nbsp;|&nbsp; Daraja: ${rr.division} &nbsp;|&nbsp; Nafasi: ${row.rank} / ${classTotal}</strong></div>`);
 
                 // Behavior Assessment
                 const bData = JSON.parse(localStorage.getItem('sms_behavior') || '{}');
@@ -1400,23 +1453,27 @@ function AppInner() {
                 const classTeacherObj = users.find((u: any) => u.id === classTeacherId);
                 const ctName = classTeacherObj?.name || '';
 
-                const behaviorCats = ['Discipline', 'Punctuality', 'Attendance', 'Respectfulness', 'Responsibility', 'Class Participation', 'Cooperation', 'Neatness', 'Self-Control', 'Leadership & Initiative'];
+                const behaviorCats = ['Nidhamu', 'Kuwahi', 'Mahudhurio', 'Heshima', 'Uwajibikaji', 'Ushiriki Darasani', 'Ushirikiano', 'Usafi', 'Kujidhibiti', 'Uongozi'];
                 if (Object.keys(studentBehavior).length > 0) {
-                  pw.document.write(`<div style="margin:8px 0"><table><thead><tr><th colspan="11" style="text-align:left;font-size:12px;background:#fff3cd">BEHAVIOR ASSESSMENT — Class Teacher: <strong>${ctName}</strong></th></tr><tr style="background:#fff3cd">`);
+                  pw.document.write(`<div style="margin:8px 0"><table><thead><tr><th colspan="10" style="text-align:left;font-size:12px;background:#fff3cd">TATHMINI YA TABIA — Mwalimu wa Darasa: <strong>${ctName}</strong></th></tr><tr style="background:#fff3cd">`);
                   behaviorCats.forEach(c => pw.document.write(`<th style="font-size:9px;padding:4px;background:#fff3cd">${c}</th>`));
                   pw.document.write(`</tr></thead><tbody><tr>`);
-                  behaviorCats.forEach(c => {
-                    const val = studentBehavior[c] || '-';
-                    const color = val === 'Excellent' ? '#006600' : val === 'Needs Improvement' ? '#cc0000' : '#333';
+                  const engCats = ['Discipline', 'Punctuality', 'Attendance', 'Respectfulness', 'Responsibility', 'Class Participation', 'Cooperation', 'Neatness', 'Self-Control', 'Leadership & Initiative'];
+                  const swValMap: Record<string,string> = { 'Excellent':'Bora Sana', 'Very Good':'Vizuri Sana', 'Good':'Vizuri', 'Satisfactory':'Wastani', 'Needs Improvement':'Inahitaji Kuboreshwa' };
+                  behaviorCats.forEach((c, idx) => {
+                    const engKey = engCats[idx];
+                    const raw = studentBehavior[engKey] || studentBehavior[c] || '-';
+                    const val = (swValMap as any)[raw] || raw;
+                    const color = raw === 'Excellent' ? '#006600' : raw === 'Needs Improvement' ? '#cc0000' : '#333';
                     pw.document.write(`<td style="font-size:10px;text-align:center;color:${color};padding:4px;font-weight:bold">${val}</td>`);
                   });
                   pw.document.write(`</tr></tbody></table></div>`);
                 }
 
-                // Comments
+                // Comments — KISWAHILI
                 pw.document.write(`<div style="display:flex;gap:10px;margin-top:8px">`);
-                pw.document.write(`<div class="comment-box" style="flex:1"><div class="comment-title">ACADEMIC MASTER'S COMMENT:</div><div class="comment-text">${acComment}</div><div class="sig-row"><span>Name: <strong>${acName || '________________'}</strong></span><span>${acSig ? `<img src="${acSig}" class="sig-img" />` : 'Signature: ________________'}</span></div></div>`);
-                pw.document.write(`<div class="comment-box" style="flex:1"><div class="comment-title">HEADMASTER'S COMMENT:</div><div class="comment-text">${hmComment}</div><div class="sig-row"><span>Name: <strong>${hmName}</strong></span><span>${hmSig ? `<img src="${hmSig}" class="sig-img" />` : 'Signature: ________________'}</span></div></div>`);
+                pw.document.write(`<div class="comment-box" style="flex:1"><div class="comment-title">MAONI YA MWALIMU WA TAALUMA:</div><div class="comment-text">${acComment}</div><div class="sig-row"><span>Jina: <strong>${acName || '________________'}</strong></span><span>${acSig ? `<img src="${acSig}" class="sig-img" />` : 'Sahihi: ________________'}</span></div></div>`);
+                pw.document.write(`<div class="comment-box" style="flex:1"><div class="comment-title">MAONI YA MKUU WA SHULE:</div><div class="comment-text">${hmComment}</div><div class="sig-row"><span>Jina: <strong>${hmName}</strong></span><span>${hmSig ? `<img src="${hmSig}" class="sig-img" />` : 'Sahihi: ________________'}</span></div></div>`);
                 pw.document.write(`</div>`);
 
                 // Footer
@@ -2134,22 +2191,81 @@ function AppInner() {
 
                   const getGradeP = (score: number) => score >= 75 ? 'A' : score >= 65 ? 'B' : score >= 45 ? 'C' : score >= 30 ? 'D' : 'F';
                   const getPointP = (score: number) => score >= 75 ? 1 : score >= 65 ? 2 : score >= 45 ? 3 : score >= 30 ? 4 : 5;
-                  const getRemarkP = (score: number) => score >= 75 ? 'Excellent' : score >= 65 ? 'Very Good' : score >= 45 ? 'Good' : score >= 30 ? 'Satisfactory' : 'Needs Improvement';
+                  const getRemarkP = (score: number) => score >= 75 ? 'Bora Sana' : score >= 65 ? 'Vizuri Sana' : score >= 45 ? 'Vizuri' : score >= 30 ? 'Wastani' : 'Inahitaji Jitihada';
                   const totalScore = examScoresAll.reduce((a: number, s: any) => a + s.score, 0);
                   const avg = examScoresAll.length > 0 ? totalScore / examScoresAll.length : 0;
                   const points = examScoresAll.map((s: any) => getPointP(s.score)).sort((a: number, b: number) => a - b).slice(0, 7);
                   const totalPts = points.reduce((a: number, b: number) => a + b, 0);
                   const div = totalPts >= 7 && totalPts <= 17 ? 'I' : totalPts >= 18 && totalPts <= 21 ? 'II' : totalPts >= 22 && totalPts <= 25 ? 'III' : totalPts >= 26 && totalPts <= 33 ? 'IV' : '0';
 
-                  // Auto-generate comments
+                  // Auto-generate comments — KISWAHILI, 4 kwa kila daraja kulingana na wastani, kila comment inataja jina
                   const firstName = parentStudentName.split(' ')[0];
-                  let acCommentP = '';
-                  let hmCommentP = '';
-                  if (avg >= 75) { acCommentP = `Congratulations ${firstName}! Outstanding performance. Keep up the excellent work!`; hmCommentP = `Excellent results. The school is proud of your achievement.`; }
-                  else if (avg >= 65) { acCommentP = `Well done ${firstName}! Very good performance. Aim higher next time!`; hmCommentP = `Good performance. Continue working hard.`; }
-                  else if (avg >= 45) { acCommentP = `Good effort ${firstName}. Focus on weaker subjects to improve.`; hmCommentP = `Satisfactory. Put more effort into your studies.`; }
-                  else if (avg >= 30) { acCommentP = `Dear ${firstName}, do not be discouraged. Dedicate more time to studying.`; hmCommentP = `The school believes in your potential. Work harder.`; }
-                  else { acCommentP = `Dear ${firstName}, this is a wake-up call. You can do much better.`; hmCommentP = `Education is a journey. Better results are ahead.`; }
+                  const avgP = avg;
+                  const divP = div;
+                  function getAcademicCommentSwP(name: string, division: string, av: number): string {
+                    const a = av.toFixed(1);
+                    if (division === 'I') {
+                      if (av >= 80) return `Hongera sana ${name}! Umefanya vizuri sana kwa Daraja la I wastani ${a}%. Endelea na moyo huo huo na uwe mfano kwa wenzako.`;
+                      if (av >= 70) return `Hongera ${name} kwa Daraja la I! Wastani ${a}% unaonyesha juhudi kubwa. Zingatia masomo dhaifu ili upande zaidi.`;
+                      if (av >= 60) return `Vizuri sana ${name}! Daraja la I wastani ${a}% ni mafanikio makubwa. Usibweteke, endelea kupanga muda vizuri.`;
+                      return `Hongera ${name} kwa Daraja la I wastani ${a}%. Umeonyesha uwezo. Jitahidi kuongeza bidii ili wastani uongezeke.`;
+                    }
+                    if (division === 'II') {
+                      if (av >= 65) return `Hongera sana ${name}! Daraja la II wastani ${a}% ni juhudi nzuri sana. Uko karibu na Daraja la I.`;
+                      if (av >= 55) return `Vizuri sana ${name}! Daraja la II wastani ${a}% linaonyesha uwezo. Endelea kusoma kwa mpangilio.`;
+                      if (av >= 45) return `Hongera ${name} kwa Daraja la II! Wastani ${a}% ni wa kuridhisha. Kuna masomo bado — yape kipaumbele.`;
+                      return `Hongera ${name} kwa Daraja la II wastani ${a}%. Bado una nafasi kubwa ya kuboresha. Punguza utoro.`;
+                    }
+                    if (division === 'III') {
+                      if (av >= 55) return `Hongera ${name}! Daraja la III wastani ${a}% — uko njia sahihi. Ongeza extra hours utapanda Daraja la II.`;
+                      if (av >= 45) return `Vizuri ${name}, Daraja la III wastani ${a}% ni hatua nzuri. Tambua masomo uliyofeli na yafanyie kazi.`;
+                      if (av >= 35) return `${name}, Daraja la III wastani ${a}% linaonyesha wastani. Usikate tamaa — weka ratiba ya kusoma kila siku.`;
+                      return `${name}, Daraja la III wastani ${a}%. Bado unahitaji juhudi zaidi. Anza mapema kujiandaa.`;
+                    }
+                    if (division === 'IV') {
+                      if (av >= 45) return `${name}, Daraja la IV wastani ${a}% — umefaulu lakini chini. Unaweza kupanda Daraja la III kama utaongeza bidii.`;
+                      if (av >= 35) return `${name}, Daraja la IV wastani ${a}%. Hii ni ishara ya kujituma zaidi. Hudhuria masomo yote.`;
+                      if (av >= 25) return `${name}, Daraja la IV wastani ${a}% linahitaji jitihada za ziada. Usikate tamaa — kila hatua ni muhimu.`;
+                      return `${name}, Daraja la IV wastani ${a}% linaonyesha changamoto. Lakini una nafasi ya kubadilika.`;
+                    }
+                    if (av >= 30) return `Pole sana ${name}, Daraja 0 wastani ${a}%. Uko karibu kufaulu — ongeza juhudi maradufu.`;
+                    if (av >= 20) return `${name}, Daraja 0 wastani ${a}% ni changamoto, lakini si mwisho. Weka malengo madogo ya kila wiki.`;
+                    if (av >= 10) return `${name}, Daraja 0 wastani ${a}%. Hii ni wito wa kuamka — acha kukata tamaa, anza upya kwa nidhamu.`;
+                    return `${name}, Daraja 0 wastani ${a}% linahitaji msaada wa haraka. Shule iko tayari kukusaidia.`;
+                  }
+                  function getHeadmasterCommentSwP(name: string, division: string, av: number): string {
+                    const a = av.toFixed(1);
+                    if (division === 'I') {
+                      if (av >= 80) return `${name} ni fahari ya shule! Daraja la I wastani ${a}% linaonyesha nidhamu kubwa. Endelea kuwa kiongozi mwema.`;
+                      if (av >= 70) return `Hongera sana ${name}! Shule inajivunia Daraja la I wastani ${a}%. Endelea na moyo wa kujifunza.`;
+                      if (av >= 60) return `${name} hongera kwa Daraja la I! Wastani ${a}% unaonyesha juhudi zinalipa. Shule inakutia moyo.`;
+                      return `Hongera ${name} kwa Daraja la I wastani ${a}%. Shule inatambua juhudi zako na inakuhimiza zaidi.`;
+                    }
+                    if (division === 'II') {
+                      if (av >= 65) return `${name}, Daraja la II wastani ${a}% ni hatua kubwa. Shule inaamini unaweza kufika Daraja la I.`;
+                      if (av >= 55) return `Hongera ${name}! Daraja la II wastani ${a}% linaonyesha unasonga mbele vizuri.`;
+                      if (av >= 45) return `${name}, Daraja la II wastani ${a}% — shule inaona juhudi zako. Endelea kushirikiana na walimu.`;
+                      return `${name}, Daraja la II wastani ${a}% linaonyesha umejitahidi. Shule inakushauri kupunguza utoro.`;
+                    }
+                    if (division === 'III') {
+                      if (av >= 55) return `${name}, Daraja la III wastani ${a}% — shule inakupa hongera. Umeonyesha maendeleo.`;
+                      if (av >= 45) return `Hongera ${name} kwa Daraja la III! Wastani ${a}% unaonyesha wastani. Tumia maktaba zaidi.`;
+                      if (av >= 35) return `${name}, Daraja la III wastani ${a}% — shule inakuhimiza kujituma zaidi. Epuka marafiki wanaokupotezea muda.`;
+                      return `${name}, Daraja la III wastani ${a}% linahitaji mabadiliko ya mtindo wa kusoma. Shule iko tayari kukusaidia.`;
+                    }
+                    if (division === 'IV') {
+                      if (av >= 45) return `${name}, Daraja la IV wastani ${a}% — shule inakutia moyo. Bado una nafasi ya kupanda.`;
+                      if (av >= 35) return `Pole ${name} kwa Daraja la IV wastani ${a}%. Shule inakushauri kuongeza nidhamu.`;
+                      if (av >= 25) return `${name}, Daraja la IV wastani ${a}% — shule inakukumbusha kila siku ni nafasi mpya.`;
+                      return `${name}, Daraja la IV wastani ${a}% linahitaji juhudi za dharura. Tuko pamoja kukusaidia.`;
+                    }
+                    if (av >= 30) return `Pole sana ${name}, Daraja 0 wastani ${a}%. Shule haijakata tamaa kwako.`;
+                    if (av >= 20) return `${name}, Daraja 0 wastani ${a}% — shule inakuhimiza uanze upya leo.`;
+                    if (av >= 10) return `${name}, Daraja 0 wastani ${a}% — shule inakualika kwenye ushauri wa kitaaluma.`;
+                    return `${name}, Daraja 0 wastani ${a}% — shule bado inakuamini. Elimu ni safari.`;
+                  }
+                  let acCommentP = getAcademicCommentSwP(firstName, divP, avgP);
+                  let hmCommentP = getHeadmasterCommentSwP(firstName, divP, avgP);
 
                   // Behavior
                   const bDataP = JSON.parse(localStorage.getItem('sms_behavior') || '{}');
@@ -2173,17 +2289,17 @@ function AppInner() {
                     const hmSigP = localStorage.getItem('sms_headmaster_sig') || '';
                     pw.document.write(`<!DOCTYPE html><html><head><title>\u00A0</title><style>@page{size:A4 portrait;margin:10mm 12mm 8mm 12mm;}*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,sans-serif;font-size:13px;color:#000;}table{width:100%;border-collapse:collapse;margin:6px 0;}th,td{border:1px solid #000;padding:5px 8px;font-size:12px;}th{background:#d4edda;font-size:12px;}.header{text-align:center;margin-bottom:8px;border-bottom:3px double #000;padding-bottom:6px;}.header img{height:55px;margin-bottom:3px;}.info-grid{display:grid;grid-template-columns:1fr 1fr;border:2px solid #000;margin-bottom:8px;font-size:13px;}.info-cell{padding:6px 10px;border:1px solid #000;}.grade-box{border:3px solid #000;padding:8px;text-align:center;margin:8px 0;background:#d4edda;border-radius:6px;}.comment-box{border:1px solid #000;padding:8px;border-radius:6px;margin-bottom:6px;}.comment-title{font-size:11px;font-weight:bold;text-decoration:underline;margin-bottom:3px;}.comment-text{font-size:11px;line-height:1.4;}.sig-row{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;}.sig-img{height:25px;}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body><div class="header">`);
                     if (logo) pw.document.write(`<img src="${logo}" />`);
-                    pw.document.write(`<div style="font-size:14px;font-weight:bold">${dist}</div><div style="font-size:20px;font-weight:bold;margin:2px 0">${schoolNameP}</div><div style="font-size:10px">${addr}</div><div style="font-size:15px;font-weight:bold;text-decoration:underline;margin-top:4px">STUDENT REPORT CARD</div><div style="font-size:12px;margin-top:2px">${ex.name}</div></div>`);
-                    pw.document.write(`<div class="info-grid"><div class="info-cell">Name: <strong>${parentStudentName}</strong></div><div class="info-cell">Class: <strong>${parentStudentClass}</strong></div><div class="info-cell">Division: <strong>${div}</strong> | Points: <strong>${totalPts}</strong></div><div class="info-cell">Position: <strong>—</strong></div></div>`);
-                    pw.document.write(`<table><thead><tr><th style="text-align:left">Subject</th><th>Score</th><th>Grade</th><th>Points</th><th>Remark</th></tr></thead><tbody>`);
+                    pw.document.write(`<div style="font-size:14px;font-weight:bold">${dist}</div><div style="font-size:20px;font-weight:bold;margin:2px 0">${schoolNameP}</div><div style="font-size:10px">${addr}</div><div style="font-size:15px;font-weight:bold;text-decoration:underline;margin-top:4px">RIPOTI YA MAENDELEO YA MWANAFUNZI</div><div style="font-size:12px;margin-top:2px">${ex.name}</div></div>`);
+                    pw.document.write(`<div class="info-grid"><div class="info-cell">Jina la Mwanafunzi: <strong>${parentStudentName}</strong></div><div class="info-cell">Darasa: <strong>${parentStudentClass}</strong></div><div class="info-cell">Daraja: <strong>${div}</strong> | Pointi: <strong>${totalPts}</strong></div><div class="info-cell">Nafasi: <strong>—</strong></div></div>`);
+                    pw.document.write(`<table><thead><tr><th style="text-align:left">Somo</th><th>Alama</th><th>Gredi</th><th>Pointi</th><th>Maelezo</th></tr></thead><tbody>`);
                     examScoresAll.forEach((s: any) => {
                       const c = s.score >= 45 ? '#006600' : '#cc0000';
                       pw.document.write(`<tr><td style="text-align:left;font-weight:bold">${s.subject}</td><td style="text-align:center;color:${c};font-weight:bold">${s.score}</td><td style="text-align:center;font-weight:bold;color:${c}">${getGradeP(s.score)}</td><td style="text-align:center">${getPointP(s.score)}</td><td style="text-align:center">${getRemarkP(s.score)}</td></tr>`);
                     });
                     pw.document.write(`<tr style="font-weight:bold;background:#d4edda"><td style="text-align:left">TOTAL (${examScoresAll.length})</td><td style="text-align:center">${totalScore}</td><td style="text-align:center">${getGradeP(avg)}</td><td style="text-align:center">${totalPts}</td><td style="text-align:center">${getRemarkP(avg)}</td></tr></tbody></table>`);
-                    pw.document.write(`<div class="grade-box"><strong style="font-size:13px">Average: ${avg.toFixed(1)}% | Grade: ${getGradeP(avg)} | Points: ${totalPts} | Division: ${div}</strong></div>`);
+                    pw.document.write(`<div class="grade-box"><strong style="font-size:13px">Wastani: ${avg.toFixed(1)}% | Gredi: ${getGradeP(avg)} | Pointi: ${totalPts} | Daraja: ${div}</strong></div>`);
                     if (Object.keys(studentBehaviorP).length > 0) {
-                      pw.document.write(`<table><thead><tr><th colspan="11" style="text-align:left;font-size:11px;background:#fff3cd">BEHAVIOR — Class Teacher: ${ctNameP}</th></tr><tr style="background:#fff3cd">`);
+                      pw.document.write(`<table><thead><tr><th colspan="11" style="text-align:left;font-size:11px;background:#fff3cd">TATHMINI YA TABIA — Mwalimu wa Darasa: ${ctNameP}</th></tr><tr style="background:#fff3cd">`);
                       behaviorCatsP.forEach(c => pw.document.write(`<th style="font-size:8px;padding:3px;background:#fff3cd">${c}</th>`));
                       pw.document.write(`</tr></thead><tbody><tr>`);
                       behaviorCatsP.forEach(c => { const v = studentBehaviorP[c]||'-'; pw.document.write(`<td style="font-size:9px;text-align:center;font-weight:bold;color:${v==='Excellent'?'#006600':v==='Needs Improvement'?'#cc0000':'#333'}">${v}</td>`); });
