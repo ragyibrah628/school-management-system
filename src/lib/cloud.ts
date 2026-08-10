@@ -371,8 +371,24 @@ export async function syncFromCloud() {
           const isLocalNonEmpty = !!localValue && localValue !== '[]' && localValue !== '{}' && localValue !== '' && localValue !== '""';
           // FIX exams bug: if cloud is empty but local has data (admin just created, cloud not yet synced), don't delete local
           if (isCloudEmpty && isLocalNonEmpty) {
-            // keep local — next syncToCloud will push local to cloud
             return;
+          }
+          // FIX classes bug: merge union instead of overwrite so new class not deleted by stale cloud
+          if (item.key === 'sms_school_classes' || item.key === 'tt_shared_classes') {
+            try {
+              const cloudArr = JSON.parse(item.value);
+              const localArr = localValue ? JSON.parse(localValue) : [];
+              if (Array.isArray(cloudArr) && Array.isArray(localArr)) {
+                // if local has items cloud doesn't, merge and keep cloud + local
+                if (localArr.length > cloudArr.length) {
+                  const merged = Array.from(new Set([...cloudArr, ...localArr])).sort();
+                  localStorage.setItem(item.key, JSON.stringify(merged));
+                  // also push merged back to cloud soon
+                  setTimeout(() => { syncToCloud().catch(()=>{}); }, 500);
+                  return;
+                }
+              }
+            } catch {}
           }
           localStorage.setItem(item.key, item.value);
         }
