@@ -359,18 +359,14 @@ function AppInner() {
         } catch {}
         try {
           const freshClasses = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
-          if (Array.isArray(freshClasses) && freshClasses.length) {
-            setSchoolClasses((prev: any) => {
-              // merge union to avoid delete
-              const merged = Array.from(new Set([...(prev||[]), ...freshClasses])).sort();
-              // if cloud has more, use merged; if same, keep prev
-              if (JSON.stringify(merged) !== JSON.stringify(prev)) {
-                // also ensure localStorage has merged
-                localStorage.setItem('sms_school_classes', JSON.stringify(merged));
-                return merged;
-              }
-              return JSON.stringify(prev) !== JSON.stringify(freshClasses) ? freshClasses : prev;
-            });
+          const ts = localStorage.getItem('sms_school_classes_ts');
+          const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
+          if (isRecent) {
+            // admin just edited (add/delete), don't overwrite — let syncToCloud push local
+          } else if (Array.isArray(freshClasses) && freshClasses.length) {
+            setSchoolClasses((prev: any) => JSON.stringify(prev) !== JSON.stringify(freshClasses) ? freshClasses : prev);
+          } else if (Array.isArray(freshClasses) && freshClasses.length === 0) {
+            setSchoolClasses([]);
           }
         } catch {}
         await loadData();
@@ -388,10 +384,12 @@ function AppInner() {
         try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
         try {
           const fc = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
-          if (Array.isArray(fc) && fc.length) setSchoolClasses((prev:any) => {
-            const merged = Array.from(new Set([...(prev||[]), ...fc])).sort();
-            return JSON.stringify(merged) !== JSON.stringify(prev) ? merged : prev;
-          });
+          const ts = localStorage.getItem('sms_school_classes_ts');
+          const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
+          if (isRecent) {
+            // keep local recent edit
+          } else if (Array.isArray(fc) && fc.length) setSchoolClasses((prev:any) => JSON.stringify(prev) !== JSON.stringify(fc) ? fc : prev);
+          else if (Array.isArray(fc) && fc.length === 0) setSchoolClasses([]);
         } catch {}
         await loadData();
       }
@@ -406,10 +404,12 @@ function AppInner() {
       try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
       try {
         const fc = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
-        if (Array.isArray(fc) && fc.length) setSchoolClasses((prev:any) => {
-          const merged = Array.from(new Set([...(prev||[]), ...fc])).sort();
-          return JSON.stringify(merged) !== JSON.stringify(prev) ? merged : prev;
-        });
+        const ts = localStorage.getItem('sms_school_classes_ts');
+        const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
+        if (isRecent) {
+          // keep local
+        } else if (Array.isArray(fc) && fc.length) setSchoolClasses((prev:any) => JSON.stringify(prev) !== JSON.stringify(fc) ? fc : prev);
+        else if (Array.isArray(fc) && fc.length === 0) setSchoolClasses([]);
       } catch {}
       await loadData();
     };
@@ -611,10 +611,12 @@ function AppInner() {
           try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
           try {
             const fc = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
-            if (Array.isArray(fc) && fc.length) setSchoolClasses((prev:any) => {
-              const merged = Array.from(new Set([...(prev||[]), ...fc])).sort();
-              return JSON.stringify(merged) !== JSON.stringify(prev) ? merged : prev;
-            });
+            const ts = localStorage.getItem('sms_school_classes_ts');
+            const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
+            if (isRecent) {
+              // keep local recent edit
+            } else if (Array.isArray(fc) && fc.length) setSchoolClasses((prev:any) => JSON.stringify(prev) !== JSON.stringify(fc) ? fc : prev);
+            else if (Array.isArray(fc) && fc.length === 0) setSchoolClasses([]);
           } catch {}
           await loadData();
         })();
@@ -1029,14 +1031,23 @@ function AppInner() {
                 if (!newClassName.trim()) return;
                 if (schoolClasses.includes(newClassName.trim())) { alert('Class already exists'); return; }
                 setSchoolClasses(prev => [...prev, newClassName.trim()].sort());
+                localStorage.setItem('sms_school_classes_ts', String(Date.now()));
                 setNewClassName('');
               }} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">+ Add</button>
+              <button onClick={() => {
+                if (schoolClasses.length === 0) { alert('No classes to clear'); return; }
+                if (!confirm('Futa madarasa yote ya mwanzo (' + schoolClasses.length + ') na ubaki na yaliyoandikwa upya tu?')) return;
+                setSchoolClasses([]);
+                localStorage.setItem('sms_school_classes', '[]');
+                localStorage.setItem('sms_school_classes_ts', String(Date.now()));
+                if (cloud.isCloudMode()) setTimeout(()=> cloud.syncToCloud().catch(()=>{}), 300);
+              }} className="bg-white border border-red-200 text-red-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-red-50" title="Futa yote ya mwanzo">🗑️ Clear All</button>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {schoolClasses.map(cls => (
                 <span key={cls} className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold">
                   {cls}
-                  <button onClick={() => setSchoolClasses(prev => prev.filter(c => c !== cls))} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
+                  <button onClick={() => { localStorage.setItem('sms_school_classes_ts', String(Date.now())); setSchoolClasses(prev => prev.filter(c => c !== cls)); }} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
                 </span>
               ))}
             </div>
