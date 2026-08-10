@@ -337,7 +337,6 @@ function AppInner() {
         try {
           const freshExams = JSON.parse(localStorage.getItem('sms_exams') || '[]');
           setExams(prev => {
-            // don't delete local exams if cloud poll returned empty due to race
             if (Array.isArray(freshExams) && freshExams.length === 0 && Array.isArray(prev) && prev.length > 0) return prev;
             return JSON.stringify(prev) !== JSON.stringify(freshExams) ? freshExams : prev;
           });
@@ -355,8 +354,24 @@ function AppInner() {
           setTeachingAssignments((prev: any) => JSON.stringify(prev) !== JSON.stringify(freshTA) ? freshTA : prev);
         } catch {}
         try {
-          const freshExamsSub = JSON.parse(localStorage.getItem('sms_school_subjects') || '[]');
-          if (freshExamsSub.length) setSchoolSubjects(prev => JSON.stringify(prev) !== JSON.stringify(freshExamsSub) ? freshExamsSub : prev);
+          const freshSubjects = JSON.parse(localStorage.getItem('sms_school_subjects') || '[]');
+          if (freshSubjects.length) setSchoolSubjects(prev => JSON.stringify(prev) !== JSON.stringify(freshSubjects) ? freshSubjects : prev);
+        } catch {}
+        try {
+          const freshClasses = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
+          if (Array.isArray(freshClasses) && freshClasses.length) {
+            setSchoolClasses((prev: any) => {
+              // merge union to avoid delete
+              const merged = Array.from(new Set([...(prev||[]), ...freshClasses])).sort();
+              // if cloud has more, use merged; if same, keep prev
+              if (JSON.stringify(merged) !== JSON.stringify(prev)) {
+                // also ensure localStorage has merged
+                localStorage.setItem('sms_school_classes', JSON.stringify(merged));
+                return merged;
+              }
+              return JSON.stringify(prev) !== JSON.stringify(freshClasses) ? freshClasses : prev;
+            });
+          }
         } catch {}
         await loadData();
       }
@@ -371,6 +386,13 @@ function AppInner() {
         try { setClassTeachers(JSON.parse(localStorage.getItem('sms_class_teachers') || '{}')); } catch {}
         try { setStudents(JSON.parse(localStorage.getItem('sms_students') || '{}')); } catch {}
         try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
+        try {
+          const fc = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
+          if (Array.isArray(fc) && fc.length) setSchoolClasses((prev:any) => {
+            const merged = Array.from(new Set([...(prev||[]), ...fc])).sort();
+            return JSON.stringify(merged) !== JSON.stringify(prev) ? merged : prev;
+          });
+        } catch {}
         await loadData();
       }
     };
@@ -382,6 +404,13 @@ function AppInner() {
       try { setClassTeachers(JSON.parse(localStorage.getItem('sms_class_teachers') || '{}')); } catch {}
       try { setStudents(JSON.parse(localStorage.getItem('sms_students') || '{}')); } catch {}
       try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
+      try {
+        const fc = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
+        if (Array.isArray(fc) && fc.length) setSchoolClasses((prev:any) => {
+          const merged = Array.from(new Set([...(prev||[]), ...fc])).sort();
+          return JSON.stringify(merged) !== JSON.stringify(prev) ? merged : prev;
+        });
+      } catch {}
       await loadData();
     };
     window.addEventListener('focus', onFocus);
@@ -580,6 +609,13 @@ function AppInner() {
           try { setClassTeachers(JSON.parse(localStorage.getItem('sms_class_teachers') || '{}')); } catch {}
           try { setStudents(JSON.parse(localStorage.getItem('sms_students') || '{}')); } catch {}
           try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
+          try {
+            const fc = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
+            if (Array.isArray(fc) && fc.length) setSchoolClasses((prev:any) => {
+              const merged = Array.from(new Set([...(prev||[]), ...fc])).sort();
+              return JSON.stringify(merged) !== JSON.stringify(prev) ? merged : prev;
+            });
+          } catch {}
           await loadData();
         })();
         return;
