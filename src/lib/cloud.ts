@@ -358,7 +358,7 @@ export async function syncToCloud() {
   }
 }
 
-// ✅ FIXED — was blocking teacher updates when local already had old data
+// ✅ FIXED — handles classes deletion + addition without reverting
 export async function syncFromCloud() {
   if (!IS_CLOUD) return;
   try {
@@ -373,20 +373,14 @@ export async function syncFromCloud() {
           if (isCloudEmpty && isLocalNonEmpty) {
             return;
           }
-          // FIX classes bug: merge union instead of overwrite so new class not deleted by stale cloud
+          // FIX classes bug: respect recent local edits (15s) — don't overwrite delete/add race
           if (item.key === 'sms_school_classes' || item.key === 'tt_shared_classes') {
             try {
-              const cloudArr = JSON.parse(item.value);
-              const localArr = localValue ? JSON.parse(localValue) : [];
-              if (Array.isArray(cloudArr) && Array.isArray(localArr)) {
-                // if local has items cloud doesn't, merge and keep cloud + local
-                if (localArr.length > cloudArr.length) {
-                  const merged = Array.from(new Set([...cloudArr, ...localArr])).sort();
-                  localStorage.setItem(item.key, JSON.stringify(merged));
-                  // also push merged back to cloud soon
-                  setTimeout(() => { syncToCloud().catch(()=>{}); }, 500);
-                  return;
-                }
+              const ts = localStorage.getItem('sms_school_classes_ts');
+              const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
+              if (isRecent) {
+                // local was just edited by admin (add/delete), keep local, let syncToCloud push it
+                return;
               }
             } catch {}
           }
