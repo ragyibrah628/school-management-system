@@ -10,6 +10,12 @@ const IS_CLOUD = !!(SUPABASE_URL && SUPABASE_KEY && SUPABASE_URL.startsWith('htt
 export function isCloudMode() {
   return IS_CLOUD;
 }
+export function isOperaMini(): boolean {
+  try {
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    return /Opera Mini|OPR\/.*Mini| Presto\//i.test(ua);
+  } catch { return false; }
+}
 
 async function supabaseRequest(table: string, method: string, body?: any, query?: string) {
   const url = `${SUPABASE_URL}/rest/v1/${table}${query || ''}`;
@@ -20,11 +26,25 @@ async function supabaseRequest(table: string, method: string, body?: any, query?
     'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal'
   };
 
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined
-  });
+  // Opera Mini + low-end browser fix: timeout + no-cache, skip cloud if fetch hangs
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeout = controller ? setTimeout(() => controller.abort(), 5000) : null;
+  let res: any;
+  try {
+    res = await fetch(url, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller ? controller.signal : undefined,
+      // cache bypass for Opera Mini proxy
+      cache: 'no-store' as any,
+    } as any);
+  } catch (e: any) {
+    if (e?.name === 'AbortError') throw new Error('Network timeout - using offline cache');
+    throw e;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 
   if (!res.ok) {
     const text = await res.text();
@@ -154,8 +174,23 @@ export async function addScore(score: any) {
       // drop null/undefined optional fields if needed
       if (!payload.exam_name) delete payload.exam_name;
       if (!payload.exam_id) delete payload.exam_id;
-      await supabaseRequest('scores', 'POST', payload);
-      return;
+      try {
+        await supabaseRequest('scores', 'POST', payload);
+        return;
+      } catch (err: any) {
+        const msg = String(err?.message || err);
+        // 🔧 AUTO-FIX for live DB missing exam_id / exam_name columns (PGRST204)
+        if (msg.includes('exam_id') || msg.includes('exam_name') || msg.includes('PGRST204')) {
+          console.warn('Retrying addScore without exam_id/exam_name (column missing in Supabase) — run ALTER TABLE SQL to fix permanently');
+          const fallback: any = { ...payload };
+          delete fallback.exam_id;
+          delete fallback.exam_name;
+          // keep term if exists, as fallback still useful
+          await supabaseRequest('scores', 'POST', fallback);
+          return;
+        }
+        throw err;
+      }
     } catch (e: any) {
       console.error('Cloud addScore failed:', e);
       // keep local, but throw so UI can show error (App.tsx will catch and alert)
@@ -327,16 +362,21 @@ export async function syncToCloud() {
 export async function syncFromCloud() {
   if (!IS_CLOUD) return;
   try {
-    const data = await supabaseRequest('app_data', 'GET', undefined, '?select=key,value');
+    const data = await supabaseRequest('app_data', 'GET', undefined, '?select=key,value,updated_at');
     if (Array.isArray(data)) {
       data.forEach((item: any) => {
         if (item.key && item.value) {
-          // ✅ ALWAYS overwrite — cloud is source of truth for multi-device sync
-          // Previous bug: only overwrote if local was empty ([]/{}), so teacher's stale cache blocked admin changes forever
+          const localValue = localStorage.getItem(item.key);
+          const isCloudEmpty = item.value === '[]' || item.value === '{}' || item.value === '' || item.value === '""';
+          const isLocalNonEmpty = !!localValue && localValue !== '[]' && localValue !== '{}' && localValue !== '' && localValue !== '""';
+          // FIX exams bug: if cloud is empty but local has data (admin just created, cloud not yet synced), don't delete local
+          if (isCloudEmpty && isLocalNonEmpty) {
+            // keep local — next syncToCloud will push local to cloud
+            return;
+          }
           localStorage.setItem(item.key, item.value);
         }
       });
-      // Notify UI to refresh
       window.dispatchEvent(new Event('cloud-sync-complete'));
     }
   } catch (e) { console.error('Sync from cloud failed:', e); }
