@@ -46,28 +46,37 @@ function AppInner() {
 
   // Load settings AFTER mount (prevents CSP crash)
   useEffect(() => {
-    try {
-      setSchoolLogo(localStorage.getItem('sms_school_logo') || '');
-      setAcademicName(localStorage.getItem('sms_academic_name') || '');
-      setHeadmasterName(localStorage.getItem('sms_headmaster_name') || 'Saidi Mpambika');
-      setAcademicSig(localStorage.getItem('sms_academic_sig') || '');
-      setHeadmasterSig(localStorage.getItem('sms_headmaster_sig') || '');
-      setSchoolNameSetting(localStorage.getItem('sms_school_name_setting') || 'NAMBAWALA SECONDARY SCHOOL');
-      setSchoolAddress(localStorage.getItem('sms_school_address') || 'P.O. Box 51, Ruangwa - Lindi');
-      setDistrictName(localStorage.getItem('sms_district_name') || 'RUANGWA DISTRICT COUNCIL');
-      setSchoolMotto(localStorage.getItem('sms_school_motto') || 'Honor All Build Together');
-    } catch {}
+    const loadLogo = () => {
+      try {
+        setSchoolLogo(localStorage.getItem('sms_school_logo') || '');
+        setAcademicName(localStorage.getItem('sms_academic_name') || '');
+        setHeadmasterName(localStorage.getItem('sms_headmaster_name') || 'Saidi Mpambika');
+        setAcademicSig(localStorage.getItem('sms_academic_sig') || '');
+        setHeadmasterSig(localStorage.getItem('sms_headmaster_sig') || '');
+        setSchoolNameSetting(localStorage.getItem('sms_school_name_setting') || 'NAMBAWALA SECONDARY SCHOOL');
+        setSchoolAddress(localStorage.getItem('sms_school_address') || 'P.O. Box 51, Ruangwa - Lindi');
+        setDistrictName(localStorage.getItem('sms_district_name') || 'RUANGWA DISTRICT COUNCIL');
+        setSchoolMotto(localStorage.getItem('sms_school_motto') || 'Honor All Build Together');
+      } catch {}
+    };
+    loadLogo();
+    window.addEventListener('cloud-sync-complete', loadLogo);
+    window.addEventListener('focus', loadLogo);
+    return () => { window.removeEventListener('cloud-sync-complete', loadLogo); window.removeEventListener('focus', loadLogo); };
   }, []);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // compress: warn if > 150KB for Opera Mini
+    if (file.size > 300000) alert('Logo is large (' + Math.round(file.size/1024) + 'KB). Try to use < 150KB for best display on all phones. Opera Mini may hide large logos.');
     const reader = new FileReader();
     reader.onloadend = () => {
       const base64 = reader.result as string;
       localStorage.setItem('sms_school_logo', base64);
       setSchoolLogo(base64);
-      alert('School logo updated!');
+      if (cloud.isCloudMode()) setTimeout(()=> cloud.syncToCloud().catch(()=>{}), 300);
+      alert('School logo updated! It will appear on login after sync (5 sec) on all devices.');
     };
     reader.readAsDataURL(file);
   };
@@ -265,16 +274,23 @@ function AppInner() {
 
   const createExam = () => {
     if (!newExam.name || !newExam.deadline) return;
-    setExams(prev => [...prev, {
+    const newEx = {
       id: 'ex-' + Date.now(),
       name: newExam.name,
       term: newExam.term,
       deadline: newExam.deadline,
       extensions: {},
       createdAt: new Date().toISOString()
-    }]);
+    };
+    setExams(prev => [...prev, newEx]);
     setNewExam({ name: '', term: 'Term I', deadline: '' });
-    alert('Exam created!');
+    // instant push to Supabase so teacher sees without waiting 15s
+    if (cloud.isCloudMode()) {
+      // push via syncToCloud quickly + also direct
+      setTimeout(() => { cloud.syncToCloud().catch(()=>{}); }, 200);
+    }
+    alert('Exam created! Teachers will see it in ~5 seconds (or on refresh)');
+  };
   };
 
   const deleteExam = (id: string) => {
@@ -345,7 +361,7 @@ function AppInner() {
         } catch {}
         await loadData();
       }
-    }, 15000);
+    }, 8000);
     const onFocus = async () => {
       if (cloud.isCloudMode()) {
         await cloud.syncFromCloud();
@@ -500,46 +516,95 @@ function AppInner() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // restore session on refresh - don't logout on reload
+  useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem('sms_current_user');
+      const savedScreen = localStorage.getItem('sms_session_screen');
+      if (savedUser && !user) {
+        const parsed = JSON.parse(savedUser);
+        setUser(parsed);
+        if (savedScreen) setScreen(savedScreen);
+        else if (parsed.role === 'admin') setScreen('admin');
+        else if (parsed.role === 'parent') setScreen('parent');
+        else setScreen('teacher');
+      }
+    } catch {}
+  }, []);
+
   const login = async () => {
     setLoading(true);
     setError('');
     try {
       let allUsers: any[] = [];
-      try { allUsers = await cloud.getUsers(); } catch { allUsers = []; }
-      console.log('Users loaded:', allUsers.length, 'Trying:', username);
+      // Opera Mini + slow network: timeout getUsers in 4s, fallback to local cache immediately
+      const getUsersWithTimeout = async (): Promise<any[]> => {
+        try {
+          const timeout = new Promise<any[]>((_, rej) => setTimeout(() => rej(new Error('timeout')), 4000));
+          const fetchP = cloud.getUsers();
+          return await Promise.race([fetchP, timeout]);
+        } catch { return []; }
+      };
+      try {
+        // if Opera Mini, prefer local cache first
+        if ((cloud as any).isOperaMini && (cloud as any).isOperaMini()) {
+          try { const cached = JSON.parse(localStorage.getItem('sms_users') || '[]'); if (cached.length > 0) allUsers = cached; } catch {}
+          // try cloud in background but don't block
+          getUsersWithTimeout().then(u => { if (u.length > allUsers.length) localStorage.setItem('sms_users', JSON.stringify(u)); }).catch(()=>{});
+          if (allUsers.length === 0) { try { allUsers = await getUsersWithTimeout(); } catch {} }
+        } else {
+          allUsers = await getUsersWithTimeout();
+        }
+      } catch { allUsers = []; }
+      // also check local cache if cloud empty
+      if (allUsers.length === 0) {
+        try { const cached = JSON.parse(localStorage.getItem('sms_users') || '[]'); if (cached.length > 0) allUsers = cached; } catch {}
+      }
       const found = allUsers.find((u: any) => u.username?.trim() === username.trim() && u.password === password);
       if (found) {
+        // persist immediately so refresh doesn't logout
+        localStorage.setItem('sms_current_user', JSON.stringify(found));
+        localStorage.setItem('sms_session_screen', found.role === 'admin' ? 'admin' : found.role === 'parent' ? 'parent' : 'teacher');
         setUser(found);
-        // Sync all data from cloud on login
-        await cloud.syncFromCloud();
-        try { if ((cloud as any).syncScoresToCloud) await (cloud as any).syncScoresToCloud(); } catch {}
-        try {
-          const fe = JSON.parse(localStorage.getItem('sms_exams') || '[]');
-          setExams((prev:any) => (Array.isArray(fe) && fe.length===0 && Array.isArray(prev) && prev.length>0) ? prev : fe);
-        } catch {}
-        try { setClassTeachers(JSON.parse(localStorage.getItem('sms_class_teachers') || '{}')); } catch {}
-        try { setStudents(JSON.parse(localStorage.getItem('sms_students') || '{}')); } catch {}
-        try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
         if (found.role === 'admin') { setScreen('admin'); setActiveMenu('dashboard'); }
         else if (found.role === 'parent') { setScreen('parent'); setActiveMenu('report_cards'); }
         else { setScreen('teacher'); setActiveMenu('my_timetable'); }
-        await loadData();
+        setLoading(false);
+        // background sync - don't block login
+        (async () => {
+          try { await cloud.syncFromCloud(); } catch {}
+          try { if ((cloud as any).syncScoresToCloud) await (cloud as any).syncScoresToCloud(); } catch {}
+          try {
+            const fe = JSON.parse(localStorage.getItem('sms_exams') || '[]');
+            setExams((prev:any) => (Array.isArray(fe) && fe.length===0 && Array.isArray(prev) && prev.length>0) ? prev : fe);
+          } catch {}
+          try { setClassTeachers(JSON.parse(localStorage.getItem('sms_class_teachers') || '{}')); } catch {}
+          try { setStudents(JSON.parse(localStorage.getItem('sms_students') || '{}')); } catch {}
+          try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
+          await loadData();
+        })();
+        return;
       } else {
-        // Fallback: check hardcoded admin
         if (username.trim() === 'admin' && password === 'admin123') {
-          setUser({ id: 'admin-1', name: 'Academic Admin', username: 'admin', role: 'admin', subjects: [] });
+          const fallback = { id: 'admin-1', name: 'Academic Admin', username: 'admin', role: 'admin', subjects: [] };
+          localStorage.setItem('sms_current_user', JSON.stringify(fallback));
+          localStorage.setItem('sms_session_screen', 'admin');
+          setUser(fallback);
           setScreen('admin');
           setActiveMenu('dashboard');
-          await loadData();
+          setLoading(false);
+          (async () => { try { await cloud.syncFromCloud(); } catch {}; await loadData(); })();
+          return;
         } else {
           setError('Wrong credentials. Admin: admin / admin123');
         }
       }
     } catch (e) {
       console.error('Login error:', e);
-      // Fallback if cloud fails
       if (username.trim() === 'admin' && password === 'admin123') {
-        setUser({ id: 'admin-1', name: 'Academic Admin', username: 'admin', role: 'admin', subjects: [] });
+        const fallback = { id: 'admin-1', name: 'Academic Admin', username: 'admin', role: 'admin', subjects: [] };
+        localStorage.setItem('sms_current_user', JSON.stringify(fallback));
+        setUser(fallback);
         setScreen('admin');
         setActiveMenu('dashboard');
       } else {
@@ -549,9 +614,11 @@ function AppInner() {
     setLoading(false);
   };
 
-  const logout = async () => {
-    // Sync all data to cloud before logout
-    await cloud.syncToCloud();
+  const logout = () => {
+    // instant logout - background sync, keep cache for next login
+    if (cloud.isCloudMode()) { cloud.syncToCloud().catch(()=>{}); }
+    localStorage.removeItem('sms_current_user');
+    localStorage.removeItem('sms_session_screen');
     setUser(null);
     setScreen('login');
     setUsername('');
@@ -709,6 +776,8 @@ function AppInner() {
             <button onClick={login} disabled={loading} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold disabled:opacity-50">
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
+            {/* Opera Mini hint */}
+            <p className="text-[10px] text-center text-slate-400 leading-tight">Best in Chrome / Opera / Firefox. Opera Mini may be slow to sign in — use "Sign In" again after 3 sec or switch to Chrome.</p>
             <p className="text-center text-xs text-gray-400">Admin: admin / admin123 | Teacher: Teacher@123 | Parent: Parent@123</p>
             <button onClick={() => setShowRecovery(!showRecovery)} className="text-xs text-indigo-500 hover:underline w-full text-center mt-2">Forgot Admin Password?</button>
             {showRecovery && (
