@@ -103,9 +103,9 @@ function AppInner() {
     try { return JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}'); } catch { return {}; }
   });
 
-  useEffect(() => { localStorage.setItem('sms_class_teachers', JSON.stringify(classTeachers)); }, [classTeachers]);
-  useEffect(() => { localStorage.setItem('sms_students', JSON.stringify(students)); }, [students]);
-  useEffect(() => { localStorage.setItem('sms_teaching_assignments', JSON.stringify(teachingAssignments)); }, [teachingAssignments]);
+  useEffect(() => { localStorage.setItem('sms_class_teachers', JSON.stringify(classTeachers)); if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); } }, [classTeachers]);
+  useEffect(() => { localStorage.setItem('sms_students', JSON.stringify(students)); if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); } }, [students]);
+  useEffect(() => { localStorage.setItem('sms_teaching_assignments', JSON.stringify(teachingAssignments)); if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); } }, [teachingAssignments]);
 
   const addTeachingAssignment = (teacherId: string, cls: string, sub: string) => {
     if (!cls || !sub) return;
@@ -253,7 +253,13 @@ function AppInner() {
   const [exams, setExams] = useState<any[]>(() => {
     try { return JSON.parse(localStorage.getItem('sms_exams') || '[]'); } catch { return []; }
   });
-  useEffect(() => { localStorage.setItem('sms_exams', JSON.stringify(exams)); }, [exams]);
+  useEffect(() => {
+    localStorage.setItem('sms_exams', JSON.stringify(exams));
+    if (cloud.isCloudMode()) {
+      const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
+      return () => clearTimeout(t);
+    }
+  }, [exams]);
 
   const [newExam, setNewExam] = useState({ name: '', term: 'Term I', deadline: '' });
 
@@ -303,14 +309,60 @@ function AppInner() {
     return `${mins}m remaining`;
   };
 
-  // Timer update + cloud sync
+  // Timer update + cloud sync + POLL for exams/scores — so device nyingine inaona mara moja
   const [, setTick] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => setTick(t => t + 1), 60000);
-    // Sync to cloud every 2 minutes
+    // Sync to cloud every 2 minutes (keep for safety)
     const syncTimer = setInterval(() => { cloud.syncToCloud(); }, 120000);
-    return () => { clearInterval(timer); clearInterval(syncTimer); };
-  }, []);
+    // Poll cloud every 15s for new exams / scores / madarasa / class teacher / students — device nyingine inaona
+    const pollTimer = setInterval(async () => {
+      if (cloud.isCloudMode()) {
+        await cloud.syncFromCloud();
+        try {
+          const freshExams = JSON.parse(localStorage.getItem('sms_exams') || '[]');
+          setExams(prev => JSON.stringify(prev) !== JSON.stringify(freshExams) ? freshExams : prev);
+        } catch {}
+        try {
+          const freshCT = JSON.parse(localStorage.getItem('sms_class_teachers') || '{}');
+          setClassTeachers((prev: any) => JSON.stringify(prev) !== JSON.stringify(freshCT) ? freshCT : prev);
+        } catch {}
+        try {
+          const freshST = JSON.parse(localStorage.getItem('sms_students') || '{}');
+          setStudents((prev: any) => JSON.stringify(prev) !== JSON.stringify(freshST) ? freshST : prev);
+        } catch {}
+        try {
+          const freshTA = JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}');
+          setTeachingAssignments((prev: any) => JSON.stringify(prev) !== JSON.stringify(freshTA) ? freshTA : prev);
+        } catch {}
+        try {
+          const freshExamsSub = JSON.parse(localStorage.getItem('sms_school_subjects') || '[]');
+          if (freshExamsSub.length) setSchoolSubjects(prev => JSON.stringify(prev) !== JSON.stringify(freshExamsSub) ? freshExamsSub : prev);
+        } catch {}
+        await loadData();
+      }
+    }, 15000);
+    const onFocus = async () => {
+      if (cloud.isCloudMode()) {
+        await cloud.syncFromCloud();
+        try { setExams(JSON.parse(localStorage.getItem('sms_exams') || '[]')); } catch {}
+        try { setClassTeachers(JSON.parse(localStorage.getItem('sms_class_teachers') || '{}')); } catch {}
+        try { setStudents(JSON.parse(localStorage.getItem('sms_students') || '{}')); } catch {}
+        try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
+        await loadData();
+      }
+    };
+    const onSync = async () => {
+      try { setExams(JSON.parse(localStorage.getItem('sms_exams') || '[]')); } catch {}
+      try { setClassTeachers(JSON.parse(localStorage.getItem('sms_class_teachers') || '{}')); } catch {}
+      try { setStudents(JSON.parse(localStorage.getItem('sms_students') || '{}')); } catch {}
+      try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
+      await loadData();
+    };
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('cloud-sync-complete', onSync);
+    return () => { clearInterval(timer); clearInterval(syncTimer); clearInterval(pollTimer); window.removeEventListener('focus', onFocus); window.removeEventListener('cloud-sync-complete', onSync); };
+  }, [loadData]);
 
   // Score entry state for exam mode
   const [selectedExam, setSelectedExam] = useState<any>(null);
@@ -451,6 +503,10 @@ function AppInner() {
         // Sync all data from cloud on login
         await cloud.syncFromCloud();
         try { if ((cloud as any).syncScoresToCloud) await (cloud as any).syncScoresToCloud(); } catch {}
+        try { setExams(JSON.parse(localStorage.getItem('sms_exams') || '[]')); } catch {}
+        try { setClassTeachers(JSON.parse(localStorage.getItem('sms_class_teachers') || '{}')); } catch {}
+        try { setStudents(JSON.parse(localStorage.getItem('sms_students') || '{}')); } catch {}
+        try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
         if (found.role === 'admin') { setScreen('admin'); setActiveMenu('dashboard'); }
         else if (found.role === 'parent') { setScreen('parent'); setActiveMenu('report_cards'); }
         else { setScreen('teacher'); setActiveMenu('my_timetable'); }
