@@ -362,7 +362,7 @@ function AppInner() {
     window.addEventListener('focus', onFocus);
     window.addEventListener('cloud-sync-complete', onSync);
     return () => { clearInterval(timer); clearInterval(syncTimer); clearInterval(pollTimer); window.removeEventListener('focus', onFocus); window.removeEventListener('cloud-sync-complete', onSync); };
-  }, [loadData]);
+  }, []);
 
   // Score entry state for exam mode
   const [selectedExam, setSelectedExam] = useState<any>(null);
