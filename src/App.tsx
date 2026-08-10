@@ -291,7 +291,6 @@ function AppInner() {
     }
     alert('Exam created! Teachers will see it in ~5 seconds (or on refresh)');
   };
-  };
 
   const deleteExam = (id: string) => {
     setExams(prev => prev.filter(e => e.id !== id));
