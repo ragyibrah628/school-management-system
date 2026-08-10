@@ -321,7 +321,11 @@ function AppInner() {
         await cloud.syncFromCloud();
         try {
           const freshExams = JSON.parse(localStorage.getItem('sms_exams') || '[]');
-          setExams(prev => JSON.stringify(prev) !== JSON.stringify(freshExams) ? freshExams : prev);
+          setExams(prev => {
+            // don't delete local exams if cloud poll returned empty due to race
+            if (Array.isArray(freshExams) && freshExams.length === 0 && Array.isArray(prev) && prev.length > 0) return prev;
+            return JSON.stringify(prev) !== JSON.stringify(freshExams) ? freshExams : prev;
+          });
         } catch {}
         try {
           const freshCT = JSON.parse(localStorage.getItem('sms_class_teachers') || '{}');
@@ -345,7 +349,10 @@ function AppInner() {
     const onFocus = async () => {
       if (cloud.isCloudMode()) {
         await cloud.syncFromCloud();
-        try { setExams(JSON.parse(localStorage.getItem('sms_exams') || '[]')); } catch {}
+        try {
+          const fe = JSON.parse(localStorage.getItem('sms_exams') || '[]');
+          setExams((prev:any) => (Array.isArray(fe) && fe.length===0 && Array.isArray(prev) && prev.length>0) ? prev : fe);
+        } catch {}
         try { setClassTeachers(JSON.parse(localStorage.getItem('sms_class_teachers') || '{}')); } catch {}
         try { setStudents(JSON.parse(localStorage.getItem('sms_students') || '{}')); } catch {}
         try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
@@ -353,7 +360,10 @@ function AppInner() {
       }
     };
     const onSync = async () => {
-      try { setExams(JSON.parse(localStorage.getItem('sms_exams') || '[]')); } catch {}
+      try {
+          const fe = JSON.parse(localStorage.getItem('sms_exams') || '[]');
+          setExams((prev:any) => (Array.isArray(fe) && fe.length===0 && Array.isArray(prev) && prev.length>0) ? prev : fe);
+        } catch {}
       try { setClassTeachers(JSON.parse(localStorage.getItem('sms_class_teachers') || '{}')); } catch {}
       try { setStudents(JSON.parse(localStorage.getItem('sms_students') || '{}')); } catch {}
       try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
@@ -503,7 +513,10 @@ function AppInner() {
         // Sync all data from cloud on login
         await cloud.syncFromCloud();
         try { if ((cloud as any).syncScoresToCloud) await (cloud as any).syncScoresToCloud(); } catch {}
-        try { setExams(JSON.parse(localStorage.getItem('sms_exams') || '[]')); } catch {}
+        try {
+          const fe = JSON.parse(localStorage.getItem('sms_exams') || '[]');
+          setExams((prev:any) => (Array.isArray(fe) && fe.length===0 && Array.isArray(prev) && prev.length>0) ? prev : fe);
+        } catch {}
         try { setClassTeachers(JSON.parse(localStorage.getItem('sms_class_teachers') || '{}')); } catch {}
         try { setStudents(JSON.parse(localStorage.getItem('sms_students') || '{}')); } catch {}
         try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
