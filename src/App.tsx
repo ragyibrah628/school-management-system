@@ -112,9 +112,9 @@ function AppInner() {
     try { return JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}'); } catch { return {}; }
   });
 
-  useEffect(() => { localStorage.setItem('sms_class_teachers', JSON.stringify(classTeachers)); if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); } }, [classTeachers]);
-  useEffect(() => { localStorage.setItem('sms_students', JSON.stringify(students)); if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); } }, [students]);
-  useEffect(() => { localStorage.setItem('sms_teaching_assignments', JSON.stringify(teachingAssignments)); if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); } }, [teachingAssignments]);
+  useEffect(() => { localStorage.setItem('sms_class_teachers', JSON.stringify(classTeachers)); localStorage.setItem('sms_class_teachers_ts', String(Date.now())); if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); } }, [classTeachers]);
+  useEffect(() => { localStorage.setItem('sms_students', JSON.stringify(students)); localStorage.setItem('sms_students_ts', String(Date.now())); if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); } }, [students]);
+  useEffect(() => { localStorage.setItem('sms_teaching_assignments', JSON.stringify(teachingAssignments)); localStorage.setItem('sms_teaching_assignments_ts', String(Date.now())); if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); } }, [teachingAssignments]);
 
   const addTeachingAssignment = (teacherId: string, cls: string, sub: string) => {
     if (!cls || !sub) return;
@@ -264,6 +264,7 @@ function AppInner() {
   });
   useEffect(() => {
     localStorage.setItem('sms_exams', JSON.stringify(exams));
+    localStorage.setItem('sms_exams_ts', String(Date.now()));
     if (cloud.isCloudMode()) {
       const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
       return () => clearTimeout(t);
@@ -535,8 +536,21 @@ function AppInner() {
         cloud.getDutyReportsFull().catch(() => []),
         cloud.getReleased().catch(() => [])
       ]);
-      setUsers(Array.isArray(u) ? u : []);
-      setScores(Array.isArray(s) ? s : []);
+      // Preserve teachers if cloud temporarily empty (prevents "no teacher registered" flash)
+      setUsers(prev => {
+        if (Array.isArray(u) && u.length > 0) return u;
+        if (Array.isArray(prev) && prev.length > 0 && Array.isArray(u) && u.length === 0) return prev;
+        return Array.isArray(u) ? u : prev;
+      });
+      // Scores: empty is valid (no scores yet) but preserve if we had scores and cloud returned empty due to network
+      setScores(prev => {
+        if (Array.isArray(s) && s.length > 0) return s;
+        if (Array.isArray(prev) && prev.length > 0 && Array.isArray(s) && s.length === 0) {
+          // keep previous, background will retry
+          return prev;
+        }
+        return Array.isArray(s) ? s : prev;
+      });
       setDuties(Array.isArray(d) ? d : []);
       setReleased(Array.isArray(r) ? r : []);
     } catch { /* silent */ }
