@@ -9,18 +9,18 @@ import { Printer, AlertTriangle, X, Trash2, Save, Eye } from 'lucide-react';
 
 // ✅ NAMBAWALA TIME SLOTS — 40 min, Break 10:40-11:10, Lunch 14:30-15:30, Activity 15:30-17:30
 export const NAMBAWALA_SLOTS = [
-  { id: 'p1', name: 'Kipindi 1', startTime: '08:00', endTime: '08:40', isBreak: false },
-  { id: 'p2', name: 'Kipindi 2', startTime: '08:40', endTime: '09:20', isBreak: false },
-  { id: 'p3', name: 'Kipindi 3', startTime: '09:20', endTime: '10:00', isBreak: false },
-  { id: 'p4', name: 'Kipindi 4', startTime: '10:00', endTime: '10:40', isBreak: false },
-  { id: 'b1', name: 'Mapumziko', startTime: '10:40', endTime: '11:10', isBreak: true },
-  { id: 'p5', name: 'Kipindi 5', startTime: '11:10', endTime: '11:50', isBreak: false },
-  { id: 'p6', name: 'Kipindi 6', startTime: '11:50', endTime: '12:30', isBreak: false },
-  { id: 'p7', name: 'Kipindi 7', startTime: '12:30', endTime: '13:10', isBreak: false },
-  { id: 'p8', name: 'Kipindi 8', startTime: '13:10', endTime: '13:50', isBreak: false },
-  { id: 'p9', name: 'Kipindi 9', startTime: '13:50', endTime: '14:30', isBreak: false },
-  { id: 'lunch', name: 'Chakula cha Mchana', startTime: '14:30', endTime: '15:30', isBreak: true },
-  { id: 'act', name: 'Shughuli', startTime: '15:30', endTime: '17:30', isBreak: false, isActivity: true },
+  { id: 'p1', name: 'Period 1', startTime: '08:00', endTime: '08:40', isBreak: false },
+  { id: 'p2', name: 'Period 2', startTime: '08:40', endTime: '09:20', isBreak: false },
+  { id: 'p3', name: 'Period 3', startTime: '09:20', endTime: '10:00', isBreak: false },
+  { id: 'p4', name: 'Period 4', startTime: '10:00', endTime: '10:40', isBreak: false },
+  { id: 'b1', name: 'Break', startTime: '10:40', endTime: '11:10', isBreak: true },
+  { id: 'p5', name: 'Period 5', startTime: '11:10', endTime: '11:50', isBreak: false },
+  { id: 'p6', name: 'Period 6', startTime: '11:50', endTime: '12:30', isBreak: false },
+  { id: 'p7', name: 'Period 7', startTime: '12:30', endTime: '13:10', isBreak: false },
+  { id: 'p8', name: 'Period 8', startTime: '13:10', endTime: '13:50', isBreak: false },
+  { id: 'p9', name: 'Period 9', startTime: '13:50', endTime: '14:30', isBreak: false },
+  { id: 'lunch', name: 'Lunch', startTime: '14:30', endTime: '15:30', isBreak: true },
+  { id: 'act', name: 'Activity', startTime: '15:30', endTime: '17:30', isBreak: false, isActivity: true },
 ];
 
 export const ACTIVITY_OPTIONS = ['General Cleanliness', 'Debate', 'Self Reliance', 'Subject Clubs', 'Sports and Games'];
@@ -94,9 +94,9 @@ export const TimetableViewer: React.FC = () => {
   if (!timetableData) {
     return (
       <div className="bg-white p-12 rounded-2xl border text-center max-w-2xl mx-auto shadow-sm mt-12">
-        <h2 className="text-xl font-bold mb-2">Hakuna Ratiba Iliyotengenezwa</h2>
-        <p className="text-sm text-slate-500 mb-6">Nenda Dashboard na bonyeza "Generate Timetable" au anza kujaza manually kwa kubofya chumba.</p>
-        <p className="text-xs text-slate-400">Ratiba itasave automatically kwenye Supabase na walimu wataiona kwenye account zao (poll 8s).</p>
+        <h2 className="text-xl font-bold mb-2">No Timetable Generated Yet</h2>
+        <p className="text-sm text-slate-500 mb-6">Go to Dashboard and click "Generate Timetable" or start filling manually by clicking a cell.</p>
+        <p className="text-xs text-slate-400">Timetable saves automatically to Supabase and teachers will see updates in their accounts (poll 8s).</p>
       </div>
     );
   }
@@ -132,7 +132,7 @@ export const TimetableViewer: React.FC = () => {
       const cell = schedule[cid]?.[day]?.[periodId];
       if (cell && cell.teacherId === teacherId) {
         const clsName = classes.find(c=>c.id===cid)?.name || cid;
-        return `Mwalimu ${getTeacherName(teacherId)} tayari amepewa ${clsName} siku ${day} ${periodId}. Chagua mwalimu mwingine au badilisha muda.`;
+        return `Teacher ${getTeacherName(teacherId)} is already assigned to ${clsName} on ${day} ${periodId}. Choose another teacher or change time.`;
       }
       // double period occupies next slot too
       if (cell && cell.isDouble) {
@@ -161,7 +161,7 @@ export const TimetableViewer: React.FC = () => {
         const prevCell = schedule[cid]?.[day]?.[prevId];
         if (prevCell && prevCell.isDouble && prevCell.teacherId === teacherId) {
           const clsName = classes.find(c=>c.id===cid)?.name || cid;
-          return `Mwalimu ${getTeacherName(teacherId)} tayari na double period ${clsName} kuanzia ${prevId} (inaingiliana na ${periodId}).`;
+          return `Teacher ${getTeacherName(teacherId)} already has a double period for ${clsName} starting ${prevId} (overlaps ${periodId}).`;
         }
       }
     }
@@ -193,7 +193,7 @@ export const TimetableViewer: React.FC = () => {
     const classId = selectedId;
 
     if (isActivitySlot) {
-      if (!selectedActivity) { setCollisionMsg('Chagua activity'); return; }
+      if (!selectedActivity) { setCollisionMsg('Select an activity'); return; }
       // Activity has no collision (any teacher? no)
       // Save as activity
       const cell: any = { subjectId: 'activity', teacherId: '', roomId: '', isActivity: true, activity: selectedActivity, isDouble: false, isPS: false };
@@ -213,7 +213,7 @@ export const TimetableViewer: React.FC = () => {
       window.dispatchEvent(new Event('storage'));
       setActiveCell(null);
       // Force reload
-      window.location.reload();
+      // stay on timetable tab
       return;
     }
 
@@ -231,11 +231,12 @@ export const TimetableViewer: React.FC = () => {
       localStorage.setItem('tt_timetableData', JSON.stringify(timetableData));
       localStorage.setItem('tt_timetableData_ts', String(Date.now()));
       setActiveCell(null);
-      window.location.reload();
+      // stay on timetable tab — don't reload to dashboard
+      setCollisionMsg('');
       return;
     }
 
-    if (!selectedSubject) { setCollisionMsg('Chagua somo'); return; }
+    if (!selectedSubject) { setCollisionMsg('Select a subject'); return; }
 
     // Find teacher for this subject+class
     // subject can be id or name - handle both
@@ -262,7 +263,7 @@ export const TimetableViewer: React.FC = () => {
       if (t) teacherId = t.id;
     }
     if (!teacherId) {
-      setCollisionMsg('Hakuna mwalimu aliye-assign kufundisha ' + subjName + ' kwenye ' + (classes.find(c=>c.id===classId)?.name || classId) + '. Nenda Assign Teaching Classes & Subjects kwanza.');
+      setCollisionMsg('No teacher assigned to teach ' + subjName + ' in ' + (classes.find(c=>c.id===classId)?.name || classId) + '. Go to Assign Teaching Classes & Subjects first.');
       return;
     }
 
@@ -273,14 +274,14 @@ export const TimetableViewer: React.FC = () => {
       const teachingIds = displaySlots.filter((s:any)=>!s.isBreak && !s.isActivity).map((s:any)=>s.id);
       const idx = teachingIds.indexOf(activeCell.periodId);
       const nextId = teachingIds[idx+1];
-      if (!nextId) { setCollisionMsg('Double period haiwezi kuwa kipindi cha mwisho. Chagua single.'); return; }
+      if (!nextId) { setCollisionMsg('Double period cannot be the last period. Choose Single.'); return; }
       // Check next period collision too
       const coll2 = checkCollision(teacherId, activeCell.day, nextId, classId);
       if (coll2) { setCollisionMsg('Double: ' + coll2); return; }
       // Also check next period is not break/lunch/activity (it won't be since teachingIds excludes)
       // Check if next period already has a lesson for this class
       const existingNext = schedule[classId]?.[activeCell.day]?.[nextId];
-      if (existingNext) { setCollisionMsg('Kipindi kijacho tayari kina somo. Futa kwanza.'); return; }
+      if (existingNext) { setCollisionMsg('Next period already has a lesson. Remove it first.'); return; }
     }
 
     // Save
@@ -317,8 +318,8 @@ export const TimetableViewer: React.FC = () => {
     // Force timetable context to persist via its useEffect — we already set localStorage, now trigger event
     window.dispatchEvent(new Event('tt-timetable-updated'));
     setActiveCell(null);
-    // Soft reload timetableData by triggering context reload
-    setTimeout(()=> window.location.reload(), 100);
+    setCollisionMsg('');
+    // keep timetable tab open — no reload
   };
 
   const handleRemove = () => {
@@ -339,7 +340,7 @@ export const TimetableViewer: React.FC = () => {
       } catch {}
     }
     setActiveCell(null);
-    setTimeout(()=> window.location.reload(), 100);
+    // keep timetable tab open
   };
 
   const handlePrint = (type: 'class'|'teacher') => {
@@ -382,7 +383,7 @@ export const TimetableViewer: React.FC = () => {
           {viewType==='my_teaching' && (
             <span className="text-sm font-bold px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800">{currentUser?.name} — {myTeacherId ? 'Teaching' : 'No assignment'}</span>
           )}
-          <span className="text-xs text-slate-400 italic hidden md:inline">Gusa chumba kuchagua somo (Admin pekee)</span>
+          <span className="text-xs text-slate-400 italic hidden md:inline">Click a cell to select subject (Admin only)</span>
         </div>
         <button onClick={()=>handlePrint(viewType==='class'?'class':'teacher')} className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-black">
           <Printer size={16} /> Print (A4 Landscape)
@@ -499,7 +500,7 @@ export const TimetableViewer: React.FC = () => {
 
         <div className="p-2 bg-slate-50 text-xs text-slate-500 flex flex-wrap gap-3 print:hidden">
           <span>🔒 Break/Lunch hazibadilishwi</span>
-          <span>📚 Gusa chumba → chagua Somo (kama alivyosajili darasa + somo)</span>
+          <span>📚 Click a cell → select Subject (as assigned to class + subject)</span>
           <span>🟩 Double = 80 min (vipindi 2)</span>
           <span>⬜ PS = Private Studies bila mwalimu</span>
           <span>🟦 Activity 15:30-17:30</span>
@@ -507,7 +508,7 @@ export const TimetableViewer: React.FC = () => {
       </div>
 
       {/* Print hint */}
-      <div className="text-center text-xs text-slate-400 print:hidden">Print: Hakikisha umechagua **Class View** au **My Timetable** → Print → Chagua **Landscape** + **Background graphics**</div>
+      <div className="text-center text-xs text-slate-400 print:hidden">Print: Make sure you select **Class View** au **My Timetable** → Print → Chagua **Landscape** + **Background graphics**</div>
 
       {/* Modal */}
       {activeCell && (
@@ -522,9 +523,9 @@ export const TimetableViewer: React.FC = () => {
             {(displaySlots.find((s:any)=>s.id===activeCell.periodId) as any)?.isActivity ? (
               <>
                 <div>
-                  <label className="text-xs font-bold">Chagua Activity (15:30-17:30)</label>
+                  <label className="text-xs font-bold">Select Activity (15:30-17:30)</label>
                   <select value={selectedActivity} onChange={e=>setSelectedActivity(e.target.value)} className="w-full mt-1 border px-3 py-2 rounded-xl text-sm">
-                    <option value="">-- Chagua --</option>
+                    <option value="">-- Select --</option>
                     {ACTIVITY_OPTIONS.map(a=> <option key={a} value={a}>{a}</option>)}
                   </select>
                 </div>
@@ -532,18 +533,18 @@ export const TimetableViewer: React.FC = () => {
             ) : (
               <>
                 <div>
-                  <label className="text-xs font-bold">Somo (kutoka Subjects waliosajiliwa)</label>
+                  <label className="text-xs font-bold">Subject (from registered Subjects)</label>
                   <select value={selectedSubject} onChange={e=>setSelectedSubject(e.target.value)} className="w-full mt-1 border px-3 py-2 rounded-xl text-sm">
-                    <option value="">-- Chagua somo --</option>
+                    <option value="">-- Select subject --</option>
                     {subjectOptions.map((name:string)=> <option key={name} value={name}>{name}</option>)}
                   </select>
                   {selectedSubject && (()=> {
                     const found = findTeacherForSubjectClass(selectedSubject, selectedClassName);
-                    return found ? <p className="text-xs text-emerald-600 mt-1">Mwalimu: <b>{found.name}</b> (kutoka Teaching Assignments)</p> : <p className="text-xs text-amber-600 mt-1">Hakuna mwalimu aliye-assign somo hili kwenye darasa hili.</p>;
+                    return found ? <p className="text-xs text-emerald-600 mt-1">Teacher: <b>{found.name}</b> (from Teaching Assignments)</p> : <p className="text-xs text-amber-600 mt-1">No teacher assigned to teach this subject in this class.</p>;
                   })()}
                 </div>
                 <div>
-                  <label className="text-xs font-bold">Aina ya Kipindi</label>
+                  <label className="text-xs font-bold">Period Type</label>
                   <div className="flex gap-2 mt-1">
                     <button onClick={()=>setPeriodType('single')} className={`flex-1 py-2 rounded-xl text-xs font-bold border ${periodType==='single'?'bg-indigo-600 text-white border-indigo-600':'bg-white'}`}>Single (40 min)</button>
                     <button onClick={()=>setPeriodType('double')} className={`flex-1 py-2 rounded-xl text-xs font-bold border ${periodType==='double'?'bg-emerald-600 text-white border-emerald-600':'bg-white'}`}>Double (80 min)</button>
