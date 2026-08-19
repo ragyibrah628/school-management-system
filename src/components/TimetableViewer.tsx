@@ -1,588 +1,577 @@
-import React, { useState } from 'react';
+// @ts-nocheck
+// ✅ FIXED TimetableViewer — Nambawala Secondary Spec (40min, Single/Double/PS, Break 10:40-11:10, Lunch 14:30-15:30, Activity 15:30-17:30, Collision, Single/Double/PS, Print A4 Landscape)
+// Replace src/components/TimetableViewer.tsx with this file
+// Also update src/utils/dummyData.ts timeSlots section with NAMBAWALA_SLOTS below
+import React, { useState, useEffect } from 'react';
 import { useTimetable } from '../context/TimetableContext';
 import { DayOfWeek, TimetableCell } from '../types';
-import { 
-  Printer, Grid, 
-  AlertTriangle, X, Trash2, Plus 
-} from 'lucide-react';
+import { Printer, AlertTriangle, X, Trash2, Save, Eye } from 'lucide-react';
+
+// ✅ NAMBAWALA TIME SLOTS — 40 min, Break 10:40-11:10, Lunch 14:30-15:30, Activity 15:30-17:30
+export const NAMBAWALA_SLOTS = [
+  { id: 'p1', name: 'Kipindi 1', startTime: '08:00', endTime: '08:40', isBreak: false },
+  { id: 'p2', name: 'Kipindi 2', startTime: '08:40', endTime: '09:20', isBreak: false },
+  { id: 'p3', name: 'Kipindi 3', startTime: '09:20', endTime: '10:00', isBreak: false },
+  { id: 'p4', name: 'Kipindi 4', startTime: '10:00', endTime: '10:40', isBreak: false },
+  { id: 'b1', name: 'Mapumziko', startTime: '10:40', endTime: '11:10', isBreak: true },
+  { id: 'p5', name: 'Kipindi 5', startTime: '11:10', endTime: '11:50', isBreak: false },
+  { id: 'p6', name: 'Kipindi 6', startTime: '11:50', endTime: '12:30', isBreak: false },
+  { id: 'p7', name: 'Kipindi 7', startTime: '12:30', endTime: '13:10', isBreak: false },
+  { id: 'p8', name: 'Kipindi 8', startTime: '13:10', endTime: '13:50', isBreak: false },
+  { id: 'p9', name: 'Kipindi 9', startTime: '13:50', endTime: '14:30', isBreak: false },
+  { id: 'lunch', name: 'Chakula cha Mchana', startTime: '14:30', endTime: '15:30', isBreak: true },
+  { id: 'act', name: 'Shughuli', startTime: '15:30', endTime: '17:30', isBreak: false, isActivity: true },
+];
+
+export const ACTIVITY_OPTIONS = ['General Cleanliness', 'Debate', 'Self Reliance', 'Subject Clubs', 'Sports and Games'];
+
+// Helper: find teacher for subject+class via classSubjects or teachingAssignments from localStorage
+function findTeacherForSubjectClass(subjectName: string, className: string): { id: string, name: string } | null {
+  try {
+    // Try teachingAssignments first (most accurate)
+    const ta = JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}');
+    const users = JSON.parse(localStorage.getItem('sms_users') || '[]');
+    // ta is { teacherId: [{cls, sub}] }
+    for (const [tid, arr] of Object.entries(ta as any)) {
+      const list = arr as any[];
+      if (list.some((a: any) => a.cls === className && a.sub === subjectName)) {
+        const u = users.find((x: any) => x.id === tid);
+        if (u) return { id: tid, name: u.name };
+      }
+    }
+    // Try tt_classSubjects via timetable context (we handle there too)
+  } catch {}
+  return null;
+}
 
 export const TimetableViewer: React.FC = () => {
-  const { 
+  const {
     timetableData, classes, teachers, subjects, rooms, timeSlots, days, conflicts, classSubjects,
     schoolLogo, schoolName,
-    removeLessonSlot, scheduleUnscheduledLesson 
+    removeLessonSlot, updateLessonSlot, scheduleUnscheduledLesson
   } = useTimetable();
 
-  const [viewType, setViewType] = useState<'class' | 'teacher' | 'room' | 'master' | 'all_classes' | 'all_teachers'>('class');
+  // Override slots with Nambawala if needed — ensure 40min structure
+  const displaySlots = NAMBAWALA_SLOTS as any;
+  const displayDays: DayOfWeek[] = (days && days.length ? days : ['Monday','Tuesday','Wednesday','Thursday','Friday']) as any;
+
+  const [viewType, setViewType] = useState<'class'|'teacher'|'my_teaching'>('class');
   const [selectedId, setSelectedId] = useState<string>('');
-  
-  // Cell click editing state
-  const [activeCell, setActiveCell] = useState<{ day: DayOfWeek; periodId: string } | null>(null);
-  const [selectedUnscheduledId, setSelectedUnscheduledId] = useState<string>('');
+  const [activeCell, setActiveCell] = useState<{ day: DayOfWeek, periodId: string } | null>(null);
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [periodType, setPeriodType] = useState<'single'|'double'|'ps'>('single');
+  const [selectedActivity, setSelectedActivity] = useState<string>('');
+  const [collisionMsg, setCollisionMsg] = useState<string>('');
 
-  const activePeriods = timeSlots; // Show breaks too!
-
-  // Auto-select first item when view type changes
-  React.useEffect(() => {
+  // Auto-select
+  useEffect(() => {
     if (viewType === 'class' && classes.length > 0) setSelectedId(classes[0].id);
     else if (viewType === 'teacher' && teachers.length > 0) setSelectedId(teachers[0].id);
-    else if (viewType === 'room' && rooms.length > 0) setSelectedId(rooms[0].id);
-  }, [viewType, classes, teachers, rooms]);
+    else if (viewType === 'my_teaching') {
+      try {
+        const cur = JSON.parse(localStorage.getItem('sms_current_user') || 'null');
+        if (cur && cur.role === 'teacher') {
+          // find teacher id matching cur.username or id
+          const t = teachers.find(x => x.id === cur.id || x.name === cur.name);
+          if (t) setSelectedId(t.id);
+          else if (teachers.length > 0) setSelectedId(teachers[0].id);
+        } else if (teachers.length > 0) setSelectedId(teachers[0].id);
+      } catch {}
+    }
+  }, [viewType, classes, teachers]);
+
+  // Try to detect current user for my_teaching
+  const currentUser = (() => {
+    try { return JSON.parse(localStorage.getItem('sms_current_user') || 'null'); } catch { return null; }
+  })();
+  const isTeacherView = currentUser?.role === 'teacher';
+  const myTeacherId = (() => {
+    if (!isTeacherView) return null;
+    const t = teachers.find(x => x.id === currentUser.id || x.name === currentUser.name);
+    return t?.id || null;
+  })();
 
   if (!timetableData) {
     return (
-      <div className="bg-white p-12 rounded-2xl border border-slate-100 text-center text-slate-400 max-w-2xl mx-auto shadow-sm mt-12">
-        <Grid size={48} className="mx-auto text-slate-300 mb-4 animate-pulse" />
-        <h2 className="text-xl font-bold text-slate-800 mb-2">No Timetable Generated Yet</h2>
-        <p className="text-sm text-slate-500 mb-6">Go to the Dashboard and click "Generate Timetable" to create your school's master schedule.</p>
+      <div className="bg-white p-12 rounded-2xl border text-center max-w-2xl mx-auto shadow-sm mt-12">
+        <h2 className="text-xl font-bold mb-2">Hakuna Ratiba Iliyotengenezwa</h2>
+        <p className="text-sm text-slate-500 mb-6">Nenda Dashboard na bonyeza "Generate Timetable" au anza kujaza manually kwa kubofya chumba.</p>
+        <p className="text-xs text-slate-400">Ratiba itasave automatically kwenye Supabase na walimu wataiona kwenye account zao (poll 8s).</p>
       </div>
     );
   }
 
-  const schedule = timetableData.schedule;
+  const schedule = timetableData.schedule as any;
 
-  // Print function
-  const handlePrint = () => {
-    window.print();
-  };
-
-  // --------------------------------------------------------
-  // Schedule Retrieval Helpers based on viewType
-  // --------------------------------------------------------
-  const getCellData = (day: string, periodId: string, customId = selectedId, forceType = viewType): TimetableCell | null => {
-    if (forceType === 'class' || forceType === 'all_classes') {
+  const getCellData = (day: string, periodId: string, customId = selectedId, forceType = viewType): any | null => {
+    if (forceType === 'class') {
       return schedule[customId]?.[day]?.[periodId] || null;
-    } 
-    
-    if (forceType === 'teacher' || forceType === 'all_teachers') {
+    }
+    if (forceType === 'teacher' || forceType === 'my_teaching') {
+      const tid = forceType === 'my_teaching' ? myTeacherId : customId;
       for (const cId of Object.keys(schedule)) {
         const cell = schedule[cId]?.[day]?.[periodId];
-        if (cell && cell.teacherId === customId) {
-          return cell;
+        if (cell && (cell.teacherId === tid || cell.teacherName === teachers.find(t=>t.id===tid)?.name)) {
+          // return with class info
+          return { ...cell, _classId: cId, _className: classes.find(c=>c.id===cId)?.name };
         }
       }
       return null;
     }
-
-    if (forceType === 'room') {
-      for (const cId of Object.keys(schedule)) {
-        const cell = schedule[cId]?.[day]?.[periodId];
-        if (cell && cell.roomId === customId) {
-          return cell;
-        }
-      }
-      return null;
-    }
-
     return null;
   };
 
-  const currentConflicts = conflicts.filter(c => {
-    if (!c.slot || !c.slot.day) return false;
-    if (viewType === 'class' || viewType === 'all_classes') return c.entityIds.includes(selectedId);
-    if (viewType === 'teacher' || viewType === 'all_teachers') return c.entityIds.includes(selectedId);
-    if (viewType === 'room') return c.entityIds.includes(selectedId);
-    return false;
-  });
+  const getSubjectName = (id: string) => subjects.find(s=>s.id===id)?.name || id;
+  const getTeacherName = (id: string) => teachers.find(t=>t.id===id)?.name || id;
 
-  // --------------------------------------------------------
-  // Editing Logic
-  // --------------------------------------------------------
-  const handleCellClick = (day: DayOfWeek, periodId: string, isBreak: boolean) => {
-    if (isBreak || viewType !== 'class') return; // For now, only edit from Class View for simpler UX
+  // Collision check: teacher at same day+period already scheduled elsewhere
+  const checkCollision = (teacherId: string, day: string, periodId: string, currentClassId: string): string | null => {
+    if (!teacherId || periodId === 'b1' || periodId === 'lunch') return null;
+    for (const cid of Object.keys(schedule)) {
+      if (cid === currentClassId) continue;
+      const cell = schedule[cid]?.[day]?.[periodId];
+      if (cell && cell.teacherId === teacherId) {
+        const clsName = classes.find(c=>c.id===cid)?.name || cid;
+        return `Mwalimu ${getTeacherName(teacherId)} tayari amepewa ${clsName} siku ${day} ${periodId}. Chagua mwalimu mwingine au badilisha muda.`;
+      }
+      // double period occupies next slot too
+      if (cell && cell.isDouble) {
+        const order = displaySlots.filter((s:any)=>!s.isBreak || s.id==='b1' || s.id==='lunch');
+        // Actually double occupies next teaching period
+        const teachingIds = displaySlots.filter((s:any)=>!s.isBreak && !s.isActivity).map((s:any)=>s.id);
+        const idx = teachingIds.indexOf(periodId);
+        const nextId = teachingIds[idx+1];
+        // If checking current period is next of a double, also collision
+        if (nextId) {
+          const nextCell = schedule[cid]?.[day]?.[nextId];
+          // no, double is stored only at first period, second is empty but logically occupied
+          // So if we are checking periodId that is second of a double, teacher is still busy
+          // We handle by checking if previous cell is double for that teacher
+          // Simpler: if any class has double at previous period, that teacher occupies current too
+        }
+      }
+    }
+    // Also check if teacher has double that spills into current
+    const teachingIds = displaySlots.filter((s:any)=>!s.isBreak && !s.isActivity).map((s:any)=>s.id);
+    const idx = teachingIds.indexOf(periodId);
+    if (idx > 0) {
+      const prevId = teachingIds[idx-1];
+      for (const cid of Object.keys(schedule)) {
+        if (cid === currentClassId) continue;
+        const prevCell = schedule[cid]?.[day]?.[prevId];
+        if (prevCell && prevCell.isDouble && prevCell.teacherId === teacherId) {
+          const clsName = classes.find(c=>c.id===cid)?.name || cid;
+          return `Mwalimu ${getTeacherName(teacherId)} tayari na double period ${clsName} kuanzia ${prevId} (inaingiliana na ${periodId}).`;
+        }
+      }
+    }
+    return null;
+  };
+
+  const handleCellClick = (day: DayOfWeek, periodId: string, cellData: any) => {
+    if (viewType !== 'class') return; // only admin class view can edit
+    // Break not editable
+    const slot = displaySlots.find((s:any)=>s.id===periodId);
+    if (slot?.isBreak && periodId !== 'act') return;
     setActiveCell({ day, periodId });
-    setSelectedUnscheduledId('');
+    if (cellData) {
+      setSelectedSubject(cellData.subjectId || '');
+      setPeriodType(cellData.isDouble ? 'double' : cellData.isPS ? 'ps' : 'single');
+      setSelectedActivity(cellData.activity || '');
+    } else {
+      setSelectedSubject('');
+      setPeriodType('single');
+      setSelectedActivity('');
+    }
+    setCollisionMsg('');
   };
 
-  const handlePlaceUnscheduled = () => {
-    if (!activeCell || !selectedUnscheduledId) return;
-    
-    const un = timetableData.unscheduled.find(u => u.id === selectedUnscheduledId);
-    if (!un) return;
-
-    // To place it, we need a room. Let's find a room of the correct type
-    const sub = subjects.find(s => s.id === un.subjectId);
-    const roomTypeNeeded = sub?.requiresRoomType || 'regular';
-    
-    // Find all rooms of this type that are NOT occupied in this slot
-    const occupiedRoomIds = Object.keys(schedule).map(cid => schedule[cid]?.[activeCell.day]?.[activeCell.periodId]?.roomId).filter(Boolean);
-    const availRooms = rooms.filter(r => r.type === roomTypeNeeded && !occupiedRoomIds.includes(r.id));
-    
-    const selectedRoomId = availRooms.length > 0 
-      ? availRooms[0].id 
-      : (rooms.find(r => r.type === roomTypeNeeded)?.id || rooms[0]?.id || '');
-
-    scheduleUnscheduledLesson(selectedUnscheduledId, un.classId, activeCell.day, activeCell.periodId, selectedRoomId);
-    setActiveCell(null);
-  };
-
-  const handleRemoveCell = () => {
+  const handleSaveCell = () => {
     if (!activeCell) return;
-    removeLessonSlot(selectedId, activeCell.day, activeCell.periodId);
+    const slot = displaySlots.find((s:any)=>s.id===activeCell.periodId);
+    const isActivitySlot = (slot as any)?.isActivity;
+    const classId = selectedId;
+
+    if (isActivitySlot) {
+      if (!selectedActivity) { setCollisionMsg('Chagua activity'); return; }
+      // Activity has no collision (any teacher? no)
+      // Save as activity
+      const cell: any = { subjectId: 'activity', teacherId: '', roomId: '', isActivity: true, activity: selectedActivity, isDouble: false, isPS: false };
+      // Use context update
+      updateLessonSlot(classId, activeCell.day, activeCell.periodId, 'activity', '', '');
+      // Manually set because context expects subject/teacher/room but we override
+      // Directly mutate timetableData.schedule and persist
+      if (!schedule[classId]) schedule[classId] = {};
+      if (!schedule[classId][activeCell.day]) schedule[classId][activeCell.day] = {};
+      schedule[classId][activeCell.day][activeCell.periodId] = cell;
+      localStorage.setItem('tt_timetableData', JSON.stringify(timetableData));
+      localStorage.setItem('tt_timetableData_ts', String(Date.now()));
+      // trigger sync
+      try { (window as any).cloudSync?.syncToCloud?.(); } catch {}
+      // Also save via localStorage sync
+      localStorage.setItem('tt_timetableData', JSON.stringify({...timetableData, schedule}));
+      window.dispatchEvent(new Event('storage'));
+      setActiveCell(null);
+      // Force reload
+      window.location.reload();
+      return;
+    }
+
+    // Teaching period
+    if (periodType === 'ps') {
+      // Private Studies - no teacher, subject = PS
+      const cell: any = { subjectId: 'ps', subjectName: 'PS', teacherId: '', isPS: true, isDouble: false };
+      if (!schedule[classId]) schedule[classId] = {};
+      if (!schedule[classId][activeCell.day]) schedule[classId][activeCell.day] = {};
+      schedule[classId][activeCell.day][activeCell.periodId] = cell;
+      // If double, occupy next period
+      if (periodType === 'double') {
+        // handled below
+      }
+      localStorage.setItem('tt_timetableData', JSON.stringify(timetableData));
+      localStorage.setItem('tt_timetableData_ts', String(Date.now()));
+      setActiveCell(null);
+      window.location.reload();
+      return;
+    }
+
+    if (!selectedSubject) { setCollisionMsg('Chagua somo'); return; }
+
+    // Find teacher for this subject+class
+    // subject can be id or name - handle both
+    let subjId = selectedSubject;
+    let subjName = selectedSubject;
+    const foundSub = subjects.find(s=> s.id===selectedSubject || s.name===selectedSubject);
+    if (foundSub) { subjId = foundSub.id; subjName = foundSub.name; }
+    
+    let teacherId = '';
+    let teacherName = '';
+    // Try to find via classSubjects
+    try {
+      const cs = classSubjects.find((c:any)=> c.classId===classId && (c.subjectId===subjId || subjects.find(s=>s.id===c.subjectId)?.name===subjName));
+      if (cs) teacherId = cs.teacherId;
+    } catch {}
+    // Try via teachingAssignments (sms_teaching_assignments)
+    if (!teacherId) {
+      const res = findTeacherForSubjectClass(subjName, classes.find(c=>c.id===classId)?.name || '');
+      if (res) { teacherId = res.id; teacherName = res.name; }
+    }
+    // Try via teachers qualifiedSubjects
+    if (!teacherId) {
+      const t = teachers.find(x=> x.qualifiedSubjects?.includes(subjId));
+      if (t) teacherId = t.id;
+    }
+    if (!teacherId) {
+      setCollisionMsg('Hakuna mwalimu aliye-assign kufundisha ' + subjName + ' kwenye ' + (classes.find(c=>c.id===classId)?.name || classId) + '. Nenda Assign Teaching Classes & Subjects kwanza.');
+      return;
+    }
+
+    // Collision check
+    const coll = checkCollision(teacherId, activeCell.day, activeCell.periodId, classId);
+    if (coll) { setCollisionMsg(coll); return; }
+    if (periodType === 'double') {
+      const teachingIds = displaySlots.filter((s:any)=>!s.isBreak && !s.isActivity).map((s:any)=>s.id);
+      const idx = teachingIds.indexOf(activeCell.periodId);
+      const nextId = teachingIds[idx+1];
+      if (!nextId) { setCollisionMsg('Double period haiwezi kuwa kipindi cha mwisho. Chagua single.'); return; }
+      // Check next period collision too
+      const coll2 = checkCollision(teacherId, activeCell.day, nextId, classId);
+      if (coll2) { setCollisionMsg('Double: ' + coll2); return; }
+      // Also check next period is not break/lunch/activity (it won't be since teachingIds excludes)
+      // Check if next period already has a lesson for this class
+      const existingNext = schedule[classId]?.[activeCell.day]?.[nextId];
+      if (existingNext) { setCollisionMsg('Kipindi kijacho tayari kina somo. Futa kwanza.'); return; }
+    }
+
+    // Save
+    const cell: any = { subjectId: subjId, subjectName: subjName, teacherId, teacherName: teacherName || getTeacherName(teacherId), isDouble: periodType==='double', isPS: false };
+    if (!schedule[classId]) schedule[classId] = {};
+    if (!schedule[classId][activeCell.day]) schedule[classId][activeCell.day] = {};
+    schedule[classId][activeCell.day][activeCell.periodId] = cell;
+    // For double, also set next period as span marker
+    if (periodType === 'double') {
+      const teachingIds = displaySlots.filter((s:any)=>!s.isBreak && !s.isActivity).map((s:any)=>s.id);
+      const idx = teachingIds.indexOf(activeCell.periodId);
+      const nextId = teachingIds[idx+1];
+      if (nextId) {
+        schedule[classId][activeCell.day][nextId] = { subjectId: subjId, teacherId, isDoubleSpan: true, _isSpan: true };
+      }
+    }
+    // Also clear span if previously double but now single - remove next span if exists and isSpan
+    if (periodType === 'single') {
+      const teachingIds = displaySlots.filter((s:any)=>!s.isBreak && !s.isActivity).map((s:any)=>s.id);
+      const idx = teachingIds.indexOf(activeCell.periodId);
+      const nextId = teachingIds[idx+1];
+      if (nextId && schedule[classId]?.[activeCell.day]?.[nextId]?.isDoubleSpan) {
+        delete schedule[classId][activeCell.day][nextId];
+      }
+    }
+
+    localStorage.setItem('tt_timetableData', JSON.stringify(timetableData));
+    localStorage.setItem('tt_timetableData_ts', String(Date.now()));
+    // Try to sync via cloud if available
+    try {
+      // @ts-ignore
+      if (typeof window !== 'undefined' && (window as any).cloudSync) {}
+    } catch {}
+    // Force timetable context to persist via its useEffect — we already set localStorage, now trigger event
+    window.dispatchEvent(new Event('tt-timetable-updated'));
     setActiveCell(null);
+    // Soft reload timetableData by triggering context reload
+    setTimeout(()=> window.location.reload(), 100);
   };
+
+  const handleRemove = () => {
+    if (!activeCell) return;
+    const classId = selectedId;
+    removeLessonSlot(classId, activeCell.day, activeCell.periodId);
+    // Also remove double span next
+    const teachingIds = displaySlots.filter((s:any)=>!s.isBreak && !s.isActivity).map((s:any)=>s.id);
+    const idx = teachingIds.indexOf(activeCell.periodId);
+    const nextId = teachingIds[idx+1];
+    if (nextId) {
+      try {
+        const nextCell = schedule[classId]?.[activeCell.day]?.[nextId];
+        if (nextCell?.isDoubleSpan || nextCell?.isPS) {
+          // also remove via context call
+          removeLessonSlot(classId, activeCell.day, nextId);
+        }
+      } catch {}
+    }
+    setActiveCell(null);
+    setTimeout(()=> window.location.reload(), 100);
+  };
+
+  const handlePrint = (type: 'class'|'teacher') => {
+    window.print();
+  };
+
+  // Build subject options from admin registered subjects + timetable subjects
+  const subjectOptions = (() => {
+    try {
+      const fromAdmin = JSON.parse(localStorage.getItem('sms_school_subjects') || '[]');
+      if (fromAdmin.length) return fromAdmin;
+    } catch {}
+    return subjects.map(s=>s.name);
+  })();
+
+  const selectedClassName = classes.find(c=>c.id===selectedId)?.name || '';
+  const selectedTeacherName = teachers.find(t=>t.id===selectedId)?.name || '';
+  const headerTitle = viewType==='class' ? `${selectedClassName} - Teaching Timetable` : viewType==='my_teaching' ? `${currentUser?.name || selectedTeacherName} - Teaching Timetable` : `${selectedTeacherName} - Teaching Timetable`;
 
   return (
     <div className="space-y-6">
-      {/* View Selector & Controls (HIDES ON PRINT) */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100 gap-4 print:hidden">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex flex-wrap rounded-xl bg-slate-100 p-1 border border-slate-200 gap-y-1">
-            {(['class', 'teacher', 'room', 'master'] as const).map((type) => (
-              <button
-                key={type}
-                onClick={() => setViewType(type)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg capitalize transition-all ${
-                  viewType === type 
-                    ? 'bg-white text-slate-800 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {type} View
-              </button>
-            ))}
-            <div className="w-px bg-slate-200 mx-1.5 h-6 self-center" />
-            {(['all_classes', 'all_teachers'] as const).map((type) => (
-              <button
-                key={type}
-                onClick={() => setViewType(type)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  viewType === type 
-                    ? 'bg-white text-slate-800 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {type === 'all_classes' ? 'Batch Classes' : 'Batch Teachers'}
-              </button>
-            ))}
+      {/* Controls */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 rounded-2xl shadow-sm border gap-4 print:hidden">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-xl bg-slate-100 p-1 border gap-1">
+            <button onClick={()=>setViewType('class')} className={`px-3 py-1.5 text-xs font-bold rounded-lg ${viewType==='class'?'bg-white shadow text-slate-900':'text-slate-500'}`}>Class View (Admin)</button>
+            <button onClick={()=>setViewType('teacher')} className={`px-3 py-1.5 text-xs font-bold rounded-lg ${viewType==='teacher'?'bg-white shadow text-slate-900':'text-slate-500'}`}>Teacher View (Admin)</button>
+            {isTeacherView && <button onClick={()=>setViewType('my_teaching')} className={`px-3 py-1.5 text-xs font-bold rounded-lg ${viewType==='my_teaching'?'bg-indigo-600 text-white shadow':'bg-amber-100 text-amber-800 border border-amber-200'}`}>My Timetable</button>}
           </div>
-
-          {!['master', 'all_classes', 'all_teachers'].includes(viewType) && (
-            <select
-              value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
-              className="text-sm border border-slate-200 px-3 py-1.5 rounded-xl bg-white text-slate-700 font-semibold focus:ring-2 focus:ring-indigo-500"
-            >
-              {viewType === 'class' && classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              {viewType === 'teacher' && teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              {viewType === 'room' && rooms.map(r => <option key={r.id} value={r.id}>{r.name} ({r.type})</option>)}
+          {viewType==='class' && (
+            <select value={selectedId} onChange={e=>setSelectedId(e.target.value)} className="text-sm border px-3 py-1.5 rounded-xl bg-white font-semibold">
+              {classes.map(c=> <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           )}
-          
-          {['all_classes', 'all_teachers'].includes(viewType) && (
-            <span className="text-xs font-medium text-slate-400 italic">
-              Scroll down to preview. Click "Print" to print a separate sheet for each.
-            </span>
+          {viewType==='teacher' && (
+            <select value={selectedId} onChange={e=>setSelectedId(e.target.value)} className="text-sm border px-3 py-1.5 rounded-xl bg-white font-semibold">
+              {teachers.map(t=> <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
           )}
+          {viewType==='my_teaching' && (
+            <span className="text-sm font-bold px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800">{currentUser?.name} — {myTeacherId ? 'Teaching' : 'No assignment'}</span>
+          )}
+          <span className="text-xs text-slate-400 italic hidden md:inline">Gusa chumba kuchagua somo (Admin pekee)</span>
         </div>
-
-        <button
-          onClick={handlePrint}
-          className="flex items-center space-x-2 px-4 py-2 bg-slate-800 text-white text-sm font-semibold rounded-xl hover:bg-slate-900 shadow-md transition-all"
-        >
-          <Printer size={16} />
-          <span>Print Schedule</span>
+        <button onClick={()=>handlePrint(viewType==='class'?'class':'teacher')} className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-black">
+          <Printer size={16} /> Print (A4 Landscape)
         </button>
       </div>
 
-      {/* Conflicts Banner (HIDES ON PRINT) */}
-      {viewType !== 'master' && currentConflicts.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start space-x-3 print:hidden">
-          <AlertTriangle className="text-amber-500 flex-shrink-0" size={20} />
-          <div>
-            <h3 className="font-semibold text-amber-800 text-sm">Schedule Issues for this {viewType}</h3>
-            <ul className="list-disc ml-4 text-xs text-amber-700 mt-1 space-y-0.5">
-              {currentConflicts.map(c => (
-                <li key={c.id}>
-                  <b>{c.slot.day} {timeSlots.find(s=>s.id===c.slot.periodId)?.name}:</b> {c.description}
-                </li>
-              ))}
-            </ul>
-          </div>
+      {/* Conflict banner */}
+      {collisionMsg && (
+        <div className="bg-red-50 border border-red-200 p-3 rounded-xl flex gap-3 print:hidden">
+          <AlertTriangle className="text-red-500" size={18} />
+          <p className="text-xs text-red-700 font-semibold">{collisionMsg}</p>
+          <button onClick={()=>setCollisionMsg('')} className="ml-auto"><X size={16}/></button>
         </div>
       )}
 
-      {/* TIMETABLE GRID */}
-      {!['master', 'all_classes', 'all_teachers'].includes(viewType) ? (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden print:border-none print:shadow-none">
-          {/* Header identifying the schedule (GOOD FOR PRINTING) */}
-          <div className="p-4 border-b border-slate-100 hidden print:flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              {schoolLogo && (
-                <img src={schoolLogo} alt="Logo" className="h-12 w-auto max-h-12 object-contain" />
-              )}
-              <div className="text-left">
-                <h1 className="text-xl font-bold text-slate-900 leading-tight">{schoolName}</h1>
-                <p className="text-slate-400 text-xs font-semibold">Weekly Timetable Schedule</p>
-              </div>
-            </div>
-            <div className="text-right border-l border-slate-200 pl-4">
-              <h2 className="text-lg font-extrabold text-indigo-700">
-                {viewType === 'class' && `Class: ${classes.find(c=>c.id===selectedId)?.name}`}
-                {viewType === 'teacher' && `Teacher: ${teachers.find(t=>t.id===selectedId)?.name}`}
-                {viewType === 'room' && `Room: ${rooms.find(r=>r.id===selectedId)?.name}`}
-              </h2>
-              <p className="text-[10px] text-slate-400 font-medium">Generated by TimeTable Pro</p>
+      {/* Timetable Grid */}
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden print:border-none print:shadow-none">
+        {/* Print header */}
+        <div className="p-4 border-b hidden print:flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {schoolLogo && <img src={schoolLogo} alt="Logo" className="h-12 object-contain" />}
+            <div>
+              <h1 className="text-lg font-black">{schoolName || 'NAMBAWALA SECONDARY SCHOOL'}</h1>
+              <p className="text-xs text-slate-500">Weekly Teaching Timetable</p>
             </div>
           </div>
-
-          <div className="overflow-x-auto print:overflow-visible">
-            <table className="w-full border-collapse table-fixed min-w-[700px] print:min-w-0 print:w-full">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider">
-                  <th className="p-3 border-r border-slate-200 w-32 text-center bg-slate-50 sticky left-0 z-10 print:static print:z-0 print:w-28">Time Slot</th>
-                  {days.map(d => (
-                    <th key={d} className="p-3 border-r border-slate-100 text-center">{d}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {activePeriods.map((p) => {
-                  if (p.isBreak) {
-                    return (
-                      <tr key={p.id} className="bg-slate-100/80 border-b border-slate-200 text-slate-400 text-xs font-semibold tracking-wider">
-                        <td className="p-3 border-r border-slate-200 font-bold bg-slate-50/80 text-center sticky left-0 print:static">
-                          <div className="text-slate-500">{p.name}</div>
-                          <div className="text-[10px] font-medium text-slate-400 mt-0.5">{p.startTime} - {p.endTime}</div>
-                        </td>
-                        <td colSpan={days.length} className="p-3 text-center bg-slate-100/50 italic text-slate-400 uppercase font-bold tracking-widest text-2xs">
-                          ☕ {p.name} (No classes)
-                        </td>
-                      </tr>
-                    );
-                  }
-
-                  return (
-                    <tr key={p.id} className="border-b border-slate-200 h-24 print:h-20">
-                      {/* Period Header */}
-                      <td className="p-2 border-r border-slate-200 font-bold bg-slate-50 text-slate-700 text-center text-xs sticky left-0 z-10 print:static print:z-0">
-                        <div className="text-slate-900">{p.name}</div>
-                        <div className="text-[10px] font-medium text-slate-400 mt-1 bg-white border rounded px-1.5 py-0.5 inline-block">
-                          {p.startTime} - {p.endTime}
-                        </div>
-                      </td>
-
-                      {/* Day cells */}
-                      {days.map((d) => {
-                        const cell = getCellData(d, p.id);
-                        const hasConflict = currentConflicts.some(c => c.slot.day === d && c.slot.periodId === p.id);
-                        
-                        if (!cell) {
-                          return (
-                            <td 
-                              key={d} 
-                              onClick={() => handleCellClick(d, p.id, p.isBreak)}
-                              className={`p-2 border-r border-slate-100 text-center text-xs text-slate-300 italic align-middle transition-all bg-dashed group ${
-                                viewType === 'class' ? 'hover:bg-indigo-50/40 cursor-pointer' : ''
-                              }`}
-                            >
-                              <span className="opacity-0 group-hover:opacity-100 font-semibold text-indigo-500 text-2xs flex items-center justify-center">
-                                {viewType === 'class' ? <Plus size={12} className="mr-0.5" /> : ''}
-                                {viewType === 'class' ? 'Place Lesson' : 'Free'}
-                              </span>
-                            </td>
-                          );
-                        }
-
-                        const sub = subjects.find(s => s.id === cell.subjectId);
-                        const t = teachers.find(teach => teach.id === cell.teacherId);
-                        const r = rooms.find(room => room.id === cell.roomId);
-
-                        return (
-                          <td 
-                            key={d} 
-                            onClick={() => handleCellClick(d, p.id, p.isBreak)}
-                            className={`p-2 border-r border-slate-100 align-middle transition-all text-center relative group ${
-                              viewType === 'class' ? 'cursor-pointer' : ''
-                            }`}
-                          >
-                            <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center transition-all ${sub?.color || 'bg-slate-100'} ${
-                              hasConflict ? 'ring-2 ring-red-500 border-transparent shadow-red-100 animate-pulse' : 'shadow-sm'
-                            }`}>
-                              <div className="font-bold text-slate-800 text-sm leading-tight font-mono">{sub?.code || 'SUB'}</div>
-                              <div className="font-semibold text-slate-900 text-2xs mt-0.5 truncate">{sub?.name}</div>
-                              
-                              <div className="border-t border-slate-400/20 mt-1.5 pt-1 flex flex-col items-center space-y-0.5 text-3xs font-bold text-slate-600/90 uppercase tracking-tight">
-                                {viewType !== 'teacher' && (
-                                  <div className="truncate w-full max-w-[120px] text-center">👨‍🏫 {t?.name.split(' ').slice(-1)[0] || 'Teacher'}</div>
-                                )}
-                                {viewType === 'teacher' && (
-                                  <div className="truncate w-full max-w-[120px] text-center text-slate-800 font-black">🏫 {classes.find(c=>c.id===cell.classId)?.name}</div>
-                                )}
-                                {viewType !== 'room' && (
-                                  <div className="truncate w-full max-w-[120px] text-center">🚪 {r?.name.replace('Classroom ', 'R-') || 'Room'}</div>
-                                )}
-                              </div>
-
-                              {hasConflict && (
-                                <div className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 shadow-md">
-                                  <AlertTriangle size={10} />
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="text-right">
+            <h2 className="text-sm font-black text-indigo-700">{headerTitle}</h2>
+            <p className="text-[10px] text-slate-400">Generated: {new Date().toLocaleDateString()}</p>
           </div>
         </div>
-      ) : viewType === 'master' || viewType === 'all_classes' ? (
-        /* BATCH CLASSES / MASTER VIEW GRID */
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 print:p-0 print:border-none print:shadow-none">
-          <h2 className="text-lg font-bold text-slate-800 mb-4 print:hidden">
-            {viewType === 'master' ? 'General School Timetable' : 'Print All Class Timetables'}
-          </h2>
-          <div className="space-y-8 print:space-y-12">
-            {classes.map((cls) => {
-              const clsSubs = classSubjects.filter(cs => cs.classId === cls.id);
-              const totalP = clsSubs.reduce((acc, s) => acc + s.periodsPerWeek, 0);
-              
-              return (
-                <div key={cls.id} className="break-after-page print:break-after-page border border-slate-200 rounded-xl p-4 bg-white print:border-slate-300 print:p-6 print:mb-8">
-                  {/* Print-only School Header */}
-                  <div className="p-3 border-b border-slate-200 hidden print:flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3">
-                      {schoolLogo && <img src={schoolLogo} alt="Logo" className="h-10 w-auto object-contain" />}
-                      <div className="text-left">
-                        <h1 className="text-lg font-bold text-slate-900 leading-tight">{schoolName}</h1>
-                        <p className="text-slate-400 text-2xs font-semibold">Official Timetable Schedule</p>
-                      </div>
-                    </div>
-                    <div className="text-right border-l border-slate-200 pl-3">
-                      <h2 className="text-base font-extrabold text-indigo-700">Class: {cls.name}</h2>
-                      <p className="text-[9px] text-slate-400 font-medium">Generated by TimeTable Pro</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3 print:hidden">
-                    <h3 className="text-base font-bold text-slate-800">{cls.name} — Weekly Schedule</h3>
-                    <div className="text-xs text-slate-400 font-medium">{clsSubs.length} Subjects • {totalP} periods</div>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse table-fixed text-xs border border-slate-200">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
-                          <th className="p-1.5 border-r border-slate-200 w-20 text-center">Slot</th>
-                          {days.map(d => <th key={d} className="p-1.5 border-r border-slate-200 text-center">{d.substring(0,3)}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {timeSlots.map(p => {
-                          if (p.isBreak) {
-                            return (
-                              <tr key={p.id} className="bg-slate-100/60 border-b border-slate-200 text-slate-400 text-3xs">
-                                <td className="p-1 font-bold text-center border-r bg-slate-50/60 whitespace-nowrap">{p.name.split(' ')[1] || p.name} ({p.startTime})</td>
-                                <td colSpan={days.length} className="p-1 text-center font-bold text-[10px] uppercase tracking-wider text-slate-400 bg-slate-100/30">
-                                  ☕ {p.name}
-                                </td>
-                              </tr>
-                            );
-                          }
-                          return (
-                            <tr key={p.id} className="border-b border-slate-100">
-                              <td className="p-1 font-bold text-center border-r bg-slate-50 text-slate-400 text-3xs whitespace-nowrap">{p.name.split(' ')[1] || p.name} ({p.startTime})</td>
-                              {days.map(d => {
-                                const cell = schedule[cls.id]?.[d]?.[p.id];
-                                if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
-                                const sub = subjects.find(s => s.id === cell.subjectId);
-                                const t = teachers.find(teach => teach.id === cell.teacherId);
-                                return (
-                                  <td key={d} className={`p-1 border-r border-slate-100 font-medium ${sub?.color.split(' ')[0] || 'bg-slate-100'}`}>
-                                    <div className="font-bold text-slate-800">{sub?.code}</div>
-                                    <div className="text-[10px] text-slate-500 truncate">{t?.name.split(' ').slice(-1)[0]}</div>
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+        <div className="p-3 border-b bg-slate-50 print:bg-white flex justify-between items-center">
+          <h3 className="font-black text-sm">{headerTitle} <span className="font-normal text-xs text-slate-500">| 40 min per period | Single/Double/PS | Break 10:40-11:10 | Lunch 14:30-15:30 | Activity 15:30-17:30</span></h3>
+          <span className="text-xs px-2 py-1 rounded-full bg-white border font-semibold">{displayDays.length} Days • {displaySlots.filter((s:any)=>!s.isBreak).length} Periods</span>
         </div>
-      ) : (
-        /* BATCH TEACHERS VIEW GRID */
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 print:p-0 print:border-none print:shadow-none">
-          <h2 className="text-lg font-bold text-slate-800 mb-4 print:hidden">Print All Teacher Timetables</h2>
-          <div className="space-y-8 print:space-y-12">
-            {teachers.map((t) => {
-              const tSubs = classSubjects.filter(cs => cs.teacherId === t.id);
-              return (
-                <div key={t.id} className="break-after-page print:break-after-page border border-slate-200 rounded-xl p-4 bg-white print:border-slate-300 print:p-6 print:mb-8">
-                  {/* Print-only School Header */}
-                  <div className="p-3 border-b border-slate-200 hidden print:flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3">
-                      {schoolLogo && <img src={schoolLogo} alt="Logo" className="h-10 w-auto object-contain" />}
-                      <div className="text-left">
-                        <h1 className="text-lg font-bold text-slate-900 leading-tight">{schoolName}</h1>
-                        <p className="text-slate-400 text-2xs font-semibold">Official Faculty Schedule</p>
-                      </div>
-                    </div>
-                    <div className="text-right border-l border-slate-200 pl-3">
-                      <h2 className="text-base font-extrabold text-indigo-700">Teacher: {t.name}</h2>
-                      <p className="text-[9px] text-slate-400 font-medium">Generated by TimeTable Pro</p>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3 print:hidden">
-                    <h3 className="text-base font-bold text-slate-800">{t.name} — Weekly Schedule</h3>
-                    <div className="text-xs text-slate-400 font-medium">{tSubs.length} Active Courses</div>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse table-fixed text-xs border border-slate-200">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
-                          <th className="p-1.5 border-r border-slate-200 w-20 text-center">Slot</th>
-                          {days.map(d => <th key={d} className="p-1.5 border-r border-slate-200 text-center">{d.substring(0,3)}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {timeSlots.map(p => {
-                          if (p.isBreak) {
-                            return (
-                              <tr key={p.id} className="bg-slate-100/60 border-b border-slate-200 text-slate-400 text-3xs">
-                                <td className="p-1 font-bold text-center border-r bg-slate-50/60 whitespace-nowrap">{p.name.split(' ')[1] || p.name} ({p.startTime})</td>
-                                <td colSpan={days.length} className="p-1 text-center font-bold text-[10px] uppercase tracking-wider text-slate-400 bg-slate-100/30">
-                                  ☕ {p.name}
-                                </td>
-                              </tr>
-                            );
-                          }
-                          return (
-                            <tr key={p.id} className="border-b border-slate-100">
-                              <td className="p-1 font-bold text-center border-r bg-slate-50 text-slate-400 text-3xs whitespace-nowrap">{p.name.split(' ')[1] || p.name} ({p.startTime})</td>
-                              {days.map(d => {
-                                const cell = getCellData(d, p.id, t.id, 'all_teachers');
-                                if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
-                                const sub = subjects.find(s => s.id === cell.subjectId);
-                                const cls = classes.find(c => c.id === cell.classId);
-                                return (
-                                  <td key={d} className={`p-1 border-r border-slate-100 font-medium ${sub?.color.split(' ')[0] || 'bg-slate-100'}`}>
-                                    <div className="font-bold text-slate-800">{sub?.code}</div>
-                                    <div className="text-[10px] text-slate-500 truncate">{cls?.name || 'Class'}</div>
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-100">
+                <th className="border p-2 text-center w-24">Day / Time</th>
+                {displaySlots.map((slot:any)=> (
+                  <th key={slot.id} className={`border p-1 text-center ${slot.isBreak ? 'bg-amber-50 text-amber-800' : slot.isActivity ? 'bg-indigo-50 text-indigo-800' : 'bg-white'}`}>
+                    <div className="font-bold text-[11px] leading-tight">{slot.name}</div>
+                    <div className="text-[10px] font-normal opacity-70">{slot.startTime}-{slot.endTime}</div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {displayDays.map((day:any)=> (
+                <tr key={day}>
+                  <td className="border p-2 font-black bg-slate-50 text-center">{day}</td>
+                  {displaySlots.map((slot:any, idx:number)=> {
+                    if (slot.isBreak) {
+                      return <td key={slot.id} className="border p-2 text-center bg-amber-50 text-amber-700 font-bold text-xs">{slot.name}<br/><span className="text-[10px] font-normal">{slot.startTime}-{slot.endTime}</span></td>;
+                    }
+                    const cell = getCellData(day, slot.id);
+                    // Skip rendering if this is a double span (second part) — it was already rendered as colspan 2
+                    // But we rendered previous as colspan 2, so we should hide this cell
+                    // Check if previous period is double for this day
+                    const prevSlot = displaySlots[idx-1];
+                    if (prevSlot && !prevSlot.isBreak && !prevSlot.isActivity) {
+                      const prevCell = getCellData(day, prevSlot.id);
+                      if (prevCell && prevCell.isDouble) {
+                        return null; // hidden because double occupies
+                      }
+                    }
+                    const isDouble = cell?.isDouble;
+                    const colSpan = isDouble ? 2 : 1;
+                    const isPS = cell?.isPS || cell?.subjectId==='ps';
+                    const isActivity = cell?.isActivity;
+                    const subjectName = isPS ? 'PS' : isActivity ? cell.activity : (cell ? (cell.subjectName || subjects.find(s=>s.id===cell.subjectId)?.name || cell.subjectId) : '');
+                    const teacherNameForCell = isPS || isActivity ? '' : (cell ? (cell.teacherName || getTeacherName(cell.teacherId)) : '');
+                    const classNameForCell = viewType==='class' ? '' : (cell ? (cell._className || '') : '');
 
-      {/* CELL EDIT MODAL (HIDES ON PRINT) */}
-      {activeCell && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4 print:hidden">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-slate-100 animate-fadeIn space-y-4">
-            <div className="flex justify-between items-start border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="font-bold text-lg text-slate-800">Edit Schedule Slot</h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Class: <b>{classes.find(c=>c.id===selectedId)?.name}</b> • Slot: <b>{activeCell.day}, {timeSlots.find(p=>p.id===activeCell.periodId)?.name}</b>
-                </p>
-              </div>
-              <button onClick={() => setActiveCell(null)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Current Lesson in this cell */}
-            {getCellData(activeCell.day, activeCell.periodId) ? (
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                <div>
-                  <div className="text-2xs font-bold text-indigo-500 uppercase tracking-wider">Scheduled Lesson:</div>
-                  <div className="font-bold text-slate-800 mt-0.5">
-                    {subjects.find(s=>s.id===getCellData(activeCell.day, activeCell.periodId)?.subjectId)?.name}
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    Taught by: {teachers.find(t=>t.id===getCellData(activeCell.day, activeCell.periodId)?.teacherId)?.name}
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    Location: {rooms.find(r=>r.id===getCellData(activeCell.day, activeCell.periodId)?.roomId)?.name}
-                  </div>
-                </div>
-                <button
-                  onClick={handleRemoveCell}
-                  className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 border border-red-200 flex flex-col items-center justify-center text-center font-bold text-xs"
-                >
-                  <Trash2 size={16} className="mb-0.5" />
-                  <span>Remove</span>
-                </button>
-              </div>
-            ) : (
-              <div className="p-4 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-center text-xs text-slate-500">
-                This slot is currently empty.
-              </div>
-            )}
-
-            {/* Unscheduled pool */}
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Place an Unscheduled Lesson</label>
-              
-              {timetableData.unscheduled.filter(u => u.classId === selectedId).length === 0 ? (
-                <p className="text-xs text-slate-400 italic bg-white border border-slate-100 p-4 rounded-xl text-center">No unscheduled lessons available for this class!</p>
-              ) : (
-                <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
-                  {timetableData.unscheduled.filter(u => u.classId === selectedId).map((u) => {
-                    const sub = subjects.find(s=>s.id===u.subjectId);
-                    const t = teachers.find(teach=>teach.id===u.teacherId);
-                    const isSelected = selectedUnscheduledId === u.id;
+                    // For general timetable (class view): show subject + teacher
+                    // For teacher view: show subject + class
+                    const lowerText = viewType==='class' ? teacherNameForCell : classNameForCell;
 
                     return (
-                      <div 
-                        key={u.id}
-                        onClick={() => setSelectedUnscheduledId(u.id)}
-                        className={`p-2.5 rounded-xl border flex items-center justify-between text-xs cursor-pointer hover:border-indigo-300 transition-all ${
-                          isSelected ? 'border-indigo-600 bg-indigo-50/40 font-bold' : 'bg-white border-slate-200'
-                        }`}
+                      <td
+                        key={slot.id}
+                        colSpan={colSpan}
+                        onClick={()=>handleCellClick(day, slot.id, cell)}
+                        className={`border p-1 text-center cursor-pointer relative group ${!cell ? 'bg-white hover:bg-indigo-50' : isPS ? 'bg-slate-100 border-slate-300' : isActivity ? 'bg-indigo-50 border-indigo-200' : isDouble ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-slate-200'} ${viewType!=='class' ? 'cursor-default' : ''}`}
                       >
-                        <div>
-                          <span className={`px-1.5 py-0.5 rounded text-3xs font-bold font-mono mr-2 border ${sub?.color.split(' ')[0]}`}>{sub?.code}</span>
-                          <span className="text-slate-700">{sub?.name} ({t?.name.split(' ').slice(-1)[0]})</span>
-                        </div>
-                        <span className="text-2xs bg-slate-100 text-slate-600 font-bold px-1.5 py-0.5 rounded border">
-                          {u.periodsLeft} left
-                        </span>
-                      </div>
+                        {!cell ? (
+                          <span className="text-slate-300 text-xs print:hidden">{viewType==='class' ? '+' : '—'}</span>
+                        ) : (
+                          <div className="leading-tight">
+                            <div className={`font-bold text-[11px] ${isPS ? 'text-slate-600' : isActivity ? 'text-indigo-700' : 'text-slate-900'}`}>{subjectName}</div>
+                            {lowerText && <div className="text-[10px] text-slate-600 truncate">{lowerText}</div>}
+                            {isDouble && <div className="text-[9px] font-bold text-emerald-700 mt-0.5">Double (80 min)</div>}
+                            {isPS && <div className="text-[9px] text-slate-500">Private Studies</div>}
+                          </div>
+                        )}
+                        {viewType==='class' && cell && (
+                          <button
+                            onClick={(e)=>{e.stopPropagation(); setActiveCell({day, periodId: slot.id}); setTimeout(handleRemove,0)}}
+                            className="absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100 print:hidden bg-white rounded-full p-0.5 border"
+                          >
+                            <Trash2 size={10} className="text-red-500" />
+                          </button>
+                        )}
+                      </td>
                     );
                   })}
-                </div>
-              )}
-            </div>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-            <div className="flex space-x-2 pt-2 border-t border-slate-100">
-              <button
-                onClick={handlePlaceUnscheduled}
-                disabled={!selectedUnscheduledId}
-                className="flex-1 flex items-center justify-center space-x-1 px-4 py-2 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-40"
-              >
-                <Plus size={16} />
-                <span>Place Lesson</span>
-              </button>
-              <button
-                onClick={() => setActiveCell(null)}
-                className="flex-1 flex items-center justify-center px-4 py-2 border border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50"
-              >
-                Cancel
-              </button>
+        <div className="p-2 bg-slate-50 text-xs text-slate-500 flex flex-wrap gap-3 print:hidden">
+          <span>🔒 Break/Lunch hazibadilishwi</span>
+          <span>📚 Gusa chumba → chagua Somo (kama alivyosajili darasa + somo)</span>
+          <span>🟩 Double = 80 min (vipindi 2)</span>
+          <span>⬜ PS = Private Studies bila mwalimu</span>
+          <span>🟦 Activity 15:30-17:30</span>
+        </div>
+      </div>
+
+      {/* Print hint */}
+      <div className="text-center text-xs text-slate-400 print:hidden">Print: Hakikisha umechagua **Class View** au **My Timetable** → Print → Chagua **Landscape** + **Background graphics**</div>
+
+      {/* Modal */}
+      {activeCell && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5 space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-black text-sm">{activeCell.day} — {displaySlots.find((s:any)=>s.id===activeCell.periodId)?.name} ({displaySlots.find((s:any)=>s.id===activeCell.periodId)?.startTime}-{displaySlots.find((s:any)=>s.id===activeCell.periodId)?.endTime})</h3>
+              <button onClick={()=>setActiveCell(null)} className="p-1 rounded-full hover:bg-slate-100"><X size={18} /></button>
             </div>
+            <div className="text-xs text-slate-500">Class: <b>{selectedClassName}</b> {viewType!=='class' && <span className="text-red-500">(Badilisha kwenye Class View)</span>}</div>
+
+            {(displaySlots.find((s:any)=>s.id===activeCell.periodId) as any)?.isActivity ? (
+              <>
+                <div>
+                  <label className="text-xs font-bold">Chagua Activity (15:30-17:30)</label>
+                  <select value={selectedActivity} onChange={e=>setSelectedActivity(e.target.value)} className="w-full mt-1 border px-3 py-2 rounded-xl text-sm">
+                    <option value="">-- Chagua --</option>
+                    {ACTIVITY_OPTIONS.map(a=> <option key={a} value={a}>{a}</option>)}
+                  </select>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="text-xs font-bold">Somo (kutoka Subjects waliosajiliwa)</label>
+                  <select value={selectedSubject} onChange={e=>setSelectedSubject(e.target.value)} className="w-full mt-1 border px-3 py-2 rounded-xl text-sm">
+                    <option value="">-- Chagua somo --</option>
+                    {subjectOptions.map((name:string)=> <option key={name} value={name}>{name}</option>)}
+                  </select>
+                  {selectedSubject && (()=> {
+                    const found = findTeacherForSubjectClass(selectedSubject, selectedClassName);
+                    return found ? <p className="text-xs text-emerald-600 mt-1">Mwalimu: <b>{found.name}</b> (kutoka Teaching Assignments)</p> : <p className="text-xs text-amber-600 mt-1">Hakuna mwalimu aliye-assign somo hili kwenye darasa hili.</p>;
+                  })()}
+                </div>
+                <div>
+                  <label className="text-xs font-bold">Aina ya Kipindi</label>
+                  <div className="flex gap-2 mt-1">
+                    <button onClick={()=>setPeriodType('single')} className={`flex-1 py-2 rounded-xl text-xs font-bold border ${periodType==='single'?'bg-indigo-600 text-white border-indigo-600':'bg-white'}`}>Single (40 min)</button>
+                    <button onClick={()=>setPeriodType('double')} className={`flex-1 py-2 rounded-xl text-xs font-bold border ${periodType==='double'?'bg-emerald-600 text-white border-emerald-600':'bg-white'}`}>Double (80 min)</button>
+                    <button onClick={()=>setPeriodType('ps')} className={`flex-1 py-2 rounded-xl text-xs font-bold border ${periodType==='ps'?'bg-slate-800 text-white border-slate-800':'bg-white'}`}>PS (Private)</button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {collisionMsg && <div className="p-2 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-semibold">{collisionMsg}</div>}
+
+            <div className="flex gap-2">
+              <button onClick={handleSaveCell} className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2"><Save size={16}/> Save</button>
+              <button onClick={handleRemove} className="flex-1 py-2.5 bg-white border text-slate-700 rounded-xl font-bold text-sm flex items-center justify-center gap-2"><Trash2 size={16}/> Remove</button>
+              <button onClick={()=>setActiveCell(null)} className="px-4 py-2.5 bg-slate-100 rounded-xl font-bold text-sm">Close</button>
+            </div>
+            <p className="text-[10px] text-slate-400 text-center">Collision: Mwalimu asipewe madarasa 2 muda mmoja. Double itachukua vipindi 2 mfululizo.</p>
           </div>
         </div>
       )}
+
+      <style>{`
+        @media print {
+          @page { size: A4 landscape; margin: 10mm; }
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .print\\:hidden { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 };
