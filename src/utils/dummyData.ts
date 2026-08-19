@@ -4,18 +4,18 @@ export const DEFAULT_DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thu
 
 export const DEFAULT_TIME_SLOTS: TimeSlot[] = [
   // ✅ NAMBWALA SECONDARY - 40 min per period, Break 10:40-11:10, Lunch 14:30-15:30, Activity 15:30-17:30
-  { id: 'p1', name: 'Kipindi 1', startTime: '08:00', endTime: '08:40', isBreak: false },
-  { id: 'p2', name: 'Kipindi 2', startTime: '08:40', endTime: '09:20', isBreak: false },
-  { id: 'p3', name: 'Kipindi 3', startTime: '09:20', endTime: '10:00', isBreak: false },
-  { id: 'p4', name: 'Kipindi 4', startTime: '10:00', endTime: '10:40', isBreak: false },
-  { id: 'b1', name: 'Mapumziko', startTime: '10:40', endTime: '11:10', isBreak: true },
-  { id: 'p5', name: 'Kipindi 5', startTime: '11:10', endTime: '11:50', isBreak: false },
-  { id: 'p6', name: 'Kipindi 6', startTime: '11:50', endTime: '12:30', isBreak: false },
-  { id: 'p7', name: 'Kipindi 7', startTime: '12:30', endTime: '13:10', isBreak: false },
-  { id: 'p8', name: 'Kipindi 8', startTime: '13:10', endTime: '13:50', isBreak: false },
-  { id: 'p9', name: 'Kipindi 9', startTime: '13:50', endTime: '14:30', isBreak: false },
-  { id: 'lunch', name: 'Chakula cha Mchana', startTime: '14:30', endTime: '15:30', isBreak: true },
-  { id: 'act', name: 'Shughuli', startTime: '15:30', endTime: '17:30', isBreak: false },
+  { id: 'p1', name: 'Period 1', startTime: '08:00', endTime: '08:40', isBreak: false },
+  { id: 'p2', name: 'Period 2', startTime: '08:40', endTime: '09:20', isBreak: false },
+  { id: 'p3', name: 'Period 3', startTime: '09:20', endTime: '10:00', isBreak: false },
+  { id: 'p4', name: 'Period 4', startTime: '10:00', endTime: '10:40', isBreak: false },
+  { id: 'b1', name: 'Break', startTime: '10:40', endTime: '11:10', isBreak: true },
+  { id: 'p5', name: 'Period 5', startTime: '11:10', endTime: '11:50', isBreak: false },
+  { id: 'p6', name: 'Period 6', startTime: '11:50', endTime: '12:30', isBreak: false },
+  { id: 'p7', name: 'Period 7', startTime: '12:30', endTime: '13:10', isBreak: false },
+  { id: 'p8', name: 'Period 8', startTime: '13:10', endTime: '13:50', isBreak: false },
+  { id: 'p9', name: 'Period 9', startTime: '13:50', endTime: '14:30', isBreak: false },
+  { id: 'lunch', name: 'Lunch', startTime: '14:30', endTime: '15:30', isBreak: true },
+  { id: 'act', name: 'Activity', startTime: '15:30', endTime: '17:30', isBreak: false },
 ];
 
 export const DEFAULT_SUBJECTS: Subject[] = [
