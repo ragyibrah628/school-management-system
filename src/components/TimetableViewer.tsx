@@ -212,8 +212,8 @@ export const TimetableViewer: React.FC = () => {
       localStorage.setItem('tt_timetableData', JSON.stringify({...timetableData, schedule}));
       window.dispatchEvent(new Event('storage'));
       setActiveCell(null);
-      // Force reload
-      // stay on timetable tab
+      setCollisionMsg('');
+      // stay on timetable tab - no reload
       return;
     }
 
@@ -231,8 +231,8 @@ export const TimetableViewer: React.FC = () => {
       localStorage.setItem('tt_timetableData', JSON.stringify(timetableData));
       localStorage.setItem('tt_timetableData_ts', String(Date.now()));
       setActiveCell(null);
-      // stay on timetable tab — don't reload to dashboard
       setCollisionMsg('');
+      // stay on timetable tab
       return;
     }
 
@@ -263,7 +263,7 @@ export const TimetableViewer: React.FC = () => {
       if (t) teacherId = t.id;
     }
     if (!teacherId) {
-      setCollisionMsg('No teacher assigned to teach ' + subjName + ' in ' + (classes.find(c=>c.id===classId)?.name || classId) + '. Go to Assign Teaching Classes & Subjects first.');
+      setCollisionMsg('Hakuna mwalimu aliye-assign kufundisha ' + subjName + ' kwenye ' + (classes.find(c=>c.id===classId)?.name || classId) + '. Nenda Assign Teaching Classes & Subjects kwanza.');
       return;
     }
 
@@ -319,7 +319,7 @@ export const TimetableViewer: React.FC = () => {
     window.dispatchEvent(new Event('tt-timetable-updated'));
     setActiveCell(null);
     setCollisionMsg('');
-    // keep timetable tab open — no reload
+    // keep timetable tab open - no reload
   };
 
   const handleRemove = () => {
@@ -344,154 +344,7 @@ export const TimetableViewer: React.FC = () => {
   };
 
   const handlePrint = (type: 'class'|'teacher') => {
-    // Determine orientation and data
-    const isClass = type === 'class' || viewType === 'class';
-    const targetId = isClass ? selectedId : (viewType === 'my_teaching' ? myTeacherId : selectedId);
-    const targetName = isClass ? (classes.find(c=>c.id===targetId)?.name || selectedClassName) : (teachers.find(tc=>tc.id===targetId)?.name || selectedTeacherName || currentUser?.name || '');
-    const title = isClass ? `${targetName} Teaching Timetable` : `${targetName} Teaching Timetable`;
-    const orientation = isClass ? 'landscape' : 'portrait';
-    const schoolLogoData = localStorage.getItem('sms_school_logo') || schoolLogo || '';
-    const schoolNameData = localStorage.getItem('sms_school_name_setting') || schoolName || 'NAMBAWALA SECONDARY SCHOOL';
-    const districtData = localStorage.getItem('sms_district_name') || 'RUANGWA DISTRICT COUNCIL';
-    const addressData = localStorage.getItem('sms_school_address') || 'P.O. Box 51, Ruangwa - Lindi';
-
-    const pw = window.open('', '', 'width=1200,height=800');
-    if (!pw) { window.print(); return; }
-
-    // Build HTML
-    let html = `<!DOCTYPE html><html><head><title> ${title} </title><style>
-      @page { size: A4 ${orientation}; margin: 10mm 12mm; }
-      * { margin:0; padding:0; box-sizing:border-box; }
-      body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color:#000; background:#fff; }
-      table { width:100%; border-collapse:collapse; table-layout:fixed; }
-      th, td { border:1.5px solid #000; padding: ${isClass ? '6px 4px' : '5px 3px'}; text-align:center; vertical-align:middle; }
-      th { background:#eef2ff; font-weight:800; font-size: ${isClass ? '11px' : '10px'}; color:#1e293b; }
-      td { font-size: ${isClass ? '11px' : '10.5px'}; line-height:1.3; }
-      .header { text-align:center; margin-bottom:12px; border-bottom:3px double #000; padding-bottom:10px; }
-      .header img { height:${isClass ? '60px' : '55px'}; margin-bottom:6px; }
-      .header h1 { font-size:${isClass ? '20px' : '18px'}; font-weight:900; letter-spacing:1px; margin:2px 0; }
-      .header h2 { font-size:${isClass ? '14px' : '13px'}; font-weight:800; color:#4338ca; margin-top:4px; }
-      .header p { font-size:10px; color:#555; margin-top:2px; }
-      .subject { font-weight:800; font-size:${isClass ? '12px' : '11px'}; color:#0f172a; line-height:1.2; }
-      .subteacher { font-weight:600; font-size:${isClass ? '10.5px' : '10px'}; color:#334155; margin-top:2px; }
-      .breakCell { background:#fff7ed; color:#9a3412; font-weight:800; font-size:10px; }
-      .lunchCell { background:#fef3c7; color:#92400e; font-weight:800; font-size:10px; }
-      .activityCell { background:#eef2ff; color:#3730a3; font-weight:700; font-size:10px; }
-      .psCell { background:#f1f5f9; color:#475569; font-weight:700; font-size:10px; }
-      .empty { background:#fff; }
-      .dayCol { background:#f8fafc; font-weight:900; font-size:${isClass ? '12px' : '11px'}; color:#0f172a; }
-      .footer { text-align:center; margin-top:12px; font-size:9px; color:#64748b; border-top:1px solid #cbd5e1; padding-top:6px; font-style:italic; }
-      @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
-    </style></head><body>`;
-
-    html += `<div class="header">`;
-    if (schoolLogoData) html += `<img src="${schoolLogoData}" alt="Logo" />`;
-    html += `<div style="font-size:12px; font-weight:700; letter-spacing:1px;">${districtData}</div>`;
-    html += `<h1>${schoolNameData}</h1>`;
-    html += `<div style="font-size:10px; color:#64748b;">${addressData}</div>`;
-    html += `<h2>${title}</h2>`;
-    html += `<p>Weekly Teaching Timetable • ${isClass ? 'Class' : 'Teacher'} • ${orientation === 'landscape' ? 'A4 Landscape' : 'A4 Portrait'} • ${new Date().toLocaleDateString()}</p>`;
-    html += `</div>`;
-
-    // Table header
-    html += `<table><thead><tr><th style="width:95px;">Day / Time</th>`;
-    for (const slot of displaySlots) {
-      const cls = slot.isBreak ? (slot.id==='act' ? 'activityCell' : 'breakCell') : slot.isActivity ? 'activityCell' : '';
-      if (slot.isBreak && slot.id!=='act') {
-        // Break and Lunch as is
-        html += `<th class="${cls}"><div>${slot.name}</div><div style="font-weight:400; font-size:9px;">${slot.startTime}-${slot.endTime}</div></th>`;
-      } else {
-        html += `<th><div>${slot.name}</div><div style="font-weight:400; font-size:9px; opacity:0.8;">${slot.startTime}-${slot.endTime}</div></th>`;
-      }
-    }
-    html += `</tr></thead><tbody>`;
-
-    for (const day of displayDays) {
-      html += `<tr><td class="dayCol">${day}</td>`;
-      for (let idx=0; idx<displaySlots.length; idx++) {
-        const slot = displaySlots[idx] as any;
-        if (slot.isBreak) {
-          const cls = slot.id==='act' ? 'activityCell' : 'breakCell';
-          html += `<td class="${cls}">${slot.name}<br><span style="font-size:8px; font-weight:400;">${slot.startTime}-${slot.endTime}</span></td>`;
-          continue;
-        }
-        // Check double span - skip if previous is double
-        const prevSlot = displaySlots[idx-1] as any;
-        if (prevSlot && !prevSlot.isBreak && !prevSlot.isActivity) {
-          const prevCell = isClass ? schedule[targetId]?.[day]?.[prevSlot.id] : (() => {
-            // For teacher view, find if teacher has double at prev
-            for (const cid of Object.keys(schedule)) {
-              const c = schedule[cid]?.[day]?.[prevSlot.id];
-              if (c && c.isDouble && (c.teacherId===targetId || c.teacherName===targetName)) return c;
-            }
-            return null;
-          })();
-          if (prevCell && prevCell.isDouble) {
-            continue; // hidden due to colspan
-          }
-        }
-
-        let cell: any = null;
-        if (isClass) {
-          cell = schedule[targetId]?.[day]?.[slot.id] || null;
-        } else {
-          // teacher view: find across all classes
-          for (const cid of Object.keys(schedule)) {
-            const c = schedule[cid]?.[day]?.[slot.id];
-            if (c && (c.teacherId===targetId || c.teacherName===targetName)) {
-              cell = { ...c, _className: classes.find(x=>x.id===cid)?.name || cid };
-              break;
-            }
-          }
-        }
-
-        const isDouble = cell?.isDouble;
-        const colspan = isDouble ? 2 : 1;
-        const isPS = cell?.isPS || cell?.subjectId==='ps';
-        const isAct = cell?.isActivity;
-
-        if (!cell) {
-          html += `<td class="empty" ${colspan>1?`colspan="${colspan}"`:''}></td>`;
-          if (isDouble) idx++; // skip next slot loop increment? We already handle skip via prev check, but for generation we need to skip next iteration
-          // But we use continue logic above, so don't increment here; instead we will skip rendering next cell via prev check
-          // To avoid double counting, we rely on prev check, so not skipping idx here
-          // Actually we need to not double-increment; so remove manual idx++
-          // Keep as is, the next loop will see prev is double and skip
-        } else {
-          let subjectName = '';
-          let subText = '';
-          if (isPS) {
-            subjectName = 'PS';
-            subText = 'Private Studies';
-          } else if (isAct) {
-            subjectName = cell.activity || 'Activity';
-            subText = '';
-          } else {
-            subjectName = cell.subjectName || subjects.find(s=>s.id===cell.subjectId)?.name || cell.subjectId || '';
-            subText = isClass ? (cell.teacherName || getTeacherName(cell.teacherId)) : (cell._className || '');
-          }
-          const cellClass = isPS ? 'psCell' : isAct ? 'activityCell' : '';
-          // For double, colspan 2
-          if (isDouble) {
-            html += `<td colspan="2" class="${cellClass}"><div class="subject">${subjectName}</div>${subText ? `<div class="subteacher">${subText}</div>` : ''}</td>`;
-            // Skip next slot rendering on next iteration via prev check, but to avoid extra loop we will let next iteration be skipped
-            // So we don't need to manually increment idx because next iteration's prev check will skip
-            // However we need to ensure we don't render duplicate: the next iteration will return continue, so fine
-          } else {
-            html += `<td class="${cellClass}"><div class="subject">${subjectName}</div>${subText ? `<div class="subteacher">${subText}</div>` : ''}</td>`;
-          }
-        }
-      }
-      html += `</tr>`;
-    }
-    html += `</tbody></table>`;
-
-    html += `<div class="footer">${schoolNameData}: Honor All Build Together</div>`;
-    html += `</body></html>`;
-
-    pw.document.write(html);
-    pw.document.close();
-    setTimeout(()=> { pw.focus(); pw.print(); }, 400);
+    window.print();
   };
 
   // Build subject options from admin registered subjects + timetable subjects
@@ -645,7 +498,7 @@ export const TimetableViewer: React.FC = () => {
 
         <div className="p-2 bg-slate-50 text-xs text-slate-500 flex flex-wrap gap-3 print:hidden">
           <span>🔒 Break/Lunch hazibadilishwi</span>
-          <span>📚 Click a cell → select Subject (as assigned to class + subject)</span>
+          <span>📚 Gusa chumba → chagua Somo (kama alivyosajili darasa + somo)</span>
           <span>🟩 Double = 80 min (vipindi 2)</span>
           <span>⬜ PS = Private Studies bila mwalimu</span>
           <span>🟦 Activity 15:30-17:30</span>
@@ -653,7 +506,7 @@ export const TimetableViewer: React.FC = () => {
       </div>
 
       {/* Print hint */}
-      <div className="text-center text-xs text-slate-400 print:hidden">Print: Make sure you select **Class View** au **My Timetable** → Print → Chagua **Landscape** + **Background graphics**</div>
+      <div className="text-center text-xs text-slate-400 print:hidden">Print: Hakikisha umechagua **Class View** au **My Timetable** → Print → Chagua **Landscape** + **Background graphics**</div>
 
       {/* Modal */}
       {activeCell && (
@@ -680,7 +533,7 @@ export const TimetableViewer: React.FC = () => {
                 <div>
                   <label className="text-xs font-bold">Subject (from registered Subjects)</label>
                   <select value={selectedSubject} onChange={e=>setSelectedSubject(e.target.value)} className="w-full mt-1 border px-3 py-2 rounded-xl text-sm">
-                    <option value="">-- Select subject --</option>
+                    <option value="">-- Select a subject --</option>
                     {subjectOptions.map((name:string)=> <option key={name} value={name}>{name}</option>)}
                   </select>
                   {selectedSubject && (()=> {
