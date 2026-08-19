@@ -70,10 +70,27 @@ export async function getUsers(): Promise<any[]> {
   if (IS_CLOUD) {
     try {
       const data = await supabaseRequest('users', 'GET', undefined, '?order=created_at.desc');
-      return data.map((u: any) => ({
+      const mapped = data.map((u: any) => ({
         ...u,
         subjects: Array.isArray(u.subjects) ? u.subjects : []
       }));
+      // cache successful fetch locally so teacher device doesn't lose teachers on next offline fetch
+      if (Array.isArray(mapped) && mapped.length > 0) {
+        localStorage.setItem('sms_users', JSON.stringify(mapped));
+        return mapped;
+      }
+      // cloud returned empty but local has teachers — keep local (prevents "no teacher registered" flash)
+      const savedEmpty = localStorage.getItem('sms_users');
+      if (savedEmpty) {
+        try {
+          const local = JSON.parse(savedEmpty);
+          if (Array.isArray(local) && local.length > 0) {
+            console.warn('Cloud users empty, keeping local cache (' + local.length + ' users)');
+            return local;
+          }
+        } catch {}
+      }
+      return mapped;
     } catch (e) {
       console.error('Cloud getUsers failed:', e);
     }
@@ -373,17 +390,15 @@ export async function syncFromCloud() {
           if (isCloudEmpty && isLocalNonEmpty) {
             return;
           }
-          // FIX classes bug: respect recent local edits (15s) — don't overwrite delete/add race
-          if (item.key === 'sms_school_classes' || item.key === 'tt_shared_classes') {
-            try {
-              const ts = localStorage.getItem('sms_school_classes_ts');
-              const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
-              if (isRecent) {
-                // local was just edited by admin (add/delete), keep local, let syncToCloud push it
-                return;
-              }
-            } catch {}
-          }
+          // FIX: respect recent local edits for any key that was just edited (add/delete/assign) — prevent race overwrite
+          try {
+            const ts = localStorage.getItem(item.key + '_ts') || localStorage.getItem('sms_school_classes_ts');
+            const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
+            if (isRecent) {
+              // local was just edited (add/delete/assign), keep local, let syncToCloud push it
+              return;
+            }
+          } catch {}
           localStorage.setItem(item.key, item.value);
         }
       });
