@@ -702,6 +702,7 @@ export const TimetableViewer: React.FC = () => {
                   <select value={selectedSubject} onChange={e=>setSelectedSubject(e.target.value)} className="w-full mt-1 border px-3 py-2.5 rounded-xl text-sm bg-white">
                     <option value="">-- Select subject --</option>
                     {subjectOptions.map((name:string)=> <option key={name} value={name}>{name} ({getSubjectCodeTT(name)})</option>)}
+                    <option value="ps">PS - Private Studies (no teacher)</option>
                   </select>
                   {selectedSubject && (()=> {
                     const found = findTeacherForSubjectClass(selectedSubject, classes.find((c:any)=>c.id===selectedId)?.name || '');
@@ -709,10 +710,16 @@ export const TimetableViewer: React.FC = () => {
                   })()}
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-700">Add Subject</label>
-                  <div className="flex gap-2">
+                  <label className="text-xs font-bold text-slate-700">Add Subject (Second Subject in Same Cell)</label>
+                  <select value={selectedSecondSubject} onChange={e=>setSelectedSecondSubject(e.target.value)} className="w-full mt-1 border px-3 py-2.5 rounded-xl text-sm bg-white">
+                    <option value="">None (single subject)</option>
+                    {subjectOptions.map((name:string)=> <option key={name+'-2'} value={name}>{name} ({getSubjectCodeTT(name)})</option>)}
+                    <option value="ps">PS - Private Studies</option>
+                  </select>
+                  <p className="text-[10px] text-slate-500 mt-1">Example: Select MATH above + HIST here = cell shows <b>MATH/HIST</b> (two subjects in one period). Leave as None for single subject.</p>
+                  <div className="mt-2 flex gap-2">
                     <button onClick={()=>{
-                      const name = prompt('Subject name (e.g., Agriculture):');
+                      const name = prompt('Or create NEW subject (name):');
                       if (!name || !name.trim()) return;
                       const code = prompt('Subject code (e.g., AGRI, 2-6 letters):', name.trim().substring(0,4).toUpperCase());
                       if (!code || !code.trim()) return;
@@ -727,21 +734,21 @@ export const TimetableViewer: React.FC = () => {
                         localStorage.setItem('sms_school_subjects', JSON.stringify(nextSubs));
                         const nextCodes = {...codes, [name.trim()]: c};
                         localStorage.setItem('sms_subject_codes', JSON.stringify(nextCodes));
-                        setSelectedSubject(name.trim());
-                        alert('Subject added: '+name.trim()+' ('+c+') — will appear in timetable & results');
+                        // Also set as second subject if first already chosen
+                        if (selectedSubject && !selectedSecondSubject) setSelectedSecondSubject(name.trim());
+                        else setSelectedSubject(name.trim());
+                        alert('Subject added: '+name.trim()+' ('+c+')');
                       } catch(e:any){ alert('Failed: '+String(e)); }
-                    }} className="flex-1 py-2 rounded-xl border-2 border-dashed border-indigo-200 text-indigo-600 font-bold text-xs hover:bg-indigo-50">+ Add Subject (Name + CODE)</button>
+                    }} className="flex-1 py-1.5 rounded-xl border border-dashed border-indigo-200 text-indigo-600 font-bold text-[11px] hover:bg-indigo-50">+ Create New Subject (Name + CODE)</button>
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-1">CODE appears in timetable & general results (e.g., MATH instead of Mathematics)</p>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-700">Choose Period Type</label>
                   <div className="flex gap-2 mt-1">
                     <button onClick={()=>setPeriodType('single')} className={`flex-1 py-2 rounded-xl text-xs font-bold border ${periodType==='single'?'bg-indigo-600 text-white border-indigo-600':'bg-white'}`}>Single (40 min)</button>
                     <button onClick={()=>setPeriodType('double')} className={`flex-1 py-2 rounded-xl text-xs font-bold border ${periodType==='double'?'bg-emerald-600 text-white border-emerald-600':'bg-white'}`}>Double (80 min)</button>
-                    <button onClick={()=>setPeriodType('ps')} className={`flex-1 py-2 rounded-xl text-xs font-bold border ${periodType==='ps'?'bg-slate-800 text-white border-slate-800':'bg-white'}`}>PS</button>
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-1">PS = Private Studies (no teacher). Double merges 2 periods.</p>
+                  <p className="text-[10px] text-slate-500 mt-1">Double merges 2 periods (80 min). PS can be Single or Double — no teacher will be assigned.</p>
                 </div>
               </div>
             )}
@@ -756,23 +763,48 @@ export const TimetableViewer: React.FC = () => {
                     const isAct = slot?.isActivity;
                     if (isAct) {
                       if (!selectedActivity) { setCollisionMsg('Select an activity'); return; }
-                      const cell: any = { subjectId: 'activity', teacherId: '', roomId: '', isActivity: true, activity: selectedActivity, isDouble: false, isPS: false };
-                      const raw = localStorage.getItem('tt_timetableData');
-                      if (raw) {
-                        const data = JSON.parse(raw);
-                        if (!data.schedule[selectedId]) data.schedule[selectedId] = {};
-                        if (!data.schedule[selectedId][activeCell.day]) data.schedule[selectedId][activeCell.day] = {};
-                        data.schedule[selectedId][activeCell.day][activeCell.periodId] = cell;
-                        localStorage.setItem('tt_timetableData', JSON.stringify(data));
-                        localStorage.setItem('tt_timetableData_ts', String(Date.now()));
-                      } else {
-                        (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, 'activity', '', '');
-                      }
+                      // FIX: activity must be visible - store correctly and force refresh
+                      const cell: any = { subjectId: 'activity', teacherId: '', roomId: '', isActivity: true, activity: selectedActivity, isDouble: false, isPS: false, subjectName: selectedActivity };
+                      // Use direct localStorage mutation with refresh
+                      try {
+                        const rawAct = localStorage.getItem('tt_timetableData');
+                        if (rawAct) {
+                          const dataAct = JSON.parse(rawAct);
+                          if (!dataAct.schedule[selectedId]) dataAct.schedule[selectedId] = {};
+                          if (!dataAct.schedule[selectedId][activeCell.day]) dataAct.schedule[selectedId][activeCell.day] = {};
+                          dataAct.schedule[selectedId][activeCell.day][activeCell.periodId] = cell;
+                          localStorage.setItem('tt_timetableData', JSON.stringify(dataAct));
+                          localStorage.setItem('tt_timetableData_ts', String(Date.now()));
+                          // Also try context update for in-memory
+                          try { (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, 'activity', '', ''); } catch {}
+                          // Patch the in-memory too if activity
+                          setTimeout(()=>{
+                            try {
+                              const raw2 = localStorage.getItem('tt_timetableData');
+                              if (raw2) {
+                                const d2 = JSON.parse(raw2);
+                                if (d2?.schedule?.[selectedId]?.[activeCell.day]?.[activeCell.periodId]) {
+                                  d2.schedule[selectedId][activeCell.day][activeCell.periodId].activity = selectedActivity;
+                                  d2.schedule[selectedId][activeCell.day][activeCell.periodId].isActivity = true;
+                                  d2.schedule[selectedId][activeCell.day][activeCell.periodId].subjectName = selectedActivity;
+                                  localStorage.setItem('tt_timetableData', JSON.stringify(d2));
+                                }
+                              }
+                            } catch {}
+                            setRefreshKey((k:number)=>k+1);
+                          }, 150);
+                        } else {
+                          (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, 'activity', '', '');
+                        }
+                      } catch(e:any){ setCollisionMsg('Activity save failed: '+String(e)); return; }
                       setActiveCell(null);
                       setCollisionMsg('');
+                      setRefreshKey((k:number)=>k+1);
                       return;
                     }
-                    if (periodType==='ps') {
+                    // Determine if PS selected as subject (can be single or double)
+                    const isPS_selected = selectedSubject==='ps' || selectedSubject==='PS - Private Studies' || selectedSubject?.toLowerCase().startsWith('ps');
+                    if (isPS_selected) {
                       const cell: any = { subjectId: 'ps', subjectName: 'PS', teacherId: '', isPS: true, isDouble: false };
                       const raw = localStorage.getItem('tt_timetableData');
                       if (raw) {
@@ -789,11 +821,41 @@ export const TimetableViewer: React.FC = () => {
                       setCollisionMsg('');
                       return;
                     }
-                    if (!selectedSubject) { setCollisionMsg('Select a subject'); return; }
+                    if (!selectedSubject || selectedSubject==='ps') { setCollisionMsg('Select a subject (PS handled separately)'); return; }
+                    // Handle combined subjects: e.g., MATH/HIST
                     let subjId = selectedSubject;
                     let subjName = selectedSubject;
                     const foundSub = subjects.find((s:any)=> s.id===selectedSubject || s.name===selectedSubject);
                     if (foundSub) { subjId = foundSub.id; subjName = foundSub.name; }
+                    // Second subject optional
+                    let secondSubjId: string | null = null;
+                    let secondSubjName: string | null = null;
+                    let secondTeacherId: string | null = null;
+                    let secondTeacherName = '';
+                    if (selectedSecondSubject && selectedSecondSubject !== '' && selectedSecondSubject !== 'none') {
+                      secondSubjName = selectedSecondSubject;
+                      secondSubjId = selectedSecondSubject;
+                      const foundSub2 = subjects.find((s:any)=> s.id===selectedSecondSubject || s.name===selectedSecondSubject);
+                      if (foundSub2) { secondSubjId = foundSub2.id; secondSubjName = foundSub2.name; }
+                      else if (selectedSecondSubject==='ps') { secondSubjId='ps'; secondSubjName='PS'; }
+                      // Find teacher for second subject
+                      try {
+                        const cs2 = classSubjects.find((c:any)=> c.classId===selectedId && (c.subjectId===secondSubjId || subjects.find((s:any)=>s.id===c.subjectId)?.name===secondSubjName));
+                        if (cs2) secondTeacherId = cs2.teacherId;
+                      } catch {}
+                      if (!secondTeacherId && secondSubjName) {
+                        const res2 = findTeacherForSubjectClass(secondSubjName!, classes.find((c:any)=>c.id===selectedId)?.name || '');
+                        if (res2) { secondTeacherId = res2.id; secondTeacherName = res2.name; }
+                      }
+                      if (!secondTeacherId && secondSubjId) {
+                        const t2 = teachers.find((x:any)=> x.qualifiedSubjects?.includes(secondSubjId!));
+                        if (t2) secondTeacherId = t2.id;
+                      }
+                      if (secondSubjName && secondSubjName!=='PS' && !secondTeacherId) {
+                        setCollisionMsg('No teacher for second subject ' + secondSubjName + ' in ' + (classes.find((c:any)=>c.id===selectedId)?.name || selectedId) + '.');
+                        return;
+                      }
+                    }
                     let teacherId = '';
                     let teacherName = '';
                     try {
@@ -815,10 +877,23 @@ export const TimetableViewer: React.FC = () => {
                     for (const cid of Object.keys(((timetableData as any)?.schedule||{}))) {
                       if (cid === selectedId) continue;
                       const cell = (timetableData as any).schedule[cid]?.[activeCell.day]?.[activeCell.periodId];
-                      if (cell && cell.teacherId === teacherId) {
+                      if (cell && (cell.teacherId === teacherId || (secondTeacherId && cell.teacherId === secondTeacherId) || (cell.secondTeacherId && (cell.secondTeacherId===teacherId || cell.secondTeacherId===secondTeacherId)))) {
                         const clsName = classes.find((c:any)=>c.id===cid)?.name || cid;
-                        setCollisionMsg('Teacher ' + (teachers.find((t:any)=>t.id===teacherId)?.name || teacherId) + ' is already assigned to ' + clsName + ' on ' + activeCell.day + ' ' + activeCell.periodId + '.');
+                        const whichTeacher = (cell.teacherId===teacherId || cell.secondTeacherId===teacherId) ? (teachers.find((t:any)=>t.id===teacherId)?.name || teacherId) : (teachers.find((t:any)=>t.id===secondTeacherId)?.name || secondTeacherId);
+                        setCollisionMsg('Teacher ' + whichTeacher + ' is already assigned to ' + clsName + ' on ' + activeCell.day + ' ' + activeCell.periodId + '.');
                         return;
+                      }
+                    }
+                    // Also check second teacher double booking on same check
+                    if (secondTeacherId) {
+                      for (const cid of Object.keys(((timetableData as any)?.schedule||{}))) {
+                        if (cid === selectedId) continue;
+                        const cell = (timetableData as any).schedule[cid]?.[activeCell.day]?.[activeCell.periodId];
+                        if (cell && cell.teacherId === secondTeacherId) {
+                          const clsName = classes.find((c:any)=>c.id===cid)?.name || cid;
+                          setCollisionMsg('Teacher ' + (teachers.find((t:any)=>t.id===secondTeacherId)?.name || secondTeacherId) + ' is already assigned to ' + clsName + ' on ' + activeCell.day + ' ' + activeCell.periodId + '.');
+                          return;
+                        }
                       }
                     }
                     if (periodType==='double') {
@@ -841,6 +916,10 @@ export const TimetableViewer: React.FC = () => {
                       const avail = rooms.filter((r:any)=> r.type===roomType && !Object.keys((timetableData as any).schedule||{}).some(cid => (timetableData as any).schedule[cid]?.[activeCell.day]?.[activeCell.periodId]?.roomId===r.id));
                       roomId = avail[0]?.id || rooms.find((r:any)=>r.type===roomType)?.id || rooms[0]?.id || '';
                     }
+                    // If combined, store second subject info too
+                    const isCombined = !!(secondSubjId && secondSubjName);
+                    const cellToSave: any = { subjectId: subjId, subjectName: subjName, teacherId, roomId, classId: selectedId, isCombined, secondSubjectId: secondSubjId || undefined, secondSubjectName: secondSubjName || undefined, secondTeacherId: secondTeacherId || undefined, isDouble: periodType==='double', isPS: false, isActivity: false };
+                    // Try context update first, then patch localStorage for combined
                     (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, subjId, teacherId, roomId);
                     setTimeout(()=>{
                       try {
@@ -850,6 +929,12 @@ export const TimetableViewer: React.FC = () => {
                           const cell = data?.schedule?.[selectedId]?.[activeCell.day]?.[activeCell.periodId];
                           if (cell) {
                             cell.subjectName = subjName;
+                            cell.isCombined = isCombined;
+                            if (isCombined) {
+                              cell.secondSubjectName = secondSubjName;
+                              cell.secondSubjectId = secondSubjId;
+                              cell.secondTeacherId = secondTeacherId;
+                            }
                             cell.isDouble = periodType==='double';
                             cell.isPS = false;
                             cell.isActivity = false;
@@ -857,12 +942,18 @@ export const TimetableViewer: React.FC = () => {
                               const teachingIds = activePeriods.filter((s:any)=>!s.isBreak && !(s as any).isActivity).map((s:any)=>s.id);
                               const idx = teachingIds.indexOf(activeCell.periodId);
                               const nextId = teachingIds[idx+1];
-                              if (nextId && !data.schedule[selectedId][activeCell.day][nextId]) {
-                                data.schedule[selectedId][activeCell.day][nextId] = { subjectId: subjId, subjectName: subjName, teacherId, roomId, classId: selectedId, isDouble: true, isDoubleSpan: true };
+                              if (nextId) {
+                                if (!data.schedule[selectedId][activeCell.day][nextId]) {
+                                  data.schedule[selectedId][activeCell.day][nextId] = { subjectId: subjId, subjectName: subjName, teacherId, roomId, classId: selectedId, isDouble: true, isDoubleSpan: true, isCombined, secondSubjectName, secondSubjectId, secondTeacherId };
+                                } else {
+                                  // If next exists, still mark as double span for combined
+                                  data.schedule[selectedId][activeCell.day][nextId].isDoubleSpan = true;
+                                }
                               }
                             }
                             localStorage.setItem('tt_timetableData', JSON.stringify(data));
                             localStorage.setItem('tt_timetableData_ts', String(Date.now()));
+                            setRefreshKey((k:number)=>k+1);
                           }
                         }
                       } catch {}
