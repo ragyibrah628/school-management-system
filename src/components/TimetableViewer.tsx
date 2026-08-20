@@ -21,7 +21,7 @@ const NAMBAWALA_SLOTS: any[] = [
   { id: 'act', name: 'Activity', startTime: '15:30', endTime: '17:30', isBreak: false, isActivity: true },
 ];
 const ACTIVITY_OPTIONS = ['General Cleanliness', 'Debate', 'Self Reliance', 'Subject Clubs', 'Sports and Games'];
-
+const getSubjectCodeTT = (name: string) => { try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(m && m[name]) return m[name]; } catch{} return name.substring(0,4).toUpperCase().replace(' ',''); }
 function findTeacherForSubjectClass(subjectName: string, className: string): { id: string, name: string } | null {
   try {
     const ta = JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}');
@@ -36,14 +36,13 @@ function findTeacherForSubjectClass(subjectName: string, className: string): { i
   } catch {}
   return null;
 }
-const getSubjectCodeTT = (name: string) => { try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(m[name]) return m[name]; } catch{} return name.substring(0,4).toUpperCase().replace(' ',''); }
 
 export const TimetableViewer: React.FC = () => {
   const { 
     timetableData, classes, teachers, subjects, rooms, timeSlots, days, conflicts, classSubjects,
     schoolLogo, schoolName,
-    removeLessonSlot, scheduleUnscheduledLesson 
-  } = useTimetable();
+    removeLessonSlot, scheduleUnscheduledLesson, updateLessonSlot 
+  } = useTimetable() as any;
 
   const [viewType, setViewType] = useState<'class' | 'teacher' | 'room' | 'master' | 'all_classes' | 'all_teachers'>('class');
   const [selectedId, setSelectedId] = useState<string>('');
@@ -51,8 +50,12 @@ export const TimetableViewer: React.FC = () => {
   // Cell click editing state
   const [activeCell, setActiveCell] = useState<{ day: DayOfWeek; periodId: string } | null>(null);
   const [selectedUnscheduledId, setSelectedUnscheduledId] = useState<string>('');
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [periodType, setPeriodType] = useState<'single'|'double'|'ps'>('single');
+  const [selectedActivity, setSelectedActivity] = useState<string>('');
+  const [collisionMsg, setCollisionMsg] = useState<string>('');
 
-  const activePeriods = NAMBAWALA_SLOTS as any; // Nambawala 40min
+  const activePeriods = NAMBAWALA_SLOTS as any; // Nambawala 40min English V10
 
   // Auto-select first item when view type changes
   React.useEffect(() => {
@@ -73,13 +76,13 @@ export const TimetableViewer: React.FC = () => {
 
   const schedule = timetableData.schedule;
 
-  // Print function - English, A4 Landscape class / Portrait teacher, fonts 13px, code not full name, no links, double merged
+  // Print function - English, A4 Landscape class / Portrait teacher, fonts 13px CODE, no links, double merged, no blank - V10
   const handlePrint = () => {
     try {
       const isClass = (viewType as any) === 'class' || (viewType as any) === 'all_classes';
       const targetId = selectedId;
       const targetName = isClass ? (classes.find((c:any)=>c.id===targetId)?.name || '') : (teachers.find((t:any)=>t.id===targetId)?.name || '');
-      let finalName = targetName;
+      let finalName: string = targetName;
       if ((viewType as any)==='my_teaching') { try{ const cur=JSON.parse(localStorage.getItem('sms_current_user')||'null'); if(cur) finalName=cur.name; }catch{} }
       const title = finalName ? `${finalName} Teaching Timetable` : (isClass ? 'Class Teaching Timetable' : 'Teacher Teaching Timetable');
       const orientation = isClass ? 'landscape' : 'portrait';
@@ -94,7 +97,7 @@ export const TimetableViewer: React.FC = () => {
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color:#000; background:#fff; }
         table { width:100%; border-collapse:collapse; table-layout:fixed; }
-        th, td { border:1.5px solid #000; padding: 6px 5px; text-align:center; vertical-align:middle; }
+        th, td { border:1.5px solid #000; padding: 7px 5px; text-align:center; vertical-align:middle; }
         th { background:#eef2ff; font-weight:800; font-size: 11px; color:#1e293b; }
         td { font-size: 11px; line-height:1.3; }
         .header { text-align:center; margin-bottom:12px; border-bottom:3px double #000; padding-bottom:10px; }
@@ -375,102 +378,112 @@ export const TimetableViewer: React.FC = () => {
             <table className="w-full border-collapse table-fixed min-w-[700px] print:min-w-0 print:w-full">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider">
-                  <th className="p-3 border-r border-slate-200 w-32 text-center bg-slate-50 sticky left-0 z-10 print:static print:z-0 print:w-28">Time Slot</th>
-                  {days.map(d => (
+                  <th className="p-3 border-r border-slate-200 w-28 text-center bg-slate-50 sticky left-0 z-10 print:static print:z-0">Day / Time</th>
+                  {activePeriods.map((p:any) => (
                     <th key={d} className="p-3 border-r border-slate-100 text-center">{d}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody>
-                {activePeriods.map((p) => {
-                  if (p.isBreak) {
-                    return (
-                      <tr key={p.id} className="bg-slate-100/80 border-b border-slate-200 text-slate-400 text-xs font-semibold tracking-wider">
-                        <td className="p-3 border-r border-slate-200 font-bold bg-slate-50/80 text-center sticky left-0 print:static">
-                          <div className="text-slate-500">{p.name}</div>
-                          <div className="text-[10px] font-medium text-slate-400 mt-0.5">{p.startTime} - {p.endTime}</div>
-                        </td>
-                        <td colSpan={days.length} className="p-3 text-center bg-slate-100/50 italic text-slate-400 uppercase font-bold tracking-widest text-2xs">
-                          ☕ {p.name} (No classes)
-                        </td>
-                      </tr>
-                    );
-                  }
-
-                  return (
-                    <tr key={p.id} className="border-b border-slate-200 h-24 print:h-20">
-                      {/* Period Header */}
-                      <td className="p-2 border-r border-slate-200 font-bold bg-slate-50 text-slate-700 text-center text-xs sticky left-0 z-10 print:static print:z-0">
-                        <div className="text-slate-900">{p.name}</div>
-                        <div className="text-[10px] font-medium text-slate-400 mt-1 bg-white border rounded px-1.5 py-0.5 inline-block">
-                          {p.startTime} - {p.endTime}
-                        </div>
-                      </td>
-
-                      {/* Day cells */}
-                      {days.map((d) => {
+                            <tbody>
+                {days.map((d:any) => (
+                  <tr key={d} className="border-b border-slate-200">
+                    <td className="p-2 border-r border-slate-200 font-black bg-slate-50 text-center text-xs sticky left-0 z-10 print:static print:z-0">{d}</td>
+                    {(() => {
+                      const rowCells: any[] = [];
+                      let skipNext = false;
+                      for (let pIdx=0; pIdx<activePeriods.length; pIdx++) {
+                        const p:any = activePeriods[pIdx];
+                        if (skipNext) { skipNext = false; continue; }
+                        if (p.isBreak) {
+                          rowCells.push(
+                            <td key={p.id} className="p-2 border-r border-slate-100 text-center bg-amber-50 text-amber-700 font-bold text-xs">
+                              {p.name}<br/><span className="text-[10px] font-normal">{p.startTime}-{p.endTime}</span>
+                            </td>
+                          );
+                          continue;
+                        }
+                        if ((p as any).isActivity) {
+                          const cellAct = getCellData(d, p.id);
+                          if (!cellAct || !cellAct.isActivity) {
+                            rowCells.push(
+                              <td key={p.id} onClick={() => handleCellClick(d, p.id, false)} className={`p-2 border-r border-slate-100 text-center text-xs italic align-middle ${viewType==='class'?'hover:bg-indigo-50 cursor-pointer':''}`}>
+                                <span className="text-slate-300">{viewType==='class' ? '+' : '—'}</span>
+                              </td>
+                            );
+                          } else {
+                            rowCells.push(
+                              <td key={p.id} onClick={() => handleCellClick(d, p.id, false)} className="p-2 border-r border-slate-100 text-center bg-indigo-50 border-indigo-200">
+                                <div className="font-bold text-[11px] text-indigo-700" style={{fontFamily:'Arial, sans-serif'}}>{(cellAct as any).activity || 'Activity'}</div>
+                              </td>
+                            );
+                          }
+                          continue;
+                        }
                         const cell = getCellData(d, p.id);
-                        const hasConflict = currentConflicts.some(c => c.slot.day === d && c.slot.periodId === p.id);
-                        
+                        const hasConflict = currentConflicts.some((c:any) => c.slot.day === d && c.slot.periodId === p.id);
                         if (!cell) {
-                          return (
+                          rowCells.push(
                             <td 
-                              key={d} 
-                              onClick={() => handleCellClick(d, p.id, p.isBreak)}
-                              className={`p-2 border-r border-slate-100 text-center text-xs text-slate-300 italic align-middle transition-all bg-dashed group ${
-                                viewType === 'class' ? 'hover:bg-indigo-50/40 cursor-pointer' : ''
-                              }`}
+                              key={p.id} 
+                              onClick={() => handleCellClick(d, p.id, false)}
+                              className={`p-2 border-r border-slate-100 text-center text-xs text-slate-300 italic align-middle group ${viewType === 'class' ? 'hover:bg-indigo-50/40 cursor-pointer' : ''}`}
                             >
-                              <span className="opacity-0 group-hover:opacity-100 font-semibold text-indigo-500 text-2xs flex items-center justify-center">
+                              <span className="opacity-0 group-hover:opacity-100 font-semibold text-indigo-500 text-xs flex items-center justify-center">
                                 {viewType === 'class' ? <Plus size={12} className="mr-0.5" /> : ''}
                                 {viewType === 'class' ? 'Place Lesson' : 'Free'}
                               </span>
                             </td>
                           );
-                        }
-
-                        const sub = subjects.find(s => s.id === cell.subjectId);
-                        const t = teachers.find(teach => teach.id === cell.teacherId);
-                        const r = rooms.find(room => room.id === cell.roomId);
-
-                        return (
-                          <td 
-                            key={d} 
-                            onClick={() => handleCellClick(d, p.id, p.isBreak)}
-                            className={`p-2 border-r border-slate-100 align-middle transition-all text-center relative group ${
-                              viewType === 'class' ? 'cursor-pointer' : ''
-                            }`}
-                          >
-                            <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center transition-all ${sub?.color || 'bg-slate-100'} ${
-                              hasConflict ? 'ring-2 ring-red-500 border-transparent shadow-red-100 animate-pulse' : 'shadow-sm'
-                            }`}>
-                              <div className="font-bold text-slate-800 text-sm leading-tight font-mono">{sub?.code || 'SUB'}</div>
-                              <div className="font-semibold text-slate-900 text-2xs mt-0.5 truncate">{sub?.name}</div>
-                              
-                              <div className="border-t border-slate-400/20 mt-1.5 pt-1 flex flex-col items-center space-y-0.5 text-3xs font-bold text-slate-600/90 uppercase tracking-tight">
-                                {viewType !== 'teacher' && (
-                                  <div className="truncate w-full max-w-[120px] text-center">👨‍🏫 {t?.name.split(' ').slice(-1)[0] || 'Teacher'}</div>
-                                )}
-                                {viewType === 'teacher' && (
-                                  <div className="truncate w-full max-w-[120px] text-center text-slate-800 font-black">🏫 {classes.find(c=>c.id===cell.classId)?.name}</div>
-                                )}
-                                {viewType !== 'room' && (
-                                  <div className="truncate w-full max-w-[120px] text-center">🚪 {r?.name.replace('Classroom ', 'R-') || 'Room'}</div>
-                                )}
-                              </div>
-
-                              {hasConflict && (
-                                <div className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 shadow-md">
-                                  <AlertTriangle size={10} />
+                        } else {
+                          const sub = subjects.find((s:any) => s.id === cell.subjectId);
+                          const isPS = (cell as any).isPS || cell.subjectId==='ps';
+                          const isAct = (cell as any).isActivity;
+                          const displaySubRaw = (cell as any).subjectName || sub?.name || (cell.subjectId==='ps' ? 'PS' : isAct ? (cell as any).activity || 'Activity' : 'SUB');
+                          let displaySub = displaySubRaw;
+                          try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(displaySubRaw && m[displaySubRaw]) displaySub=m[displaySubRaw]; else if(sub && m[sub.name]) displaySub=m[sub.name]; } catch{}
+                          if (!isPS && !isAct && displaySubRaw && displaySub===displaySubRaw) { try{ displaySub=displaySubRaw.substring(0,4).toUpperCase(); }catch{} }
+                          const tchr = teachers.find((teach:any) => teach.id === cell.teacherId);
+                          const isDouble = (cell as any).isDouble;
+                          if (isDouble) {
+                            skipNext = true;
+                            rowCells.push(
+                              <td 
+                                key={p.id} 
+                                colSpan={2}
+                                onClick={() => handleCellClick(d, p.id, false)}
+                                className={`p-2 border-r border-slate-100 align-middle text-center relative group ${viewType === 'class' ? 'cursor-pointer' : ''}`}
+                              >
+                                <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center ${sub?.color || 'bg-emerald-50 border-emerald-300'} ${hasConflict ? 'ring-2 ring-red-500 animate-pulse' : 'shadow-sm'}`}>
+                                  <div className="font-bold text-slate-900 text-[13px] leading-tight" style={{fontFamily:'Arial, sans-serif'}}>{displaySub}</div>
+                                  <div className="font-semibold text-slate-700 text-[11px] truncate" style={{fontFamily:'Arial, sans-serif'}}>{isPS || isAct ? '' : (viewType==='teacher' ? (classes.find((c:any)=>c.id===cell.classId)?.name || '') : (tchr?.name?.split(' ').slice(-1)[0] || tchr?.name || ''))}</div>
                                 </div>
-                              )}
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
+                              </td>
+                            );
+                          } else {
+                            rowCells.push(
+                              <td 
+                                key={p.id} 
+                                onClick={() => handleCellClick(d, p.id, false)}
+                                className={`p-2 border-r border-slate-100 align-middle text-center relative group ${viewType === 'class' ? 'cursor-pointer' : ''}`}
+                              >
+                                <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center ${sub?.color || (isPS ? 'bg-slate-100 border-slate-300' : isAct ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200')} ${hasConflict ? 'ring-2 ring-red-500 animate-pulse' : 'shadow-sm'}`}>
+                                  <div className="font-bold text-slate-900 text-[13px] leading-tight" style={{fontFamily:'Arial, sans-serif'}}>{isPS ? 'PS' : displaySub}</div>
+                                  <div className="font-semibold text-slate-700 text-[11px] truncate" style={{fontFamily:'Arial, sans-serif'}}>{isPS ? '' : isAct ? '' : (viewType==='teacher' ? (classes.find((c:any)=>c.id===cell.classId)?.name || '') : (tchr?.name?.split(' ').slice(-1)[0] || tchr?.name || ''))}</div>
+                                  {hasConflict && (
+                                    <div className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 shadow-md">
+                                      <AlertTriangle size={10} />
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          }
+                        }
+                      }
+                      return rowCells;
+                    })()}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
