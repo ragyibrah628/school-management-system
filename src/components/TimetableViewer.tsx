@@ -22,6 +22,21 @@ const NAMBAWALA_SLOTS = [
 ];
 const ACTIVITY_OPTIONS = ['General Cleanliness', 'Debate', 'Self Reliance', 'Subject Clubs', 'Sports and Games'];
 
+function findTeacherForSubjectClass(subjectName: string, className: string): { id: string, name: string } | null {
+  try {
+    const ta = JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}');
+    const users = JSON.parse(localStorage.getItem('sms_users') || '[]');
+    for (const [tid, arr] of Object.entries(ta as any)) {
+      const list = arr as any[];
+      if (list.some((a: any) => a.cls === className && a.sub === subjectName)) {
+        const u = users.find((x: any) => x.id === tid);
+        if (u) return { id: tid, name: u.name };
+      }
+    }
+  } catch {}
+  return null;
+}
+
 export const TimetableViewer: React.FC = () => {
   const { 
     timetableData, classes, teachers, subjects, rooms, timeSlots, days, conflicts, classSubjects,
@@ -37,7 +52,7 @@ export const TimetableViewer: React.FC = () => {
   const [selectedUnscheduledId, setSelectedUnscheduledId] = useState<string>('');
 
   const activePeriods = NAMBAWALA_SLOTS as any; // Nambawala 40min
-  const _origSlots = timeSlots;
+  const _origTimeSlots = timeSlots;
 
   // Auto-select first item when view type changes
   React.useEffect(() => {
@@ -58,13 +73,15 @@ export const TimetableViewer: React.FC = () => {
 
   const schedule = timetableData.schedule;
 
-  // Print function - English, A4 Landscape for class / Portrait for teacher, no blank, fonts large, no links
+  // Print function - English, A4 Landscape class / Portrait teacher, fonts large, no links, double merged, no blank
   const handlePrint = () => {
     try {
       const isClass = (viewType as any) === 'class' || (viewType as any) === 'all_classes';
       const targetId = selectedId;
       const targetName = isClass ? (classes.find((c:any)=>c.id===targetId)?.name || '') : (teachers.find((t:any)=>t.id===targetId)?.name || '');
-      const title = targetName ? `${targetName} Teaching Timetable` : (isClass ? 'Class Teaching Timetable' : 'Teacher Teaching Timetable');
+      let finalName = targetName;
+      if ((viewType as any)==='my_teaching') { try{ const cur=JSON.parse(localStorage.getItem('sms_current_user')||'null'); if(cur) finalName=cur.name; }catch{} }
+      const title = finalName ? `${finalName} Teaching Timetable` : (isClass ? 'Class Teaching Timetable' : 'Teacher Teaching Timetable');
       const orientation = isClass ? 'landscape' : 'portrait';
       const logo = localStorage.getItem('sms_school_logo') || (schoolLogo as any) || '';
       const sName = localStorage.getItem('sms_school_name_setting') || (schoolName as any) || 'NAMBAWALA SECONDARY SCHOOL';
@@ -97,9 +114,9 @@ export const TimetableViewer: React.FC = () => {
       html += `<h1>${sName}</h1>`;
       html += `<div style="font-size:10px; color:#64748b;">${address}</div>`;
       html += `<h2>${title}</h2>`;
-      html += `<p>Weekly Teaching Timetable • ${isClass ? 'Class' : 'Teacher'} • A4 ${orientation.charAt(0).toUpperCase()+orientation.slice(1)} • ${new Date().toLocaleDateString()}</p>`;
+      html += `<p>Weekly Teaching Timetable \u2022 ${isClass ? 'Class' : 'Teacher'} \u2022 A4 ${orientation.charAt(0).toUpperCase()+orientation.slice(1)} \u2022 ${new Date().toLocaleDateString()}</p>`;
       html += `</div>`;
-      html += `<table><thead><tr><th style="width:90px;">Time</th>`;
+      html += `<table><thead><tr><th style="width:90px;">Day / Time</th>`;
       for (const p of activePeriods) {
         if ((p as any).isBreak) {
           html += `<th class="breakCell"><div>${p.name}</div><div style="font-weight:400; font-size:8px;">${(p as any).startTime}-${(p as any).endTime}</div></th>`;
@@ -110,9 +127,26 @@ export const TimetableViewer: React.FC = () => {
       html += `</tr></thead><tbody>`;
       for (const day of (days as any)) {
         html += `<tr><td style="font-weight:900; background:#f8fafc;">${day}</td>`;
-        for (const p of activePeriods) {
-          if ((p as any).isBreak) {
-            html += `<td class="breakCell">${p.name}<br><span style="font-size:8px; font-weight:400;">${(p as any).startTime}-${(p as any).endTime}</span></td>`;
+        let skipNext = false;
+        for (let pi=0; pi<activePeriods.length; pi++) {
+          const p = activePeriods[pi] as any;
+          if (skipNext) { skipNext=false; continue; }
+          if (p.isBreak) {
+            html += `<td class="breakCell">${p.name}<br><span style="font-size:8px; font-weight:400;">${p.startTime}-${p.endTime}</span></td>`;
+            continue;
+          }
+          if (p.isActivity) {
+            let cellAct: any = null;
+            if (isClass) cellAct = (timetableData as any).schedule[targetId]?.[day]?.[p.id] || null;
+            else {
+              for (const cid of Object.keys((timetableData as any).schedule||{})) {
+                const c = (timetableData as any).schedule[cid]?.[day]?.[p.id];
+                if (c && c.isActivity) { cellAct = c; break; }
+                if (c && c.teacherId===targetId) { cellAct = {...c, _className: classes.find((x:any)=>x.id===cid)?.name||cid}; break; }
+              }
+            }
+            if (!cellAct || !cellAct.isActivity) html += `<td></td>`;
+            else html += `<td style="background:#eef2ff;"><div class="subject">${cellAct.activity || 'Activity'}</div></td>`;
             continue;
           }
           let cell: any = null;
@@ -123,11 +157,12 @@ export const TimetableViewer: React.FC = () => {
               if (c && c.teacherId===targetId) { cell = {...c, _className: classes.find((x:any)=>x.id===cid)?.name||cid}; break; }
             }
           }
-          if (!cell) { html += `<td></td>`; }
-          else {
+          if (!cell) {
+            html += `<td></td>`;
+          } else {
             const isPS = cell.isPS || cell.subjectId==='ps';
             const isAct = cell.isActivity;
-            let subj = ''; let sub = '';
+            let subj=''; let sub='';
             if (isPS) { subj='PS'; sub='Private Studies'; }
             else if (isAct) { subj=cell.activity || 'Activity'; sub=''; }
             else {
@@ -135,7 +170,12 @@ export const TimetableViewer: React.FC = () => {
               subj = (cell as any).subjectName || s?.name || cell.subjectId || '';
               sub = isClass ? (teachers.find((t:any)=>t.id===cell.teacherId)?.name || '') : ((cell as any)._className || '');
             }
-            html += `<td><div class="subject">${subj}</div>${sub ? `<div class="subteacher">${sub}</div>` : ''}</td>`;
+            if (cell.isDouble) {
+              skipNext = true;
+              html += `<td colspan="2"><div class="subject">${subj}</div>${sub ? `<div class="subteacher">${sub}</div>` : ''}</td>`;
+            } else {
+              html += `<td><div class="subject">${subj}</div>${sub ? `<div class="subteacher">${sub}</div>` : ''}</td>`;
+            }
           }
         }
         html += `</tr>`;
@@ -333,102 +373,112 @@ export const TimetableViewer: React.FC = () => {
             <table className="w-full border-collapse table-fixed min-w-[700px] print:min-w-0 print:w-full">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider">
-                  <th className="p-3 border-r border-slate-200 w-32 text-center bg-slate-50 sticky left-0 z-10 print:static print:z-0 print:w-28">Time Slot</th>
-                  {days.map(d => (
-                    <th key={d} className="p-3 border-r border-slate-100 text-center">{d}</th>
+                  <th className="p-3 border-r border-slate-200 w-28 text-center bg-slate-50 sticky left-0 z-10 print:static print:z-0">Day / Time</th>
+                  {activePeriods.map((p:any) => (
+                    <th key={p.id} className={`p-2 border-r border-slate-100 text-center ${p.isBreak ? 'bg-amber-50 text-amber-700' : (p as any).isActivity ? 'bg-indigo-50 text-indigo-700' : ''}`}>
+                      <div className="font-bold text-[11px] leading-tight">{p.name}</div>
+                      <div className="text-[10px] font-normal opacity-70">{p.startTime}-{p.endTime}</div>
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {activePeriods.map((p) => {
-                  if (p.isBreak) {
-                    return (
-                      <tr key={p.id} className="bg-slate-100/80 border-b border-slate-200 text-slate-400 text-xs font-semibold tracking-wider">
-                        <td className="p-3 border-r border-slate-200 font-bold bg-slate-50/80 text-center sticky left-0 print:static">
-                          <div className="text-slate-500">{p.name}</div>
-                          <div className="text-[10px] font-medium text-slate-400 mt-0.5">{p.startTime} - {p.endTime}</div>
-                        </td>
-                        <td colSpan={days.length} className="p-3 text-center bg-slate-100/50 italic text-slate-400 uppercase font-bold tracking-widest text-2xs">
-                          ☕ {p.name} (No classes)
-                        </td>
-                      </tr>
-                    );
-                  }
-
-                  return (
-                    <tr key={p.id} className="border-b border-slate-200 h-24 print:h-20">
-                      {/* Period Header */}
-                      <td className="p-2 border-r border-slate-200 font-bold bg-slate-50 text-slate-700 text-center text-xs sticky left-0 z-10 print:static print:z-0">
-                        <div className="text-slate-900">{p.name}</div>
-                        <div className="text-[10px] font-medium text-slate-400 mt-1 bg-white border rounded px-1.5 py-0.5 inline-block">
-                          {p.startTime} - {p.endTime}
-                        </div>
-                      </td>
-
-                      {/* Day cells */}
-                      {days.map((d) => {
+                {days.map((d:any) => (
+                  <tr key={d} className="border-b border-slate-200">
+                    <td className="p-2 border-r border-slate-200 font-black bg-slate-50 text-center text-xs sticky left-0 z-10 print:static print:z-0">{d}</td>
+                    {(() => {
+                      const rowCells: any[] = [];
+                      let skipNext = false;
+                      for (let pIdx=0; pIdx<activePeriods.length; pIdx++) {
+                        const p:any = activePeriods[pIdx];
+                        if (skipNext) { skipNext = false; continue; }
+                        if (p.isBreak) {
+                          rowCells.push(
+                            <td key={p.id} className="p-2 border-r border-slate-100 text-center bg-amber-50 text-amber-700 font-bold text-xs">
+                              {p.name}<br/><span className="text-[10px] font-normal">{p.startTime}-{p.endTime}</span>
+                            </td>
+                          );
+                          continue;
+                        }
+                        if ((p as any).isActivity) {
+                          const cellAct = getCellData(d, p.id);
+                          if (!cellAct || !cellAct.isActivity) {
+                            rowCells.push(
+                              <td key={p.id} onClick={() => handleCellClick(d, p.id, false)} className={`p-2 border-r border-slate-100 text-center text-xs italic align-middle ${viewType==='class'?'hover:bg-indigo-50 cursor-pointer':''}`}>
+                                <span className="text-slate-300">{viewType==='class' ? '+' : '—'}</span>
+                              </td>
+                            );
+                          } else {
+                            rowCells.push(
+                              <td key={p.id} onClick={() => handleCellClick(d, p.id, false)} className="p-2 border-r border-slate-100 text-center bg-indigo-50 border-indigo-200">
+                                <div className="font-bold text-[11px] text-indigo-700" style={{fontFamily:'Arial, sans-serif'}}>{(cellAct as any).activity || 'Activity'}</div>
+                              </td>
+                            );
+                          }
+                          continue;
+                        }
                         const cell = getCellData(d, p.id);
-                        const hasConflict = currentConflicts.some(c => c.slot.day === d && c.slot.periodId === p.id);
-                        
+                        const hasConflict = currentConflicts.some((c:any) => c.slot.day === d && c.slot.periodId === p.id);
                         if (!cell) {
-                          return (
+                          rowCells.push(
                             <td 
-                              key={d} 
-                              onClick={() => handleCellClick(d, p.id, p.isBreak)}
-                              className={`p-2 border-r border-slate-100 text-center text-xs text-slate-300 italic align-middle transition-all bg-dashed group ${
-                                viewType === 'class' ? 'hover:bg-indigo-50/40 cursor-pointer' : ''
-                              }`}
+                              key={p.id} 
+                              onClick={() => handleCellClick(d, p.id, false)}
+                              className={`p-2 border-r border-slate-100 text-center text-xs text-slate-300 italic align-middle group ${viewType === 'class' ? 'hover:bg-indigo-50/40 cursor-pointer' : ''}`}
                             >
-                              <span className="opacity-0 group-hover:opacity-100 font-semibold text-indigo-500 text-2xs flex items-center justify-center">
+                              <span className="opacity-0 group-hover:opacity-100 font-semibold text-indigo-500 text-xs flex items-center justify-center">
                                 {viewType === 'class' ? <Plus size={12} className="mr-0.5" /> : ''}
                                 {viewType === 'class' ? 'Place Lesson' : 'Free'}
                               </span>
                             </td>
                           );
-                        }
-
-                        const sub = subjects.find(s => s.id === cell.subjectId);
-                        const t = teachers.find(teach => teach.id === cell.teacherId);
-                        const r = rooms.find(room => room.id === cell.roomId);
-
-                        return (
-                          <td 
-                            key={d} 
-                            onClick={() => handleCellClick(d, p.id, p.isBreak)}
-                            className={`p-2 border-r border-slate-100 align-middle transition-all text-center relative group ${
-                              viewType === 'class' ? 'cursor-pointer' : ''
-                            }`}
-                          >
-                            <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center transition-all ${sub?.color || 'bg-slate-100'} ${
-                              hasConflict ? 'ring-2 ring-red-500 border-transparent shadow-red-100 animate-pulse' : 'shadow-sm'
-                            }`}>
-                              <div className="font-bold text-slate-800 text-sm leading-tight font-mono">{sub?.code || 'SUB'}</div>
-                              <div className="font-semibold text-slate-900 text-2xs mt-0.5 truncate">{sub?.name}</div>
-                              
-                              <div className="border-t border-slate-400/20 mt-1.5 pt-1 flex flex-col items-center space-y-0.5 text-3xs font-bold text-slate-600/90 uppercase tracking-tight">
-                                {viewType !== 'teacher' && (
-                                  <div className="truncate w-full max-w-[120px] text-center">👨‍🏫 {t?.name.split(' ').slice(-1)[0] || 'Teacher'}</div>
-                                )}
-                                {viewType === 'teacher' && (
-                                  <div className="truncate w-full max-w-[120px] text-center text-slate-800 font-black">🏫 {classes.find(c=>c.id===cell.classId)?.name}</div>
-                                )}
-                                {viewType !== 'room' && (
-                                  <div className="truncate w-full max-w-[120px] text-center">🚪 {r?.name.replace('Classroom ', 'R-') || 'Room'}</div>
-                                )}
-                              </div>
-
-                              {hasConflict && (
-                                <div className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 shadow-md">
-                                  <AlertTriangle size={10} />
+                        } else {
+                          const sub = subjects.find((s:any) => s.id === cell.subjectId);
+                          const isPS = (cell as any).isPS || cell.subjectId==='ps';
+                          const isAct = (cell as any).isActivity;
+                          const displaySub = (cell as any).subjectName || sub?.name || (cell.subjectId==='ps' ? 'PS' : isAct ? (cell as any).activity || 'Activity' : 'SUB');
+                          const tchr = teachers.find((teach:any) => teach.id === cell.teacherId);
+                          const isDouble = (cell as any).isDouble;
+                          if (isDouble) {
+                            skipNext = true;
+                            rowCells.push(
+                              <td 
+                                key={p.id} 
+                                colSpan={2}
+                                onClick={() => handleCellClick(d, p.id, false)}
+                                className={`p-2 border-r border-slate-100 align-middle text-center relative group ${viewType === 'class' ? 'cursor-pointer' : ''}`}
+                              >
+                                <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center ${sub?.color || 'bg-emerald-50 border-emerald-300'} ${hasConflict ? 'ring-2 ring-red-500 animate-pulse' : 'shadow-sm'}`}>
+                                  <div className="font-bold text-slate-900 text-[13px] leading-tight" style={{fontFamily:'Arial, sans-serif'}}>{displaySub}</div>
+                                  <div className="font-semibold text-slate-700 text-[11px] truncate" style={{fontFamily:'Arial, sans-serif'}}>{isPS || isAct ? '' : (viewType==='teacher' ? (classes.find((c:any)=>c.id===cell.classId)?.name || '') : (tchr?.name?.split(' ').slice(-1)[0] || tchr?.name || ''))}</div>
                                 </div>
-                              )}
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
+                              </td>
+                            );
+                          } else {
+                            rowCells.push(
+                              <td 
+                                key={p.id} 
+                                onClick={() => handleCellClick(d, p.id, false)}
+                                className={`p-2 border-r border-slate-100 align-middle text-center relative group ${viewType === 'class' ? 'cursor-pointer' : ''}`}
+                              >
+                                <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center ${sub?.color || (isPS ? 'bg-slate-100 border-slate-300' : isAct ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200')} ${hasConflict ? 'ring-2 ring-red-500 animate-pulse' : 'shadow-sm'}`}>
+                                  <div className="font-bold text-slate-900 text-[13px] leading-tight" style={{fontFamily:'Arial, sans-serif'}}>{isPS ? 'PS' : displaySub}</div>
+                                  <div className="font-semibold text-slate-700 text-[11px] truncate" style={{fontFamily:'Arial, sans-serif'}}>{isPS ? '' : isAct ? '' : (viewType==='teacher' ? (classes.find((c:any)=>c.id===cell.classId)?.name || '') : (tchr?.name?.split(' ').slice(-1)[0] || tchr?.name || ''))}</div>
+                                  {hasConflict && (
+                                    <div className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 shadow-md">
+                                      <AlertTriangle size={10} />
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          }
+                        }
+                      }
+                      return rowCells;
+                    })()}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
