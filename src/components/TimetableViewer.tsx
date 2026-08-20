@@ -380,7 +380,10 @@ export const TimetableViewer: React.FC = () => {
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider">
                   <th className="p-3 border-r border-slate-200 w-28 text-center bg-slate-50 sticky left-0 z-10 print:static print:z-0">Day / Time</th>
                   {activePeriods.map((p:any) => (
-                    <th key={d} className="p-3 border-r border-slate-100 text-center">{d}</th>
+                    <th key={p.id} className={`p-2 border-r border-slate-100 text-center ${p.isBreak ? 'bg-amber-50 text-amber-700' : (p as any).isActivity ? 'bg-indigo-50 text-indigo-700' : ''}`}>
+                      <div className="font-bold text-[11px] leading-tight">{p.name}</div>
+                      <div className="text-[10px] font-normal opacity-70">{p.startTime}-{p.endTime}</div>
+                    </th>
                   ))}
                 </tr>
               </thead>
