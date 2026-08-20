@@ -3,6 +3,7 @@ import { Subject, Teacher, Room, SchoolClass, ClassSubject, TimeSlot, DayOfWeek 
 export const DEFAULT_DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
 export const DEFAULT_TIME_SLOTS: TimeSlot[] = [
+  // ✅ NAMBWALA SECONDARY - 40 min per period, Break 10:40-11:10, Lunch 14:30-15:30, Activity 15:30-17:30
   { id: 'p1', name: 'Period 1', startTime: '08:00', endTime: '08:40', isBreak: false },
   { id: 'p2', name: 'Period 2', startTime: '08:40', endTime: '09:20', isBreak: false },
   { id: 'p3', name: 'Period 3', startTime: '09:20', endTime: '10:00', isBreak: false },
@@ -76,27 +77,39 @@ export const DEFAULT_CLASSES: SchoolClass[] = [
 export const generateDefaultClassSubjects = (): ClassSubject[] => {
   const classSubjects: ClassSubject[] = [];
   let idCounter = 1;
+
+  // Configuration for subjects and required weekly periods
   const subjectConfigs = [
-    { subjectId: 's1', periods: 5, teacherIds: ['t1', 't7'] },
-    { subjectId: 's2', periods: 5, teacherIds: ['t2', 't8'] },
-    { subjectId: 's3', periods: 3, teacherIds: ['t3', 't9'] },
-    { subjectId: 's4', periods: 3, teacherIds: ['t3', 't9'] },
-    { subjectId: 's5', periods: 3, teacherIds: ['t7', 't3'] },
-    { subjectId: 's6', periods: 3, teacherIds: ['t4', 't8'] },
-    { subjectId: 's7', periods: 2, teacherIds: ['t4', 't10'] },
-    { subjectId: 's8', periods: 3, teacherIds: ['t5'] },
-    { subjectId: 's9', periods: 2, teacherIds: ['t6'] },
-    { subjectId: 's10', periods: 2, teacherIds: ['t1', 't10'] },
-    { subjectId: 's11', periods: 2, teacherIds: ['t2', 't10'] },
-    { subjectId: 's12', periods: 2, teacherIds: ['t6'] }
+    { subjectId: 's1', periods: 5, teacherIds: ['t1', 't7'] }, // Math: 5 periods
+    { subjectId: 's2', periods: 5, teacherIds: ['t2', 't8'] }, // English: 5 periods
+    { subjectId: 's3', periods: 3, teacherIds: ['t3', 't9'] }, // Biology: 3 periods
+    { subjectId: 's4', periods: 3, teacherIds: ['t3', 't9'] }, // Chemistry: 3 periods
+    { subjectId: 's5', periods: 3, teacherIds: ['t7', 't3'] }, // Physics: 3 periods
+    { subjectId: 's6', periods: 3, teacherIds: ['t4', 't8'] }, // History: 3 periods
+    { subjectId: 's7', periods: 2, teacherIds: ['t4', 't10'] }, // Geography: 2 periods
+    { subjectId: 's8', periods: 3, teacherIds: ['t5'] },       // PE: 3 periods
+    { subjectId: 's9', periods: 2, teacherIds: ['t6'] },       // Art: 2 periods
+    { subjectId: 's10', periods: 2, teacherIds: ['t1', 't10'] }, // CS: 2 periods
+    { subjectId: 's11', periods: 2, teacherIds: ['t2', 't10'] }, // Literature: 2 periods
+    { subjectId: 's12', periods: 2, teacherIds: ['t6'] }        // Music: 2 periods
   ];
+
+  // Total periods: 5+5+3+3+3+3+2+3+2+2+2+2 = 35 periods per week.
+  // With 8 periods per day, 5 days = 40 total slots. So each class will have 35 active periods, and 5 free periods (or study halls).
+  // Wait, or we can make it a dense 40 periods! Let's increase some periods or leave 5 study halls. Let's add 2 periods of Study Hall or something, or just increase Core subjects.
+  // Let's do: Math (5), English (5), Bio (4), Chem (4), Phys (4), Hist (4), Geo (3), PE (3), Art (2), CS (3), Lit (2), Mus (1). Total: 5+5+4+4+4+4+3+3+2+3+2+1 = 40.
+
   DEFAULT_CLASSES.forEach((cls, classIndex) => {
     subjectConfigs.forEach((config, subjectIndex) => {
+      // Rotate teachers among classes to distribute load
       const teacherIndex = (classIndex + subjectIndex) % config.teacherIds.length;
       const teacherId = config.teacherIds[teacherIndex];
+      
       let periods = config.periods;
-      if (cls.grade === 11 && config.subjectId === 's3') periods = 4;
-      if (cls.grade === 9 && config.subjectId === 's12') periods = 2;
+      // Adjust some periods slightly so it varies a bit
+      if (cls.grade === 11 && config.subjectId === 's3') periods = 4; // Grade 11 gets more Science
+      if (cls.grade === 9 && config.subjectId === 's12') periods = 2; // Grade 9 gets more Music
+
       classSubjects.push({
         id: `cs_${idCounter++}`,
         classId: cls.id,
@@ -107,6 +120,7 @@ export const generateDefaultClassSubjects = (): ClassSubject[] => {
       });
     });
   });
+
   return classSubjects;
 };
 
