@@ -766,9 +766,13 @@ function AppInner() {
   const teachers = users.filter((u: any) => u.role === 'teacher');
   const [schoolClasses, setSchoolClasses] = useState<string[]>(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
-      return saved.length > 0 ? saved : ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
-    } catch { return ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC']; }
+      const savedValue = localStorage.getItem('sms_school_classes');
+      if (savedValue !== null) {
+        const saved = JSON.parse(savedValue);
+        if (Array.isArray(saved)) return saved;
+      }
+    } catch {}
+    return ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
   });
   useEffect(() => {
     localStorage.setItem('sms_school_classes', JSON.stringify(schoolClasses));
@@ -1087,24 +1091,36 @@ function AppInner() {
               <button onClick={() => {
                 if (!newClassName.trim()) return;
                 if (schoolClasses.includes(newClassName.trim())) { alert('Class already exists'); return; }
-                setSchoolClasses(prev => [...prev, newClassName.trim()].sort());
+                const updatedClasses = [...schoolClasses, newClassName.trim()].sort();
+                localStorage.setItem('sms_school_classes', JSON.stringify(updatedClasses));
+                localStorage.setItem('tt_shared_classes', JSON.stringify(updatedClasses));
                 localStorage.setItem('sms_school_classes_ts', String(Date.now()));
+                setSchoolClasses(updatedClasses);
+                if (cloud.isCloudMode()) cloud.syncToCloud().catch(() => {});
                 setNewClassName('');
               }} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">+ Add</button>
               <button onClick={() => {
                 if (schoolClasses.length === 0) { alert('No classes to clear'); return; }
                 if (!confirm('Futa madarasa yote ya mwanzo (' + schoolClasses.length + ') na ubaki na yaliyoandikwa upya tu?')) return;
-                setSchoolClasses([]);
                 localStorage.setItem('sms_school_classes', '[]');
+                localStorage.setItem('tt_shared_classes', '[]');
                 localStorage.setItem('sms_school_classes_ts', String(Date.now()));
-                if (cloud.isCloudMode()) setTimeout(()=> cloud.syncToCloud().catch(()=>{}), 300);
+                setSchoolClasses([]);
+                if (cloud.isCloudMode()) cloud.syncToCloud().catch(() => {});
               }} className="bg-white border border-red-200 text-red-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-red-50" title="Futa yote ya mwanzo">🗑️ Clear All</button>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {schoolClasses.map(cls => (
                 <span key={cls} className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold">
                   {cls}
-                  <button onClick={() => { localStorage.setItem('sms_school_classes_ts', String(Date.now())); setSchoolClasses(prev => prev.filter(c => c !== cls)); }} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
+                  <button onClick={() => {
+                    const updatedClasses = schoolClasses.filter(c => c !== cls);
+                    localStorage.setItem('sms_school_classes', JSON.stringify(updatedClasses));
+                    localStorage.setItem('tt_shared_classes', JSON.stringify(updatedClasses));
+                    localStorage.setItem('sms_school_classes_ts', String(Date.now()));
+                    setSchoolClasses(updatedClasses);
+                    if (cloud.isCloudMode()) cloud.syncToCloud().catch(() => {});
+                  }} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
                 </span>
               ))}
             </div>

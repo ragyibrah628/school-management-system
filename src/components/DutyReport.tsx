@@ -25,9 +25,13 @@ function getHeadmasterNameSetting(): string {
 // Legacy helper kept for instant fallback (used before cloud loads)
 function getSchoolClasses(): string[] {
   try {
-    const saved = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
-    return saved.length > 0 ? saved : ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
+    const savedValue = localStorage.getItem('sms_school_classes');
+    if (savedValue !== null) {
+      const saved = JSON.parse(savedValue);
+      if (Array.isArray(saved)) return saved;
+    }
   } catch { return ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC']; }
+  return ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
 }
 
 const SECTION_OPTIONS: Record<string, string[]> = {
