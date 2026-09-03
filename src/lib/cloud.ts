@@ -364,7 +364,15 @@ const SYNC_KEYS = [
 
 export async function syncToCloud() {
   if (!IS_CLOUD) return;
+  let isAdmin = false;
+  try {
+    const currentUser = JSON.parse(localStorage.getItem('sms_current_user') || 'null');
+    isAdmin = currentUser?.role === 'admin';
+  } catch {}
+  const adminOnlyKeys = new Set(['sms_class_teachers', 'sms_teaching_assignments']);
   for (const key of SYNC_KEYS) {
+    // Role assignments are managed by admin. Teacher devices must never upload stale caches.
+    if (adminOnlyKeys.has(key) && !isAdmin) continue;
     const value = localStorage.getItem(key);
     if (value) {
       try {
@@ -382,6 +390,11 @@ export async function syncToCloud() {
 export async function syncFromCloud() {
   if (!IS_CLOUD) return;
   try {
+    let isAdmin = false;
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('sms_current_user') || 'null');
+      isAdmin = currentUser?.role === 'admin';
+    } catch {}
     const data = await supabaseRequest('app_data', 'GET', undefined, '?select=key,value,updated_at');
     if (Array.isArray(data)) {
       data.forEach((item: any) => {
@@ -412,7 +425,8 @@ export async function syncFromCloud() {
             const ts = localStorage.getItem(item.key + '_ts');
             const localTimestamp = ts ? parseInt(ts, 10) : 0;
             const cloudTimestamp = Date.parse(item.updated_at || '') || 0;
-            if (localTimestamp > 0 && localTimestamp >= cloudTimestamp) {
+            const isSharedRoleKey = item.key === 'sms_class_teachers' || item.key === 'sms_teaching_assignments';
+            if (localTimestamp > 0 && localTimestamp >= cloudTimestamp && (!isSharedRoleKey || isAdmin)) {
               return;
             }
           } catch {}
