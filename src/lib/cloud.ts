@@ -406,12 +406,12 @@ export async function syncFromCloud() {
           if (isCloudEmpty && isLocalNonEmpty) {
             return;
           }
-          // FIX: respect recent local edits for any key that was just edited (add/delete/assign) — prevent race overwrite
+          // Keep a local edit only while it is newer than the cloud copy.
           try {
             const ts = localStorage.getItem(item.key + '_ts');
-            const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
-            if (isRecent) {
-              // local was just edited (add/delete/assign), keep local, let syncToCloud push it
+            const localTimestamp = ts ? parseInt(ts, 10) : 0;
+            const cloudTimestamp = Date.parse(item.updated_at || '') || 0;
+            if (localTimestamp > 0 && localTimestamp >= cloudTimestamp) {
               return;
             }
           } catch {}
