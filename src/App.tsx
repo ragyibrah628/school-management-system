@@ -164,6 +164,13 @@ function AppInner() {
     setClassTeachers(prev => ({ ...prev, [className]: teacherId }));
   };
 
+  const refreshRoleAssignments = async () => {
+    const roles = await cloud.getRoleAssignmentsFromCloud();
+    if (!roles) return;
+    setClassTeachers(prev => JSON.stringify(prev) === JSON.stringify(roles.classTeachers) ? prev : roles.classTeachers);
+    setTeachingAssignments(prev => JSON.stringify(prev) === JSON.stringify(roles.teachingAssignments) ? prev : roles.teachingAssignments);
+  };
+
   const [newStudentName, setNewStudentName] = useState('');
   const [newStudentPhone, setNewStudentPhone] = useState('');
   const [selectedParentExam, setSelectedParentExam] = useState('');
@@ -356,6 +363,7 @@ function AppInner() {
     const pollTimer = setInterval(async () => {
       if (cloud.isCloudMode()) {
         await cloud.syncFromCloud();
+        await refreshRoleAssignments();
         try {
           const freshExams = JSON.parse(localStorage.getItem('sms_exams') || '[]');
           setExams(prev => {
@@ -397,6 +405,7 @@ function AppInner() {
     const onFocus = async () => {
       if (cloud.isCloudMode()) {
         await cloud.syncFromCloud();
+        await refreshRoleAssignments();
         try {
           const fe = JSON.parse(localStorage.getItem('sms_exams') || '[]');
           setExams((prev:any) => (Array.isArray(fe) && fe.length===0 && Array.isArray(prev) && prev.length>0) ? prev : fe);
@@ -417,6 +426,7 @@ function AppInner() {
       }
     };
     const onSync = async () => {
+      await refreshRoleAssignments();
       try {
           const fe = JSON.parse(localStorage.getItem('sms_exams') || '[]');
           setExams((prev:any) => (Array.isArray(fe) && fe.length===0 && Array.isArray(prev) && prev.length>0) ? prev : fe);
@@ -674,6 +684,7 @@ function AppInner() {
         // background sync - don't block login
         (async () => {
           try { await cloud.syncFromCloud(); } catch {}
+          try { await refreshRoleAssignments(); } catch {}
           try { if ((cloud as any).syncScoresToCloud) await (cloud as any).syncScoresToCloud(); } catch {}
           try {
             const fe = JSON.parse(localStorage.getItem('sms_exams') || '[]');
@@ -703,7 +714,7 @@ function AppInner() {
           setScreen('admin');
           setActiveMenu('dashboard');
           setLoading(false);
-          (async () => { try { await cloud.syncFromCloud(); } catch {}; await loadData(); })();
+          (async () => { try { await cloud.syncFromCloud(); } catch {}; try { await refreshRoleAssignments(); } catch {}; await loadData(); })();
           return;
         } else {
           setError('Wrong credentials. Admin: admin / admin123');

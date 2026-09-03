@@ -364,6 +364,31 @@ const SYNC_KEYS = [
 
 const ROLE_SYNC_KEYS = ['sms_class_teachers', 'sms_teaching_assignments'];
 
+export async function getRoleAssignmentsFromCloud(): Promise<{
+  classTeachers: Record<string, string>;
+  teachingAssignments: Record<string, { cls: string; sub: string }[]>;
+} | null> {
+  if (!IS_CLOUD) return null;
+  try {
+    const data = await supabaseRequest('app_data', 'GET', undefined, '?key=in.(sms_class_teachers,sms_teaching_assignments)&select=key,value');
+    const result = {
+      classTeachers: {} as Record<string, string>,
+      teachingAssignments: {} as Record<string, { cls: string; sub: string }[]>
+    };
+    for (const item of Array.isArray(data) ? data : []) {
+      const parsed = JSON.parse(item.value || '{}');
+      if (item.key === 'sms_class_teachers' && parsed && typeof parsed === 'object') result.classTeachers = parsed;
+      if (item.key === 'sms_teaching_assignments' && parsed && typeof parsed === 'object') result.teachingAssignments = parsed;
+    }
+    localStorage.setItem('sms_class_teachers', JSON.stringify(result.classTeachers));
+    localStorage.setItem('sms_teaching_assignments', JSON.stringify(result.teachingAssignments));
+    return result;
+  } catch (e) {
+    console.error('Cloud role assignments fetch failed:', e);
+    return null;
+  }
+}
+
 export async function syncRoleAssignmentsToCloud(classTeachers: unknown, teachingAssignments: unknown) {
   if (!IS_CLOUD) return;
   try {
