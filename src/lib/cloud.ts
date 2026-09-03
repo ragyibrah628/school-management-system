@@ -18,13 +18,15 @@ export function isOperaMini(): boolean {
   } catch { return false; }
 }
 
-async function supabaseRequest(table: string, method: string, body?: any, query?: string) {
+async function supabaseRequest(table: string, method: string, body?: any, query?: string, upsert = false) {
   const url = `${SUPABASE_URL}/rest/v1/${table}${query || ''}`;
   const headers: any = {
     'apikey': SUPABASE_KEY,
     'Authorization': `Bearer ${SUPABASE_KEY}`,
     'Content-Type': 'application/json',
-    'Prefer': method === 'POST' ? 'return=representation' : 'return=minimal'
+    'Prefer': method === 'POST'
+      ? (upsert ? 'resolution=merge-duplicates,return=minimal' : 'return=representation')
+      : 'return=minimal'
   };
 
   // Opera Mini + low-end browser fix: timeout + no-cache, skip cloud if fetch hangs
@@ -366,7 +368,7 @@ export async function syncToCloud() {
     const value = localStorage.getItem(key);
     if (value) {
       try {
-        await supabaseRequest('app_data', 'POST', { key, value, updated_at: new Date().toISOString() });
+        await supabaseRequest('app_data', 'POST', { key, value, updated_at: new Date().toISOString() }, undefined, true);
       } catch {
         try {
           await supabaseRequest('app_data', 'PATCH', { value, updated_at: new Date().toISOString() }, `?key=eq.${encodeURIComponent(key)}`);
@@ -406,7 +408,7 @@ export async function syncFromCloud() {
           }
           // FIX: respect recent local edits for any key that was just edited (add/delete/assign) — prevent race overwrite
           try {
-            const ts = localStorage.getItem(item.key + '_ts') || localStorage.getItem('sms_school_classes_ts');
+            const ts = localStorage.getItem(item.key + '_ts');
             const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
             if (isRecent) {
               // local was just edited (add/delete/assign), keep local, let syncToCloud push it
@@ -445,14 +447,6 @@ export async function getRegisteredStudents(): Promise<Record<string, { regB: nu
 }
 
 export async function getSchoolClassesFromCloud(): Promise<string[]> {
-  // An existing local array, including [], is an intentional admin choice.
-  const localValue = localStorage.getItem('sms_school_classes');
-  if (localValue !== null) {
-    try {
-      const localClasses = JSON.parse(localValue);
-      if (Array.isArray(localClasses)) return localClasses;
-    } catch {}
-  }
   if (IS_CLOUD) {
     try {
       const data = await supabaseRequest('app_data', 'GET', undefined, '?key=eq.sms_school_classes&select=value');
@@ -465,6 +459,13 @@ export async function getSchoolClassesFromCloud(): Promise<string[]> {
         }
       }
     } catch (e) { console.error('getSchoolClassesFromCloud failed', e); }
+  }
+  const localValue = localStorage.getItem('sms_school_classes');
+  if (localValue !== null) {
+    try {
+      const localClasses = JSON.parse(localValue);
+      if (Array.isArray(localClasses)) return localClasses;
+    } catch {}
   }
   return ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
 }
