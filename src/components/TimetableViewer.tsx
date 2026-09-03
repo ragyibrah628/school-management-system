@@ -51,6 +51,7 @@ export const TimetableViewer: React.FC = () => {
   const [activeCell, setActiveCell] = useState<{ day: DayOfWeek; periodId: string } | null>(null);
   const [selectedUnscheduledId, setSelectedUnscheduledId] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [selectedSecondSubject, setSelectedSecondSubject] = useState<string>('');
   const [periodType, setPeriodType] = useState<'single'|'double'|'ps'>('single');
   const [selectedActivity, setSelectedActivity] = useState<string>('');
   const [collisionMsg, setCollisionMsg] = useState<string>('');
