@@ -6,12 +6,43 @@ import {
   AlertTriangle, X, Trash2, Plus 
 } from 'lucide-react';
 
+const NAMBAWALA_SLOTS: any[] = [
+  { id: 'p1', name: 'Period 1', startTime: '08:00', endTime: '08:40', isBreak: false },
+  { id: 'p2', name: 'Period 2', startTime: '08:40', endTime: '09:20', isBreak: false },
+  { id: 'p3', name: 'Period 3', startTime: '09:20', endTime: '10:00', isBreak: false },
+  { id: 'p4', name: 'Period 4', startTime: '10:00', endTime: '10:40', isBreak: false },
+  { id: 'b1', name: 'Break', startTime: '10:40', endTime: '11:10', isBreak: true },
+  { id: 'p5', name: 'Period 5', startTime: '11:10', endTime: '11:50', isBreak: false },
+  { id: 'p6', name: 'Period 6', startTime: '11:50', endTime: '12:30', isBreak: false },
+  { id: 'p7', name: 'Period 7', startTime: '12:30', endTime: '13:10', isBreak: false },
+  { id: 'p8', name: 'Period 8', startTime: '13:10', endTime: '13:50', isBreak: false },
+  { id: 'p9', name: 'Period 9', startTime: '13:50', endTime: '14:30', isBreak: false },
+  { id: 'lunch', name: 'Lunch', startTime: '14:30', endTime: '15:30', isBreak: true },
+  { id: 'act', name: 'Activity', startTime: '15:30', endTime: '17:30', isBreak: false, isActivity: true },
+];
+const ACTIVITY_OPTIONS = ['General Cleanliness', 'Debate', 'Self Reliance', 'Subject Clubs', 'Sports and Games'];
+const getSubjectCodeTT = (name: string) => { try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(m && m[name]) return m[name]; } catch{} return name.substring(0,4).toUpperCase().replace(' ',''); }
+function findTeacherForSubjectClass(subjectName: string, className: string): { id: string, name: string } | null {
+  try {
+    const ta = JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}');
+    const users = JSON.parse(localStorage.getItem('sms_users') || '[]');
+    for (const [tid, arr] of Object.entries(ta as any)) {
+      const list = arr as any[];
+      if (list.some((a: any) => a.cls === className && a.sub === subjectName)) {
+        const u = users.find((x: any) => x.id === tid);
+        if (u) return { id: tid, name: u.name };
+      }
+    }
+  } catch {}
+  return null;
+}
+
 export const TimetableViewer: React.FC = () => {
   const { 
     timetableData, classes, teachers, subjects, rooms, timeSlots, days, conflicts, classSubjects,
     schoolLogo, schoolName,
-    removeLessonSlot, scheduleUnscheduledLesson 
-  } = useTimetable();
+    removeLessonSlot, scheduleUnscheduledLesson, updateLessonSlot 
+  } = useTimetable() as any;
 
   const [viewType, setViewType] = useState<'class' | 'teacher' | 'room' | 'master' | 'all_classes' | 'all_teachers'>('class');
   const [selectedId, setSelectedId] = useState<string>('');
@@ -19,8 +50,12 @@ export const TimetableViewer: React.FC = () => {
   // Cell click editing state
   const [activeCell, setActiveCell] = useState<{ day: DayOfWeek; periodId: string } | null>(null);
   const [selectedUnscheduledId, setSelectedUnscheduledId] = useState<string>('');
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [periodType, setPeriodType] = useState<'single'|'double'|'ps'>('single');
+  const [selectedActivity, setSelectedActivity] = useState<string>('');
+  const [collisionMsg, setCollisionMsg] = useState<string>('');
 
-  const activePeriods = timeSlots; // Show breaks too!
+  const activePeriods = NAMBAWALA_SLOTS as any; // Nambawala 40min English V10
 
   // Auto-select first item when view type changes
   React.useEffect(() => {
@@ -41,9 +76,122 @@ export const TimetableViewer: React.FC = () => {
 
   const schedule = timetableData.schedule;
 
-  // Print function
+  // Print function - English, A4 Landscape class / Portrait teacher, fonts 13px CODE, no links, double merged, no blank - V10
   const handlePrint = () => {
-    window.print();
+    try {
+      const isClass = (viewType as any) === 'class' || (viewType as any) === 'all_classes';
+      const targetId = selectedId;
+      const targetName = isClass ? (classes.find((c:any)=>c.id===targetId)?.name || '') : (teachers.find((t:any)=>t.id===targetId)?.name || '');
+      let finalName: string = targetName;
+      if ((viewType as any)==='my_teaching') { try{ const cur=JSON.parse(localStorage.getItem('sms_current_user')||'null'); if(cur) finalName=cur.name; }catch{} }
+      const title = finalName ? `${finalName} Teaching Timetable` : (isClass ? 'Class Teaching Timetable' : 'Teacher Teaching Timetable');
+      const orientation = isClass ? 'landscape' : 'portrait';
+      const logo = localStorage.getItem('sms_school_logo') || (schoolLogo as any) || '';
+      const sName = localStorage.getItem('sms_school_name_setting') || (schoolName as any) || 'NAMBAWALA SECONDARY SCHOOL';
+      const district = localStorage.getItem('sms_district_name') || 'RUANGWA DISTRICT COUNCIL';
+      const address = localStorage.getItem('sms_school_address') || 'P.O. Box 51, Ruangwa - Lindi';
+      const pw = window.open('', '', 'width=1200,height=800');
+      if (!pw) { window.print(); return; }
+      let html = `<!DOCTYPE html><html><head><title> ${title} </title><style>
+        @page { size: A4 ${orientation}; margin: 10mm 12mm; }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color:#000; background:#fff; }
+        table { width:100%; border-collapse:collapse; table-layout:fixed; }
+        th, td { border:1.5px solid #000; padding: 7px 5px; text-align:center; vertical-align:middle; }
+        th { background:#eef2ff; font-weight:800; font-size: 11px; color:#1e293b; }
+        td { font-size: 11px; line-height:1.3; }
+        .header { text-align:center; margin-bottom:12px; border-bottom:3px double #000; padding-bottom:10px; }
+        .header img { height:58px; margin-bottom:6px; }
+        .header h1 { font-size:18px; font-weight:900; letter-spacing:1px; }
+        .header h2 { font-size:14px; font-weight:800; color:#4338ca; margin-top:4px; }
+        .header p { font-size:10px; color:#555; margin-top:2px; }
+        .subject { font-weight:800; font-size:13px; color:#0f172a; line-height:1.2; }
+        .subteacher { font-weight:600; font-size:11px; color:#334155; margin-top:2px; }
+        .breakCell { background:#fff7ed; color:#9a3412; font-weight:800; font-size:10px; }
+        .dayCol { background:#f8fafc; font-weight:900; font-size:12px; }
+        .footer { text-align:center; margin-top:12px; font-size:9px; color:#64748b; border-top:1px solid #cbd5e1; padding-top:6px; font-style:italic; }
+        @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } a { text-decoration:none !important; color:inherit !important; } }
+      </style></head><body>`;
+      html += `<div class="header">`;
+      if (logo) html += `<img src="${logo}" alt="Logo" />`;
+      html += `<div style="font-size:12px; font-weight:700; letter-spacing:1px;">${district}</div>`;
+      html += `<h1>${sName}</h1>`;
+      html += `<div style="font-size:10px; color:#64748b;">${address}</div>`;
+      html += `<h2>${title}</h2>`;
+      html += `<p>Weekly Teaching Timetable • ${isClass ? 'Class' : 'Teacher'} • A4 ${orientation.charAt(0).toUpperCase()+orientation.slice(1)} • ${new Date().toLocaleDateString()}</p>`;
+      html += `</div>`;
+      html += `<table><thead><tr><th style="width:90px;">Day / Time</th>`;
+      for (const p of activePeriods) {
+        if ((p as any).isBreak) {
+          html += `<th class="breakCell"><div>${p.name}</div><div style="font-weight:400; font-size:8px;">${(p as any).startTime}-${(p as any).endTime}</div></th>`;
+        } else {
+          html += `<th><div>${p.name}</div><div style="font-weight:400; font-size:8px; opacity:0.8;">${(p as any).startTime}-${(p as any).endTime}</div></th>`;
+        }
+      }
+      html += `</tr></thead><tbody>`;
+      for (const day of (days as any)) {
+        html += `<tr><td class="dayCol">${day}</td>`;
+        let skipNextPrint = false;
+        for (let pi=0; pi<activePeriods.length; pi++) {
+          const p = activePeriods[pi] as any;
+          if (skipNextPrint) { skipNextPrint=false; continue; }
+          if (p.isBreak) {
+            html += `<td class="breakCell">${p.name}<br><span style="font-size:8px; font-weight:400;">${p.startTime}-${p.endTime}</span></td>`;
+            continue;
+          }
+          if (p.isActivity) {
+            let cellAct: any = null;
+            if (isClass) cellAct = (timetableData as any).schedule[targetId]?.[day]?.[p.id] || null;
+            else {
+              for (const cid of Object.keys((timetableData as any).schedule||{})) {
+                const c = (timetableData as any).schedule[cid]?.[day]?.[p.id];
+                if (c && c.isActivity) { cellAct = c; break; }
+                if (c && c.teacherId===targetId) { cellAct = {...c, _className: classes.find((x:any)=>x.id===cid)?.name||cid}; break; }
+              }
+            }
+            if (!cellAct || !cellAct.isActivity) html += `<td></td>`;
+            else html += `<td style="background:#eef2ff;"><div class="subject">${cellAct.activity || 'Activity'}</div></td>`;
+            continue;
+          }
+          let cell: any = null;
+          if (isClass) cell = (timetableData as any).schedule[targetId]?.[day]?.[p.id] || null;
+          else {
+            for (const cid of Object.keys((timetableData as any).schedule||{})) {
+              const c = (timetableData as any).schedule[cid]?.[day]?.[p.id];
+              if (c && c.teacherId===targetId) { cell = {...c, _className: classes.find((x:any)=>x.id===cid)?.name||cid}; break; }
+            }
+          }
+          if (!cell) {
+            html += `<td></td>`;
+          } else {
+            const isPS = cell.isPS || cell.subjectId==='ps';
+            const isAct = cell.isActivity;
+            let subj=''; let sub='';
+            if (isPS) { subj='PS'; sub='Private Studies'; }
+            else if (isAct) { subj=cell.activity || 'Activity'; sub=''; }
+            else {
+              const s = subjects.find((x:any)=>x.id===cell.subjectId);
+              subj = (cell as any).subjectName || s?.name || cell.subjectId || '';
+              try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(subj && m[subj]) subj=m[subj]; else if(s && m[s.name]) subj=m[s.name]; else subj=subj.substring(0,4).toUpperCase(); } catch {}
+              sub = isClass ? (teachers.find((t:any)=>t.id===cell.teacherId)?.name || '') : ((cell as any)._className || '');
+            }
+            if (cell.isDouble) {
+              skipNextPrint = true;
+              html += `<td colspan="2"><div class="subject">${subj}</div>${sub ? `<div class="subteacher">${sub}</div>` : ''}</td>`;
+            } else {
+              html += `<td><div class="subject">${subj}</div>${sub ? `<div class="subteacher">${sub}</div>` : ''}</td>`;
+            }
+          }
+        }
+        html += `</tr>`;
+      }
+      html += `</tbody></table>`;
+      html += `<div class="footer">${sName}: Honor All Build Together</div>`;
+      html += `</body></html>`;
+      pw.document.write(html);
+      pw.document.close();
+      setTimeout(()=>{ pw.focus(); pw.print(); }, 400);
+    } catch(e:any){ console.error(e); window.print(); }
   };
 
   // --------------------------------------------------------
@@ -230,102 +378,115 @@ export const TimetableViewer: React.FC = () => {
             <table className="w-full border-collapse table-fixed min-w-[700px] print:min-w-0 print:w-full">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider">
-                  <th className="p-3 border-r border-slate-200 w-32 text-center bg-slate-50 sticky left-0 z-10 print:static print:z-0 print:w-28">Time Slot</th>
-                  {days.map(d => (
-                    <th key={d} className="p-3 border-r border-slate-100 text-center">{d}</th>
+                  <th className="p-3 border-r border-slate-200 w-28 text-center bg-slate-50 sticky left-0 z-10 print:static print:z-0">Day / Time</th>
+                  {activePeriods.map((p:any) => (
+                    <th key={p.id} className={`p-2 border-r border-slate-100 text-center ${p.isBreak ? 'bg-amber-50 text-amber-700' : (p as any).isActivity ? 'bg-indigo-50 text-indigo-700' : ''}`}>
+                      <div className="font-bold text-[11px] leading-tight">{p.name}</div>
+                      <div className="text-[10px] font-normal opacity-70">{p.startTime}-{p.endTime}</div>
+                    </th>
                   ))}
                 </tr>
               </thead>
-              <tbody>
-                {activePeriods.map((p) => {
-                  if (p.isBreak) {
-                    return (
-                      <tr key={p.id} className="bg-slate-100/80 border-b border-slate-200 text-slate-400 text-xs font-semibold tracking-wider">
-                        <td className="p-3 border-r border-slate-200 font-bold bg-slate-50/80 text-center sticky left-0 print:static">
-                          <div className="text-slate-500">{p.name}</div>
-                          <div className="text-[10px] font-medium text-slate-400 mt-0.5">{p.startTime} - {p.endTime}</div>
-                        </td>
-                        <td colSpan={days.length} className="p-3 text-center bg-slate-100/50 italic text-slate-400 uppercase font-bold tracking-widest text-2xs">
-                          ☕ {p.name} (No classes)
-                        </td>
-                      </tr>
-                    );
-                  }
-
-                  return (
-                    <tr key={p.id} className="border-b border-slate-200 h-24 print:h-20">
-                      {/* Period Header */}
-                      <td className="p-2 border-r border-slate-200 font-bold bg-slate-50 text-slate-700 text-center text-xs sticky left-0 z-10 print:static print:z-0">
-                        <div className="text-slate-900">{p.name}</div>
-                        <div className="text-[10px] font-medium text-slate-400 mt-1 bg-white border rounded px-1.5 py-0.5 inline-block">
-                          {p.startTime} - {p.endTime}
-                        </div>
-                      </td>
-
-                      {/* Day cells */}
-                      {days.map((d) => {
+                            <tbody>
+                {days.map((d:any) => (
+                  <tr key={d} className="border-b border-slate-200">
+                    <td className="p-2 border-r border-slate-200 font-black bg-slate-50 text-center text-xs sticky left-0 z-10 print:static print:z-0">{d}</td>
+                    {(() => {
+                      const rowCells: any[] = [];
+                      let skipNext = false;
+                      for (let pIdx=0; pIdx<activePeriods.length; pIdx++) {
+                        const p:any = activePeriods[pIdx];
+                        if (skipNext) { skipNext = false; continue; }
+                        if (p.isBreak) {
+                          rowCells.push(
+                            <td key={p.id} className="p-2 border-r border-slate-100 text-center bg-amber-50 text-amber-700 font-bold text-xs">
+                              {p.name}<br/><span className="text-[10px] font-normal">{p.startTime}-{p.endTime}</span>
+                            </td>
+                          );
+                          continue;
+                        }
+                        if ((p as any).isActivity) {
+                          const cellAct = getCellData(d, p.id);
+                          if (!cellAct || !cellAct.isActivity) {
+                            rowCells.push(
+                              <td key={p.id} onClick={() => handleCellClick(d, p.id, false)} className={`p-2 border-r border-slate-100 text-center text-xs italic align-middle ${viewType==='class'?'hover:bg-indigo-50 cursor-pointer':''}`}>
+                                <span className="text-slate-300">{viewType==='class' ? '+' : '—'}</span>
+                              </td>
+                            );
+                          } else {
+                            rowCells.push(
+                              <td key={p.id} onClick={() => handleCellClick(d, p.id, false)} className="p-2 border-r border-slate-100 text-center bg-indigo-50 border-indigo-200">
+                                <div className="font-bold text-[11px] text-indigo-700" style={{fontFamily:'Arial, sans-serif'}}>{(cellAct as any).activity || 'Activity'}</div>
+                              </td>
+                            );
+                          }
+                          continue;
+                        }
                         const cell = getCellData(d, p.id);
-                        const hasConflict = currentConflicts.some(c => c.slot.day === d && c.slot.periodId === p.id);
-                        
+                        const hasConflict = currentConflicts.some((c:any) => c.slot.day === d && c.slot.periodId === p.id);
                         if (!cell) {
-                          return (
+                          rowCells.push(
                             <td 
-                              key={d} 
-                              onClick={() => handleCellClick(d, p.id, p.isBreak)}
-                              className={`p-2 border-r border-slate-100 text-center text-xs text-slate-300 italic align-middle transition-all bg-dashed group ${
-                                viewType === 'class' ? 'hover:bg-indigo-50/40 cursor-pointer' : ''
-                              }`}
+                              key={p.id} 
+                              onClick={() => handleCellClick(d, p.id, false)}
+                              className={`p-2 border-r border-slate-100 text-center text-xs text-slate-300 italic align-middle group ${viewType === 'class' ? 'hover:bg-indigo-50/40 cursor-pointer' : ''}`}
                             >
-                              <span className="opacity-0 group-hover:opacity-100 font-semibold text-indigo-500 text-2xs flex items-center justify-center">
+                              <span className="opacity-0 group-hover:opacity-100 font-semibold text-indigo-500 text-xs flex items-center justify-center">
                                 {viewType === 'class' ? <Plus size={12} className="mr-0.5" /> : ''}
                                 {viewType === 'class' ? 'Place Lesson' : 'Free'}
                               </span>
                             </td>
                           );
-                        }
-
-                        const sub = subjects.find(s => s.id === cell.subjectId);
-                        const t = teachers.find(teach => teach.id === cell.teacherId);
-                        const r = rooms.find(room => room.id === cell.roomId);
-
-                        return (
-                          <td 
-                            key={d} 
-                            onClick={() => handleCellClick(d, p.id, p.isBreak)}
-                            className={`p-2 border-r border-slate-100 align-middle transition-all text-center relative group ${
-                              viewType === 'class' ? 'cursor-pointer' : ''
-                            }`}
-                          >
-                            <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center transition-all ${sub?.color || 'bg-slate-100'} ${
-                              hasConflict ? 'ring-2 ring-red-500 border-transparent shadow-red-100 animate-pulse' : 'shadow-sm'
-                            }`}>
-                              <div className="font-bold text-slate-800 text-sm leading-tight font-mono">{sub?.code || 'SUB'}</div>
-                              <div className="font-semibold text-slate-900 text-2xs mt-0.5 truncate">{sub?.name}</div>
-                              
-                              <div className="border-t border-slate-400/20 mt-1.5 pt-1 flex flex-col items-center space-y-0.5 text-3xs font-bold text-slate-600/90 uppercase tracking-tight">
-                                {viewType !== 'teacher' && (
-                                  <div className="truncate w-full max-w-[120px] text-center">👨‍🏫 {t?.name.split(' ').slice(-1)[0] || 'Teacher'}</div>
-                                )}
-                                {viewType === 'teacher' && (
-                                  <div className="truncate w-full max-w-[120px] text-center text-slate-800 font-black">🏫 {classes.find(c=>c.id===cell.classId)?.name}</div>
-                                )}
-                                {viewType !== 'room' && (
-                                  <div className="truncate w-full max-w-[120px] text-center">🚪 {r?.name.replace('Classroom ', 'R-') || 'Room'}</div>
-                                )}
-                              </div>
-
-                              {hasConflict && (
-                                <div className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 shadow-md">
-                                  <AlertTriangle size={10} />
+                        } else {
+                          const sub = subjects.find((s:any) => s.id === cell.subjectId);
+                          const isPS = (cell as any).isPS || cell.subjectId==='ps';
+                          const isAct = (cell as any).isActivity;
+                          const displaySubRaw = (cell as any).subjectName || sub?.name || (cell.subjectId==='ps' ? 'PS' : isAct ? (cell as any).activity || 'Activity' : 'SUB');
+                          let displaySub = displaySubRaw;
+                          try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(displaySubRaw && m[displaySubRaw]) displaySub=m[displaySubRaw]; else if(sub && m[sub.name]) displaySub=m[sub.name]; } catch{}
+                          if (!isPS && !isAct && displaySubRaw && displaySub===displaySubRaw) { try{ displaySub=displaySubRaw.substring(0,4).toUpperCase(); }catch{} }
+                          const tchr = teachers.find((teach:any) => teach.id === cell.teacherId);
+                          const isDouble = (cell as any).isDouble;
+                          if (isDouble) {
+                            skipNext = true;
+                            rowCells.push(
+                              <td 
+                                key={p.id} 
+                                colSpan={2}
+                                onClick={() => handleCellClick(d, p.id, false)}
+                                className={`p-2 border-r border-slate-100 align-middle text-center relative group ${viewType === 'class' ? 'cursor-pointer' : ''}`}
+                              >
+                                <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center ${sub?.color || 'bg-emerald-50 border-emerald-300'} ${hasConflict ? 'ring-2 ring-red-500 animate-pulse' : 'shadow-sm'}`}>
+                                  <div className="font-bold text-slate-900 text-[13px] leading-tight" style={{fontFamily:'Arial, sans-serif'}}>{displaySub}</div>
+                                  <div className="font-semibold text-slate-700 text-[11px] truncate" style={{fontFamily:'Arial, sans-serif'}}>{isPS || isAct ? '' : (viewType==='teacher' ? (classes.find((c:any)=>c.id===cell.classId)?.name || '') : (tchr?.name?.split(' ').slice(-1)[0] || tchr?.name || ''))}</div>
                                 </div>
-                              )}
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
+                              </td>
+                            );
+                          } else {
+                            rowCells.push(
+                              <td 
+                                key={p.id} 
+                                onClick={() => handleCellClick(d, p.id, false)}
+                                className={`p-2 border-r border-slate-100 align-middle text-center relative group ${viewType === 'class' ? 'cursor-pointer' : ''}`}
+                              >
+                                <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center ${sub?.color || (isPS ? 'bg-slate-100 border-slate-300' : isAct ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200')} ${hasConflict ? 'ring-2 ring-red-500 animate-pulse' : 'shadow-sm'}`}>
+                                  <div className="font-bold text-slate-900 text-[13px] leading-tight" style={{fontFamily:'Arial, sans-serif'}}>{isPS ? 'PS' : displaySub}</div>
+                                  <div className="font-semibold text-slate-700 text-[11px] truncate" style={{fontFamily:'Arial, sans-serif'}}>{isPS ? '' : isAct ? '' : (viewType==='teacher' ? (classes.find((c:any)=>c.id===cell.classId)?.name || '') : (tchr?.name?.split(' ').slice(-1)[0] || tchr?.name || ''))}</div>
+                                  {hasConflict && (
+                                    <div className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 shadow-md">
+                                      <AlertTriangle size={10} />
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          }
+                        }
+                      }
+                      return rowCells;
+                    })()}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -484,15 +645,24 @@ export const TimetableViewer: React.FC = () => {
         </div>
       )}
 
-      {/* CELL EDIT MODAL (HIDES ON PRINT) */}
-      {activeCell && (
+      {/* CELL EDIT MODAL - Nambawala Spec: Select Subject/Add Subject + Single/Double/PS + Activity 5 */}
+      {activeCell && (() => {
+        const slot: any = activePeriods.find((s:any)=>s.id===activeCell.periodId);
+        const isActSlot = slot?.isActivity;
+        const existing = getCellData(activeCell.day, activeCell.periodId);
+        const isActivitySlot = isActSlot;
+        const subjectOptions: string[] = (() => {
+          try { const fromAdmin = JSON.parse(localStorage.getItem('sms_school_subjects')||'[]'); if (fromAdmin.length) return fromAdmin; } catch {}
+          return subjects.map((s:any)=>s.name);
+        })();
+        return (
         <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4 print:hidden">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-slate-100 animate-fadeIn space-y-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 border border-slate-100 animate-fadeIn space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start border-b border-slate-100 pb-3">
               <div>
                 <h3 className="font-bold text-lg text-slate-800">Edit Schedule Slot</h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Class: <b>{classes.find(c=>c.id===selectedId)?.name}</b> • Slot: <b>{activeCell.day}, {timeSlots.find(p=>p.id===activeCell.periodId)?.name}</b>
+                  Class: <b>{classes.find((c:any)=>c.id===selectedId)?.name}</b> • Slot: <b>{activeCell.day}, {activePeriods.find((p:any)=>p.id===activeCell.periodId)?.name}</b> <span className="text-[10px]">({activePeriods.find((p:any)=>p.id===activeCell.periodId)?.startTime}-{(activePeriods.find((p:any)=>p.id===activeCell.periodId) as any)?.endTime})</span>
                 </p>
               </div>
               <button onClick={() => setActiveCell(null)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
@@ -500,89 +670,317 @@ export const TimetableViewer: React.FC = () => {
               </button>
             </div>
 
-            {/* Current Lesson in this cell */}
-            {getCellData(activeCell.day, activeCell.periodId) ? (
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                <div>
-                  <div className="text-2xs font-bold text-indigo-500 uppercase tracking-wider">Scheduled Lesson:</div>
-                  <div className="font-bold text-slate-800 mt-0.5">
-                    {subjects.find(s=>s.id===getCellData(activeCell.day, activeCell.periodId)?.subjectId)?.name}
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    Taught by: {teachers.find(t=>t.id===getCellData(activeCell.day, activeCell.periodId)?.teacherId)?.name}
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    Location: {rooms.find(r=>r.id===getCellData(activeCell.day, activeCell.periodId)?.roomId)?.name}
-                  </div>
+            {existing ? (
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div className="text-xs">
+                  <div className="font-bold text-slate-800">{existing.isActivity ? (existing as any).activity : (existing.subjectId==='ps' ? 'PS - Private Studies' : (subjects.find((s:any)=>s.id===existing.subjectId)?.name || existing.subjectId))} {(existing as any).isDouble ? '(Double 80min)' : (existing as any).isPS ? '(PS)' : ''}</div>
+                  {!existing.isActivity && !(existing as any).isPS && <div className="text-slate-500">Teacher: {teachers.find((t:any)=>t.id===existing.teacherId)?.name || ''}</div>}
                 </div>
-                <button
-                  onClick={handleRemoveCell}
-                  className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 border border-red-200 flex flex-col items-center justify-center text-center font-bold text-xs"
-                >
-                  <Trash2 size={16} className="mb-0.5" />
-                  <span>Remove</span>
-                </button>
+                <button onClick={() => { try{ handleRemoveCell(); }catch(e:any){ setCollisionMsg(String(e)); } }} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 border border-red-200 flex flex-col items-center font-bold text-xs"><Trash2 size={14} /><span>Remove</span></button>
               </div>
             ) : (
-              <div className="p-4 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-center text-xs text-slate-500">
-                This slot is currently empty.
+              <div className="p-3 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-center text-xs text-slate-500">
+                This slot is currently empty. Choose options below to fill it.
               </div>
             )}
 
-            {/* Unscheduled pool */}
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Place an Unscheduled Lesson</label>
-              
-              {timetableData.unscheduled.filter(u => u.classId === selectedId).length === 0 ? (
-                <p className="text-xs text-slate-400 italic bg-white border border-slate-100 p-4 rounded-xl text-center">No unscheduled lessons available for this class!</p>
-              ) : (
-                <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
-                  {timetableData.unscheduled.filter(u => u.classId === selectedId).map((u) => {
-                    const sub = subjects.find(s=>s.id===u.subjectId);
-                    const t = teachers.find(teach=>teach.id===u.teacherId);
-                    const isSelected = selectedUnscheduledId === u.id;
-
-                    return (
-                      <div 
-                        key={u.id}
-                        onClick={() => setSelectedUnscheduledId(u.id)}
-                        className={`p-2.5 rounded-xl border flex items-center justify-between text-xs cursor-pointer hover:border-indigo-300 transition-all ${
-                          isSelected ? 'border-indigo-600 bg-indigo-50/40 font-bold' : 'bg-white border-slate-200'
-                        }`}
-                      >
-                        <div>
-                          <span className={`px-1.5 py-0.5 rounded text-3xs font-bold font-mono mr-2 border ${sub?.color.split(' ')[0]}`}>{sub?.code}</span>
-                          <span className="text-slate-700">{sub?.name} ({t?.name.split(' ').slice(-1)[0]})</span>
-                        </div>
-                        <span className="text-2xs bg-slate-100 text-slate-600 font-bold px-1.5 py-0.5 rounded border">
-                          {u.periodsLeft} left
-                        </span>
-                      </div>
-                    );
-                  })}
+            {isActivitySlot ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700">Select Activity (15:30-17:30)</label>
+                  <select value={selectedActivity} onChange={e=>setSelectedActivity(e.target.value)} className="w-full mt-1 border px-3 py-2.5 rounded-xl text-sm bg-white">
+                    <option value="">-- Select activity --</option>
+                    {ACTIVITY_OPTIONS.map((a:any)=> <option key={a} value={a}>{a}</option>)}
+                  </select>
+                  <p className="text-[10px] text-slate-500 mt-1">General Cleanliness, Debate, Self Reliance, Subject Clubs, Sports and Games</p>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700">Select Subject</label>
+                  <select value={selectedSubject} onChange={e=>setSelectedSubject(e.target.value)} className="w-full mt-1 border px-3 py-2.5 rounded-xl text-sm bg-white">
+                    <option value="">-- Select subject --</option>
+                    {subjectOptions.map((name:string)=> <option key={name} value={name}>{name} ({getSubjectCodeTT(name)})</option>)}
+                    <option value="ps">PS - Private Studies (no teacher)</option>
+                  </select>
+                  {selectedSubject && (()=> {
+                    const found = findTeacherForSubjectClass(selectedSubject, classes.find((c:any)=>c.id===selectedId)?.name || '');
+                    return found ? <p className="text-xs text-emerald-600 mt-1">Teacher: <b>{found.name}</b> (Teaching Assignments)</p> : <p className="text-xs text-amber-600 mt-1">No teacher assigned to teach {selectedSubject} in this class. Go to Assign Teaching Classes & Subjects.</p>;
+                  })()}
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-700">Add Subject (Second Subject in Same Cell)</label>
+                  <select value={selectedSecondSubject} onChange={e=>setSelectedSecondSubject(e.target.value)} className="w-full mt-1 border px-3 py-2.5 rounded-xl text-sm bg-white">
+                    <option value="">None (single subject)</option>
+                    {subjectOptions.map((name:string)=> <option key={name+'-2'} value={name}>{name} ({getSubjectCodeTT(name)})</option>)}
+                    <option value="ps">PS - Private Studies</option>
+                  </select>
+                  <p className="text-[10px] text-slate-500 mt-1">Example: Select MATH above + HIST here = cell shows <b>MATH/HIST</b> (two subjects in one period). Leave as None for single subject.</p>
+                  <div className="mt-2 flex gap-2">
+                    <button onClick={()=>{
+                      const name = prompt('Or create NEW subject (name):');
+                      if (!name || !name.trim()) return;
+                      const code = prompt('Subject code (e.g., AGRI, 2-6 letters):', name.trim().substring(0,4).toUpperCase());
+                      if (!code || !code.trim()) return;
+                      const c = code.trim().toUpperCase().replace(/\s+/g,'');
+                      if (c.length<2||c.length>6) { alert('Code must be 2-6 letters'); return; }
+                      try {
+                        const subs = JSON.parse(localStorage.getItem('sms_school_subjects')||'[]');
+                        if (subs.includes(name.trim())) { alert('Subject already exists'); return; }
+                        const codes = JSON.parse(localStorage.getItem('sms_subject_codes')||'{}');
+                        if (Object.values(codes).includes(c)) { alert('Code already exists'); return; }
+                        const nextSubs = [...subs, name.trim()].sort();
+                        localStorage.setItem('sms_school_subjects', JSON.stringify(nextSubs));
+                        const nextCodes = {...codes, [name.trim()]: c};
+                        localStorage.setItem('sms_subject_codes', JSON.stringify(nextCodes));
+                        // Also set as second subject if first already chosen
+                        if (selectedSubject && !selectedSecondSubject) setSelectedSecondSubject(name.trim());
+                        else setSelectedSubject(name.trim());
+                        alert('Subject added: '+name.trim()+' ('+c+')');
+                      } catch(e:any){ alert('Failed: '+String(e)); }
+                    }} className="flex-1 py-1.5 rounded-xl border border-dashed border-indigo-200 text-indigo-600 font-bold text-[11px] hover:bg-indigo-50">+ Create New Subject (Name + CODE)</button>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-700">Choose Period Type</label>
+                  <div className="flex gap-2 mt-1">
+                    <button onClick={()=>setPeriodType('single')} className={`flex-1 py-2 rounded-xl text-xs font-bold border ${periodType==='single'?'bg-indigo-600 text-white border-indigo-600':'bg-white'}`}>Single (40 min)</button>
+                    <button onClick={()=>setPeriodType('double')} className={`flex-1 py-2 rounded-xl text-xs font-bold border ${periodType==='double'?'bg-emerald-600 text-white border-emerald-600':'bg-white'}`}>Double (80 min)</button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1">Double merges 2 periods (80 min). PS can be Single or Double — no teacher will be assigned.</p>
+                </div>
+              </div>
+            )}
 
-            <div className="flex space-x-2 pt-2 border-t border-slate-100">
+            {collisionMsg && <div className="p-2 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-semibold">{collisionMsg}</div>}
+
+            <div className="flex gap-2 pt-2 border-t border-slate-100">
               <button
-                onClick={handlePlaceUnscheduled}
-                disabled={!selectedUnscheduledId}
-                className="flex-1 flex items-center justify-center space-x-1 px-4 py-2 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-40"
+                onClick={() => {
+                  try {
+                    const slot: any = activePeriods.find((s:any)=>s.id===activeCell.periodId);
+                    const isAct = slot?.isActivity;
+                    if (isAct) {
+                      if (!selectedActivity) { setCollisionMsg('Select an activity'); return; }
+                      // FIX: activity must be visible - store correctly and force refresh
+                      const cell: any = { subjectId: 'activity', teacherId: '', roomId: '', isActivity: true, activity: selectedActivity, isDouble: false, isPS: false, subjectName: selectedActivity };
+                      // Use direct localStorage mutation with refresh
+                      try {
+                        const rawAct = localStorage.getItem('tt_timetableData');
+                        if (rawAct) {
+                          const dataAct = JSON.parse(rawAct);
+                          if (!dataAct.schedule[selectedId]) dataAct.schedule[selectedId] = {};
+                          if (!dataAct.schedule[selectedId][activeCell.day]) dataAct.schedule[selectedId][activeCell.day] = {};
+                          dataAct.schedule[selectedId][activeCell.day][activeCell.periodId] = cell;
+                          localStorage.setItem('tt_timetableData', JSON.stringify(dataAct));
+                          localStorage.setItem('tt_timetableData_ts', String(Date.now()));
+                          // Also try context update for in-memory
+                          try { (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, 'activity', '', ''); } catch {}
+                          // Patch the in-memory too if activity
+                          setTimeout(()=>{
+                            try {
+                              const raw2 = localStorage.getItem('tt_timetableData');
+                              if (raw2) {
+                                const d2 = JSON.parse(raw2);
+                                if (d2?.schedule?.[selectedId]?.[activeCell.day]?.[activeCell.periodId]) {
+                                  d2.schedule[selectedId][activeCell.day][activeCell.periodId].activity = selectedActivity;
+                                  d2.schedule[selectedId][activeCell.day][activeCell.periodId].isActivity = true;
+                                  d2.schedule[selectedId][activeCell.day][activeCell.periodId].subjectName = selectedActivity;
+                                  localStorage.setItem('tt_timetableData', JSON.stringify(d2));
+                                }
+                              }
+                            } catch {}
+                            setRefreshKey((k:number)=>k+1);
+                          }, 150);
+                        } else {
+                          (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, 'activity', '', '');
+                        }
+                      } catch(e:any){ setCollisionMsg('Activity save failed: '+String(e)); return; }
+                      setActiveCell(null);
+                      setCollisionMsg('');
+                      setRefreshKey((k:number)=>k+1);
+                      return;
+                    }
+                    // Determine if PS selected as subject (can be single or double)
+                    const isPS_selected = selectedSubject==='ps' || selectedSubject==='PS - Private Studies' || selectedSubject?.toLowerCase().startsWith('ps');
+                    if (isPS_selected) {
+                      const cell: any = { subjectId: 'ps', subjectName: 'PS', teacherId: '', isPS: true, isDouble: false };
+                      const raw = localStorage.getItem('tt_timetableData');
+                      if (raw) {
+                        const data = JSON.parse(raw);
+                        if (!data.schedule[selectedId]) data.schedule[selectedId] = {};
+                        if (!data.schedule[selectedId][activeCell.day]) data.schedule[selectedId][activeCell.day] = {};
+                        data.schedule[selectedId][activeCell.day][activeCell.periodId] = cell;
+                        localStorage.setItem('tt_timetableData', JSON.stringify(data));
+                        localStorage.setItem('tt_timetableData_ts', String(Date.now()));
+                      } else {
+                        (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, 'ps', '', '');
+                      }
+                      setActiveCell(null);
+                      setCollisionMsg('');
+                      return;
+                    }
+                    if (!selectedSubject || selectedSubject==='ps') { setCollisionMsg('Select a subject (PS handled separately)'); return; }
+                    // Handle combined subjects: e.g., MATH/HIST
+                    let subjId = selectedSubject;
+                    let subjName = selectedSubject;
+                    const foundSub = subjects.find((s:any)=> s.id===selectedSubject || s.name===selectedSubject);
+                    if (foundSub) { subjId = foundSub.id; subjName = foundSub.name; }
+                    // Second subject optional
+                    let secondSubjId: string | null = null;
+                    let secondSubjName: string | null = null;
+                    let secondTeacherId: string | null = null;
+                    let secondTeacherName = '';
+                    if (selectedSecondSubject && selectedSecondSubject !== '' && selectedSecondSubject !== 'none') {
+                      secondSubjName = selectedSecondSubject;
+                      secondSubjId = selectedSecondSubject;
+                      const foundSub2 = subjects.find((s:any)=> s.id===selectedSecondSubject || s.name===selectedSecondSubject);
+                      if (foundSub2) { secondSubjId = foundSub2.id; secondSubjName = foundSub2.name; }
+                      else if (selectedSecondSubject==='ps') { secondSubjId='ps'; secondSubjName='PS'; }
+                      // Find teacher for second subject
+                      try {
+                        const cs2 = classSubjects.find((c:any)=> c.classId===selectedId && (c.subjectId===secondSubjId || subjects.find((s:any)=>s.id===c.subjectId)?.name===secondSubjName));
+                        if (cs2) secondTeacherId = cs2.teacherId;
+                      } catch {}
+                      if (!secondTeacherId && secondSubjName) {
+                        const res2 = findTeacherForSubjectClass(secondSubjName!, classes.find((c:any)=>c.id===selectedId)?.name || '');
+                        if (res2) { secondTeacherId = res2.id; secondTeacherName = res2.name; }
+                      }
+                      if (!secondTeacherId && secondSubjId) {
+                        const t2 = teachers.find((x:any)=> x.qualifiedSubjects?.includes(secondSubjId!));
+                        if (t2) secondTeacherId = t2.id;
+                      }
+                      if (secondSubjName && secondSubjName!=='PS' && !secondTeacherId) {
+                        setCollisionMsg('No teacher for second subject ' + secondSubjName + ' in ' + (classes.find((c:any)=>c.id===selectedId)?.name || selectedId) + '.');
+                        return;
+                      }
+                    }
+                    let teacherId = '';
+                    let teacherName = '';
+                    try {
+                      const cs = classSubjects.find((c:any)=> c.classId===selectedId && (c.subjectId===subjId || subjects.find((s:any)=>s.id===c.subjectId)?.name===subjName));
+                      if (cs) teacherId = cs.teacherId;
+                    } catch {}
+                    if (!teacherId) {
+                      const res = findTeacherForSubjectClass(subjName, classes.find((c:any)=>c.id===selectedId)?.name || '');
+                      if (res) { teacherId = res.id; teacherName = res.name; }
+                    }
+                    if (!teacherId) {
+                      const t = teachers.find((x:any)=> x.qualifiedSubjects?.includes(subjId));
+                      if (t) teacherId = t.id;
+                    }
+                    if (!teacherId) {
+                      setCollisionMsg('No teacher assigned to teach ' + subjName + ' in ' + (classes.find((c:any)=>c.id===selectedId)?.name || selectedId) + '. Go to Assign Teaching Classes & Subjects first.');
+                      return;
+                    }
+                    for (const cid of Object.keys(((timetableData as any)?.schedule||{}))) {
+                      if (cid === selectedId) continue;
+                      const cell = (timetableData as any).schedule[cid]?.[activeCell.day]?.[activeCell.periodId];
+                      if (cell && (cell.teacherId === teacherId || (secondTeacherId && cell.teacherId === secondTeacherId) || (cell.secondTeacherId && (cell.secondTeacherId===teacherId || cell.secondTeacherId===secondTeacherId)))) {
+                        const clsName = classes.find((c:any)=>c.id===cid)?.name || cid;
+                        const whichTeacher = (cell.teacherId===teacherId || cell.secondTeacherId===teacherId) ? (teachers.find((t:any)=>t.id===teacherId)?.name || teacherId) : (teachers.find((t:any)=>t.id===secondTeacherId)?.name || secondTeacherId);
+                        setCollisionMsg('Teacher ' + whichTeacher + ' is already assigned to ' + clsName + ' on ' + activeCell.day + ' ' + activeCell.periodId + '.');
+                        return;
+                      }
+                    }
+                    // Also check second teacher double booking on same check
+                    if (secondTeacherId) {
+                      for (const cid of Object.keys(((timetableData as any)?.schedule||{}))) {
+                        if (cid === selectedId) continue;
+                        const cell = (timetableData as any).schedule[cid]?.[activeCell.day]?.[activeCell.periodId];
+                        if (cell && cell.teacherId === secondTeacherId) {
+                          const clsName = classes.find((c:any)=>c.id===cid)?.name || cid;
+                          setCollisionMsg('Teacher ' + (teachers.find((t:any)=>t.id===secondTeacherId)?.name || secondTeacherId) + ' is already assigned to ' + clsName + ' on ' + activeCell.day + ' ' + activeCell.periodId + '.');
+                          return;
+                        }
+                      }
+                    }
+                    if (periodType==='double') {
+                      const teachingIds = activePeriods.filter((s:any)=>!s.isBreak && !(s as any).isActivity).map((s:any)=>s.id);
+                      const idx = teachingIds.indexOf(activeCell.periodId);
+                      const nextId = teachingIds[idx+1];
+                      if (!nextId) { setCollisionMsg('Double cannot be last period. Choose Single.'); return; }
+                      const existingNext = (timetableData as any).schedule[selectedId]?.[activeCell.day]?.[nextId];
+                      if (existingNext) { setCollisionMsg('Next period already has a lesson. Remove it first.'); return; }
+                    }
+                    const subForRoom = subjects.find((s:any)=>s.id===subjId);
+                    const roomType = (subForRoom as any)?.requiresRoomType || 'regular';
+                    const schoolClass = classes.find((c:any)=>c.id===selectedId);
+                    let roomId = '';
+                    if (roomType === 'regular' && (schoolClass as any)?.assignedRoomId) {
+                      const occupied = Object.keys((timetableData as any).schedule||{}).some(cid => (timetableData as any).schedule[cid]?.[activeCell.day]?.[activeCell.periodId]?.roomId === (schoolClass as any).assignedRoomId);
+                      if (!occupied) roomId = (schoolClass as any).assignedRoomId;
+                    }
+                    if (!roomId) {
+                      const avail = rooms.filter((r:any)=> r.type===roomType && !Object.keys((timetableData as any).schedule||{}).some(cid => (timetableData as any).schedule[cid]?.[activeCell.day]?.[activeCell.periodId]?.roomId===r.id));
+                      roomId = avail[0]?.id || rooms.find((r:any)=>r.type===roomType)?.id || rooms[0]?.id || '';
+                    }
+                    // If combined, store second subject info too
+                    const isCombined = !!(secondSubjId && secondSubjName);
+                    const cellToSave: any = { subjectId: subjId, subjectName: subjName, teacherId, roomId, classId: selectedId, isCombined, secondSubjectId: secondSubjId || undefined, secondSubjectName: secondSubjName || undefined, secondTeacherId: secondTeacherId || undefined, isDouble: periodType==='double', isPS: false, isActivity: false };
+                    // Try context update first, then patch localStorage for combined
+                    (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, subjId, teacherId, roomId);
+                    setTimeout(()=>{
+                      try {
+                        const raw = localStorage.getItem('tt_timetableData');
+                        if (raw) {
+                          const data = JSON.parse(raw);
+                          const cell = data?.schedule?.[selectedId]?.[activeCell.day]?.[activeCell.periodId];
+                          if (cell) {
+                            cell.subjectName = subjName;
+                            cell.isCombined = isCombined;
+                            if (isCombined) {
+                              cell.secondSubjectName = secondSubjName;
+                              cell.secondSubjectId = secondSubjId;
+                              cell.secondTeacherId = secondTeacherId;
+                            }
+                            cell.isDouble = periodType==='double';
+                            cell.isPS = false;
+                            cell.isActivity = false;
+                            if (periodType==='double') {
+                              const teachingIds = activePeriods.filter((s:any)=>!s.isBreak && !(s as any).isActivity).map((s:any)=>s.id);
+                              const idx = teachingIds.indexOf(activeCell.periodId);
+                              const nextId = teachingIds[idx+1];
+                              if (nextId) {
+                                if (!data.schedule[selectedId][activeCell.day][nextId]) {
+                                  data.schedule[selectedId][activeCell.day][nextId] = { subjectId: subjId, subjectName: subjName, teacherId, roomId, classId: selectedId, isDouble: true, isDoubleSpan: true, isCombined, secondSubjectName, secondSubjectId, secondTeacherId };
+                                } else {
+                                  // If next exists, still mark as double span for combined
+                                  data.schedule[selectedId][activeCell.day][nextId].isDoubleSpan = true;
+                                }
+                              }
+                            }
+                            localStorage.setItem('tt_timetableData', JSON.stringify(data));
+                            localStorage.setItem('tt_timetableData_ts', String(Date.now()));
+                            setRefreshKey((k:number)=>k+1);
+                          }
+                        }
+                      } catch {}
+                    }, 150);
+                    setActiveCell(null);
+                    setCollisionMsg('');
+                  } catch(e:any){ setCollisionMsg('Save failed: '+(e?.message||String(e))); }
+                }}
+                className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm"
               >
-                <Plus size={16} />
-                <span>Place Lesson</span>
+                Save
               </button>
               <button
-                onClick={() => setActiveCell(null)}
-                className="flex-1 flex items-center justify-center px-4 py-2 border border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50"
+                onClick={() => {
+                  try { (removeLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId); } catch(e:any){ setCollisionMsg(String(e)); return; }
+                  setActiveCell(null);
+                }}
+                className="flex-1 py-2.5 bg-white border text-slate-700 rounded-xl font-bold text-sm"
               >
-                Cancel
+                Remove
               </button>
+              <button onClick={()=>setActiveCell(null)} className="px-4 py-2.5 bg-slate-100 rounded-xl font-bold text-sm">Close</button>
             </div>
+            <p className="text-[10px] text-slate-400 text-center">Collision prevents double-booking. Double merges 2 periods (80 min). PS has no teacher.</p>
           </div>
         </div>
-      )}
+      )})()}
     </div>
   );
 };

@@ -112,9 +112,9 @@ function AppInner() {
     try { return JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}'); } catch { return {}; }
   });
 
-  useEffect(() => { localStorage.setItem('sms_class_teachers', JSON.stringify(classTeachers)); if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); } }, [classTeachers]);
-  useEffect(() => { localStorage.setItem('sms_students', JSON.stringify(students)); if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); } }, [students]);
-  useEffect(() => { localStorage.setItem('sms_teaching_assignments', JSON.stringify(teachingAssignments)); if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); } }, [teachingAssignments]);
+  useEffect(() => { localStorage.setItem('sms_class_teachers', JSON.stringify(classTeachers)); localStorage.setItem('sms_class_teachers_ts', String(Date.now())); if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); } }, [classTeachers]);
+  useEffect(() => { localStorage.setItem('sms_students', JSON.stringify(students)); localStorage.setItem('sms_students_ts', String(Date.now())); if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); } }, [students]);
+  useEffect(() => { localStorage.setItem('sms_teaching_assignments', JSON.stringify(teachingAssignments)); localStorage.setItem('sms_teaching_assignments_ts', String(Date.now())); if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); } }, [teachingAssignments]);
 
   const addTeachingAssignment = (teacherId: string, cls: string, sub: string) => {
     if (!cls || !sub) return;
@@ -197,10 +197,12 @@ function AppInner() {
   };
   const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
   const [editSubjects, setEditSubjects] = useState<string[]>([]);
+  const [editTeacherName, setEditTeacherName] = useState<string>('');
 
   const startEditSubjects = (teacher: any) => {
     setEditingTeacherId(teacher.id);
     setEditSubjects(teacher.subjects || []);
+    setEditTeacherName(teacher.name || '');
   };
 
   const toggleEditSubject = (sub: string) => {
@@ -209,9 +211,10 @@ function AppInner() {
 
   const saveEditSubjects = async () => {
     if (!editingTeacherId) return;
+    if (!editTeacherName.trim()) { alert('Teacher name required'); return; }
     setLoading(true);
-    // Update in cloud/localStorage
-    const updatedUsers = users.map((u: any) => u.id === editingTeacherId ? { ...u, subjects: editSubjects } : u);
+    // Update in cloud/localStorage — now includes name edit
+    const updatedUsers = users.map((u: any) => u.id === editingTeacherId ? { ...u, name: editTeacherName.trim(), subjects: editSubjects } : u);
     // Save to cloud if available
     try {
       if (cloud.isCloudMode()) {
@@ -264,6 +267,7 @@ function AppInner() {
   });
   useEffect(() => {
     localStorage.setItem('sms_exams', JSON.stringify(exams));
+    localStorage.setItem('sms_exams_ts', String(Date.now()));
     if (cloud.isCloudMode()) {
       const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
       return () => clearTimeout(t);
@@ -487,6 +491,23 @@ function AppInner() {
       return saved.length > 0 ? saved : ['Mathematics', 'English', 'Biology', 'Physics', 'Chemistry', 'History', 'Geography', 'Computer Science', 'Literature', 'Kiswahili', 'Civics', 'Book Keeping', 'Commerce', 'Bible Knowledge'];
     } catch { return ['Mathematics', 'English', 'Biology', 'Physics', 'Chemistry', 'History', 'Geography', 'Computer Science', 'Literature', 'Kiswahili', 'Civics', 'Book Keeping', 'Commerce', 'Bible Knowledge']; }
   });
+  // ✅ Subject codes: admin must provide code (e.g., MATH) - stored in sms_subject_codes
+  const [schoolSubjectCodes, setSchoolSubjectCodes] = useState<Record<string,string>>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('sms_subject_codes') || '{}');
+      if (Object.keys(saved).length > 0) return saved;
+      // defaults from name -> code
+      const def: Record<string,string> = {};
+      ['Mathematics','English','Biology','Physics','Chemistry','History','Geography','Computer Science','Literature','Kiswahili','Civics','Book Keeping','Commerce','Bible Knowledge'].forEach(n=>{
+        let c = n.substring(0,4).toUpperCase().replace(' ','');
+        if (n==='Book Keeping') c='BK';
+        if (n==='Computer Science') c='COMP';
+        if (n==='Bible Knowledge') c='BKNO';
+        def[n]=c;
+      });
+      return def;
+    } catch { return {}; }
+  });
   useEffect(() => { 
     localStorage.setItem('sms_school_subjects', JSON.stringify(schoolSubjects));
     if (cloud.isCloudMode()) {
@@ -494,18 +515,39 @@ function AppInner() {
       return () => clearTimeout(t);
     }
   }, [schoolSubjects]);
+  useEffect(() => {
+    localStorage.setItem('sms_subject_codes', JSON.stringify(schoolSubjectCodes));
+    // sync to timetable shared
+    try {
+      const mapped = schoolSubjects.map(name => ({ name, code: schoolSubjectCodes[name] || name.substring(0,4).toUpperCase().replace(' ','') }));
+      localStorage.setItem('tt_shared_subjects_codes', JSON.stringify(mapped));
+    } catch {}
+    if (cloud.isCloudMode()) {
+      const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
+      return () => clearTimeout(t);
+    }
+  }, [schoolSubjectCodes, schoolSubjects]);
+  const getSubjectCode = (name: string) => schoolSubjectCodes[name] || name.substring(0,4).toUpperCase().replace(' ','');
   const ALL_SUBJECTS = schoolSubjects;
   const [newSubjectName, setNewSubjectName] = useState('');
+  const [newSubjectCode, setNewSubjectCode] = useState('');
 
   const addSchoolSubject = () => {
-    if (!newSubjectName.trim()) return;
-    if (schoolSubjects.includes(newSubjectName.trim())) { alert('Subject already exists'); return; }
-    setSchoolSubjects(prev => [...prev, newSubjectName.trim()]);
+    if (!newSubjectName.trim() || !newSubjectCode.trim()) { alert('Enter subject name and code (e.g., Mathematics / MATH)'); return; }
+    const name = newSubjectName.trim();
+    const code = newSubjectCode.trim().toUpperCase().replace(/\s+/g,'');
+    if (schoolSubjects.includes(name)) { alert('Subject already exists'); return; }
+    if (Object.values(schoolSubjectCodes).includes(code)) { alert('Code already exists'); return; }
+    if (code.length < 2 || code.length > 6) { alert('Code must be 2-6 letters (e.g., MATH, BIO, KISW)'); return; }
+    setSchoolSubjects(prev => [...prev, name].sort());
+    setSchoolSubjectCodes(prev => ({...prev, [name]: code}));
     setNewSubjectName('');
+    setNewSubjectCode('');
   };
 
   const removeSchoolSubject = (sub: string) => {
     setSchoolSubjects(prev => prev.filter(s => s !== sub));
+    setSchoolSubjectCodes(prev => { const n={...prev}; delete n[sub]; return n; });
   };
 
   // Sync subjects and teachers to timetable system via localStorage
@@ -535,8 +577,21 @@ function AppInner() {
         cloud.getDutyReportsFull().catch(() => []),
         cloud.getReleased().catch(() => [])
       ]);
-      setUsers(Array.isArray(u) ? u : []);
-      setScores(Array.isArray(s) ? s : []);
+      // Preserve teachers if cloud temporarily empty (prevents "no teacher registered" flash)
+      setUsers(prev => {
+        if (Array.isArray(u) && u.length > 0) return u;
+        if (Array.isArray(prev) && prev.length > 0 && Array.isArray(u) && u.length === 0) return prev;
+        return Array.isArray(u) ? u : prev;
+      });
+      // Scores: empty is valid (no scores yet) but preserve if we had scores and cloud returned empty due to network
+      setScores(prev => {
+        if (Array.isArray(s) && s.length > 0) return s;
+        if (Array.isArray(prev) && prev.length > 0 && Array.isArray(s) && s.length === 0) {
+          // keep previous, background will retry
+          return prev;
+        }
+        return Array.isArray(s) ? s : prev;
+      });
       setDuties(Array.isArray(d) ? d : []);
       setReleased(Array.isArray(r) ? r : []);
     } catch { /* silent */ }
@@ -711,9 +766,13 @@ function AppInner() {
   const teachers = users.filter((u: any) => u.role === 'teacher');
   const [schoolClasses, setSchoolClasses] = useState<string[]>(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
-      return saved.length > 0 ? saved : ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
-    } catch { return ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC']; }
+      const savedValue = localStorage.getItem('sms_school_classes');
+      if (savedValue !== null) {
+        const saved = JSON.parse(savedValue);
+        if (Array.isArray(saved)) return saved;
+      }
+    } catch {}
+    return ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
   });
   useEffect(() => {
     localStorage.setItem('sms_school_classes', JSON.stringify(schoolClasses));
@@ -1004,19 +1063,21 @@ function AppInner() {
           {activeMenu === 'subjects' && (<>
           <div className="bg-white p-6 rounded-2xl border">
             <h2 className="font-bold text-lg mb-2">School Subjects ({schoolSubjects.length})</h2>
-            <p className="text-xs text-slate-500 mb-3">Add or remove subjects. These subjects appear in timetable, teacher assignments, and student registration.</p>
+            <p className="text-xs text-slate-500 mb-3">Add subjects with code (e.g., Mathematics — <b>MATH</b>). Code appears on timetable & general results instead of full name. These appear in timetable, teacher assignments, and student registration.</p>
             <div className="flex gap-2 mb-3">
-              <input placeholder="New subject name" value={newSubjectName} onChange={e => setNewSubjectName(e.target.value)} className="flex-1 border px-3 py-2 rounded-xl text-sm" />
+              <input placeholder="Subject name (e.g. Mathematics)" value={newSubjectName} onChange={e => setNewSubjectName(e.target.value)} className="flex-1 border px-3 py-2 rounded-xl text-sm" />
+              <input placeholder="Code (e.g. MATH)" value={newSubjectCode} onChange={e => setNewSubjectCode(e.target.value.toUpperCase())} className="w-28 border px-3 py-2 rounded-xl text-sm font-mono font-bold" maxLength={6} />
               <button onClick={addSchoolSubject} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">+ Add</button>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {schoolSubjects.map(sub => (
-                <span key={sub} className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-100 text-indigo-800 rounded-lg text-xs font-semibold">
-                  {sub}
+                <span key={sub} className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-100 text-indigo-800 rounded-lg text-xs font-semibold border">
+                  <span className="bg-white px-1.5 py-0.5 rounded font-mono text-[11px] border">{getSubjectCode(sub)}</span> {sub}
                   <button onClick={() => removeSchoolSubject(sub)} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
                 </span>
               ))}
             </div>
+            {schoolSubjects.length===0 && <p className="text-xs text-amber-600 mt-2">No subjects yet — add at least one with code.</p>}
           </div>
           </>)}
 
@@ -1030,24 +1091,36 @@ function AppInner() {
               <button onClick={() => {
                 if (!newClassName.trim()) return;
                 if (schoolClasses.includes(newClassName.trim())) { alert('Class already exists'); return; }
-                setSchoolClasses(prev => [...prev, newClassName.trim()].sort());
+                const updatedClasses = [...schoolClasses, newClassName.trim()].sort();
+                localStorage.setItem('sms_school_classes', JSON.stringify(updatedClasses));
+                localStorage.setItem('tt_shared_classes', JSON.stringify(updatedClasses));
                 localStorage.setItem('sms_school_classes_ts', String(Date.now()));
+                setSchoolClasses(updatedClasses);
+                if (cloud.isCloudMode()) cloud.syncToCloud().catch(() => {});
                 setNewClassName('');
               }} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">+ Add</button>
               <button onClick={() => {
                 if (schoolClasses.length === 0) { alert('No classes to clear'); return; }
                 if (!confirm('Futa madarasa yote ya mwanzo (' + schoolClasses.length + ') na ubaki na yaliyoandikwa upya tu?')) return;
-                setSchoolClasses([]);
                 localStorage.setItem('sms_school_classes', '[]');
+                localStorage.setItem('tt_shared_classes', '[]');
                 localStorage.setItem('sms_school_classes_ts', String(Date.now()));
-                if (cloud.isCloudMode()) setTimeout(()=> cloud.syncToCloud().catch(()=>{}), 300);
+                setSchoolClasses([]);
+                if (cloud.isCloudMode()) cloud.syncToCloud().catch(() => {});
               }} className="bg-white border border-red-200 text-red-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-red-50" title="Futa yote ya mwanzo">🗑️ Clear All</button>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {schoolClasses.map(cls => (
                 <span key={cls} className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold">
                   {cls}
-                  <button onClick={() => { localStorage.setItem('sms_school_classes_ts', String(Date.now())); setSchoolClasses(prev => prev.filter(c => c !== cls)); }} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
+                  <button onClick={() => {
+                    const updatedClasses = schoolClasses.filter(c => c !== cls);
+                    localStorage.setItem('sms_school_classes', JSON.stringify(updatedClasses));
+                    localStorage.setItem('tt_shared_classes', JSON.stringify(updatedClasses));
+                    localStorage.setItem('sms_school_classes_ts', String(Date.now()));
+                    setSchoolClasses(updatedClasses);
+                    if (cloud.isCloudMode()) cloud.syncToCloud().catch(() => {});
+                  }} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
                 </span>
               ))}
             </div>
@@ -1067,7 +1140,7 @@ function AppInner() {
               <div className="flex flex-wrap gap-2">
                 {ALL_SUBJECTS.map(sub => (
                   <button key={sub} type="button" onClick={() => toggleSubject(sub)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${newTeacher.subjects.includes(sub) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-300 hover:border-indigo-400'}`}>
-                    {newTeacher.subjects.includes(sub) ? '✓ ' : ''}{sub}
+                    {newTeacher.subjects.includes(sub) ? '✓ ' : ''}{sub} ({getSubjectCode(sub)})
                   </button>
                 ))}
               </div>
@@ -1090,7 +1163,7 @@ function AppInner() {
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => isEditing ? setEditingTeacherId(null) : startEditSubjects(t)} className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-semibold border border-indigo-200">
-                        {isEditing ? 'Cancel' : '✏️ Edit Subjects'}
+                        {isEditing ? 'Cancel' : '✏️ Edit'}
                       </button>
                       <button onClick={async () => {
                         const updated = users.map((u: any) => u.id === t.id ? { ...u, password: 'Teacher@123' } : u);
@@ -1103,17 +1176,23 @@ function AppInner() {
                     </div>
                   </div>
                   {isEditing && (
-                    <div className="mt-3 p-3 bg-indigo-50 rounded-xl border border-indigo-200">
-                      <p className="text-xs font-semibold text-indigo-700 mb-2">Edit subjects for {t.name}:</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {ALL_SUBJECTS.map(sub => (
-                          <button key={sub} type="button" onClick={() => toggleEditSubject(sub)} className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${editSubjects.includes(sub) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-300'}`}>
-                            {editSubjects.includes(sub) ? '✓ ' : ''}{sub}
-                          </button>
-                        ))}
+                    <div className="mt-3 p-3 bg-indigo-50 rounded-xl border border-indigo-200 space-y-3">
+                      <div>
+                        <p className="text-xs font-semibold text-indigo-700 mb-1">Edit name for {t.name}:</p>
+                        <input value={editTeacherName} onChange={e=>setEditTeacherName(e.target.value)} placeholder="Full Name" className="w-full border px-3 py-2 rounded-xl text-sm bg-white" />
                       </div>
-                      <button onClick={saveEditSubjects} disabled={loading} className="mt-3 bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50">
-                        {loading ? 'Saving...' : 'Save Subjects'}
+                      <div>
+                        <p className="text-xs font-semibold text-indigo-700 mb-2">Edit subjects for {editTeacherName || t.name}:</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {ALL_SUBJECTS.map(sub => (
+                            <button key={sub} type="button" onClick={() => toggleEditSubject(sub)} className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${editSubjects.includes(sub) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-300'}`}>
+                              {editSubjects.includes(sub) ? '✓ ' : ''}{sub} <span className="opacity-60 text-[10px]">({getSubjectCode(sub)})</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <button onClick={saveEditSubjects} disabled={loading} className="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50">
+                        {loading ? 'Saving...' : 'Save Changes'}
                       </button>
                     </div>
                   )}
@@ -1409,7 +1488,7 @@ function AppInner() {
                 pw.document.write(`<table><thead><tr style="background:#d4edda">`);
                 pw.document.write(`<th style="font-size:${thFontSize}" rowspan="2">S/N</th>`);
                 pw.document.write(`<th style="text-align:left;font-size:${thFontSize}" rowspan="2">Student Name</th>`);
-                allSubjects.forEach(s => pw.document.write(`<th style="font-size:8px" colspan="2">${s.toUpperCase()}</th>`));
+                allSubjects.forEach(s => pw.document.write(`<th style="font-size:8px" colspan="2">${getSubjectCode(s)}</th>`));
                 pw.document.write(`<th style="font-size:${thFontSize}" rowspan="2">Total<br/>Points</th>`);
                 pw.document.write(`<th style="font-size:${thFontSize}" rowspan="2">Student<br/>Average</th>`);
                 pw.document.write(`<th style="font-size:${thFontSize}" rowspan="2">Letter<br/>Grade</th>`);
@@ -1683,7 +1762,7 @@ function AppInner() {
                         <tr className="bg-emerald-50 border-b">
                           <th className="p-1 border text-xs">S/N</th>
                           <th className="text-left p-1 border text-xs">Student Name</th>
-                          {allSubjects.map(sub => <th key={sub} className="text-center p-1 border text-[9px]">{sub.substring(0,4)}</th>)}
+                          {allSubjects.map(sub => <th key={sub} className="text-center p-1 border text-[9px]">{getSubjectCode(sub)}</th>)}
                           <th className="p-1 border font-bold text-[9px]">Total Pts</th>
                           <th className="p-1 border font-bold text-[9px]">Avg</th>
                           <th className="p-1 border font-bold text-[9px]">Grade</th>

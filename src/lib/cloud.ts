@@ -6,6 +6,7 @@
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const IS_CLOUD = !!(SUPABASE_URL && SUPABASE_KEY && SUPABASE_URL.startsWith('https://'));
+const LEGACY_DEFAULT_CLASSES = ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
 
 export function isCloudMode() {
   return IS_CLOUD;
@@ -70,10 +71,27 @@ export async function getUsers(): Promise<any[]> {
   if (IS_CLOUD) {
     try {
       const data = await supabaseRequest('users', 'GET', undefined, '?order=created_at.desc');
-      return data.map((u: any) => ({
+      const mapped = data.map((u: any) => ({
         ...u,
         subjects: Array.isArray(u.subjects) ? u.subjects : []
       }));
+      // cache successful fetch locally so teacher device doesn't lose teachers on next offline fetch
+      if (Array.isArray(mapped) && mapped.length > 0) {
+        localStorage.setItem('sms_users', JSON.stringify(mapped));
+        return mapped;
+      }
+      // cloud returned empty but local has teachers — keep local (prevents "no teacher registered" flash)
+      const savedEmpty = localStorage.getItem('sms_users');
+      if (savedEmpty) {
+        try {
+          const local = JSON.parse(savedEmpty);
+          if (Array.isArray(local) && local.length > 0) {
+            console.warn('Cloud users empty, keeping local cache (' + local.length + ' users)');
+            return local;
+          }
+        } catch {}
+      }
+      return mapped;
     } catch (e) {
       console.error('Cloud getUsers failed:', e);
     }
@@ -367,23 +385,34 @@ export async function syncFromCloud() {
       data.forEach((item: any) => {
         if (item.key && item.value) {
           const localValue = localStorage.getItem(item.key);
+          if (item.key === 'sms_school_classes' || item.key === 'tt_shared_classes') {
+            try {
+              const savedClasses = JSON.parse(localStorage.getItem('sms_school_classes') || 'null');
+              const incomingClasses = JSON.parse(item.value);
+              const localTimestamp = parseInt(localStorage.getItem('sms_school_classes_ts') || '0', 10);
+              const cloudTimestamp = Date.parse(item.updated_at || '') || 0;
+              if (Array.isArray(savedClasses) && Array.isArray(incomingClasses)) {
+                const localIsCustom = JSON.stringify(savedClasses) !== JSON.stringify(LEGACY_DEFAULT_CLASSES);
+                const incomingIsLegacyDefault = JSON.stringify(incomingClasses) === JSON.stringify(LEGACY_DEFAULT_CLASSES);
+                if ((localIsCustom && incomingIsLegacyDefault) || (localTimestamp > 0 && localTimestamp >= cloudTimestamp)) return;
+              }
+            } catch {}
+          }
           const isCloudEmpty = item.value === '[]' || item.value === '{}' || item.value === '' || item.value === '""';
           const isLocalNonEmpty = !!localValue && localValue !== '[]' && localValue !== '{}' && localValue !== '' && localValue !== '""';
           // FIX exams bug: if cloud is empty but local has data (admin just created, cloud not yet synced), don't delete local
           if (isCloudEmpty && isLocalNonEmpty) {
             return;
           }
-          // FIX classes bug: respect recent local edits (15s) — don't overwrite delete/add race
-          if (item.key === 'sms_school_classes' || item.key === 'tt_shared_classes') {
-            try {
-              const ts = localStorage.getItem('sms_school_classes_ts');
-              const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
-              if (isRecent) {
-                // local was just edited by admin (add/delete), keep local, let syncToCloud push it
-                return;
-              }
-            } catch {}
-          }
+          // FIX: respect recent local edits for any key that was just edited (add/delete/assign) — prevent race overwrite
+          try {
+            const ts = localStorage.getItem(item.key + '_ts') || localStorage.getItem('sms_school_classes_ts');
+            const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
+            if (isRecent) {
+              // local was just edited (add/delete/assign), keep local, let syncToCloud push it
+              return;
+            }
+          } catch {}
           localStorage.setItem(item.key, item.value);
         }
       });
@@ -416,12 +445,20 @@ export async function getRegisteredStudents(): Promise<Record<string, { regB: nu
 }
 
 export async function getSchoolClassesFromCloud(): Promise<string[]> {
+  // An existing local array, including [], is an intentional admin choice.
+  const localValue = localStorage.getItem('sms_school_classes');
+  if (localValue !== null) {
+    try {
+      const localClasses = JSON.parse(localValue);
+      if (Array.isArray(localClasses)) return localClasses;
+    } catch {}
+  }
   if (IS_CLOUD) {
     try {
       const data = await supabaseRequest('app_data', 'GET', undefined, '?key=eq.sms_school_classes&select=value');
       if (Array.isArray(data) && data.length > 0 && data[0].value) {
         const parsed = JSON.parse(data[0].value);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           localStorage.setItem('sms_school_classes', data[0].value);
           localStorage.setItem('tt_shared_classes', data[0].value);
           return parsed;
@@ -429,10 +466,6 @@ export async function getSchoolClassesFromCloud(): Promise<string[]> {
       }
     } catch (e) { console.error('getSchoolClassesFromCloud failed', e); }
   }
-  try {
-    const saved = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
-    if (saved.length > 0) return saved;
-  } catch {}
   return ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
 }
 

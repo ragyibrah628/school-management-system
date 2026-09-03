@@ -129,8 +129,10 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
 
   const getClassesFromAdmin = (): SchoolClass[] => {
     try {
-      const shared = JSON.parse(localStorage.getItem('tt_shared_classes') || '[]');
-      if (shared.length > 0) {
+      const sharedValue = localStorage.getItem('tt_shared_classes');
+      if (sharedValue !== null) {
+        const shared = JSON.parse(sharedValue);
+        if (!Array.isArray(shared)) throw new Error('Invalid shared classes');
         return shared.map((name: string, i: number) => {
           const existing = JSON.parse(localStorage.getItem('tt_classes') || '[]');
           const found = existing.find((c: any) => c.name === name);
