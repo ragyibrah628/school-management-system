@@ -764,6 +764,7 @@ function AppInner() {
   };
 
   const teachers = users.filter((u: any) => u.role === 'teacher');
+  const [schoolClassesReady, setSchoolClassesReady] = useState(!cloud.isCloudMode());
   const [schoolClasses, setSchoolClasses] = useState<string[]>(() => {
     try {
       const savedValue = localStorage.getItem('sms_school_classes');
@@ -775,10 +776,19 @@ function AppInner() {
     return ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
   });
   useEffect(() => {
+    if (!cloud.isCloudMode()) return;
+    cloud.getSchoolClassesFromCloud()
+      .then(classes => {
+        if (Array.isArray(classes)) setSchoolClasses(classes);
+      })
+      .catch(() => {})
+      .finally(() => setSchoolClassesReady(true));
+  }, []);
+  useEffect(() => {
     localStorage.setItem('sms_school_classes', JSON.stringify(schoolClasses));
     localStorage.setItem('tt_shared_classes', JSON.stringify(schoolClasses));
     // ✅ FIX: sync classes to Supabase immediately so admin changes appear for teachers
-    if (cloud.isCloudMode()) {
+    if (cloud.isCloudMode() && schoolClassesReady) {
       // debounced very short - fire and forget
       const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
       return () => clearTimeout(t);
