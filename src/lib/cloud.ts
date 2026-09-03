@@ -351,8 +351,8 @@ export async function releaseTerm(term: string, adminName: string) {
 // ==================== APP DATA SYNC (Timetable, Settings, etc.) ====================
 
 const SYNC_KEYS = [
-  'sms_school_subjects', 'sms_school_classes', 'sms_class_teachers',
-  'sms_students', 'sms_teaching_assignments', 'sms_exams',
+  'sms_school_subjects', 'sms_school_classes',
+  'sms_students', 'sms_exams',
   'sms_behavior', 'sms_messages', 'sms_registered_students',
   'sms_school_name_setting', 'sms_district_name', 'sms_school_address',
   'sms_school_motto', 'sms_academic_name', 'sms_headmaster_name',
@@ -362,17 +362,33 @@ const SYNC_KEYS = [
   'tt_shared_subjects', 'tt_shared_teachers', 'tt_shared_classes'
 ];
 
-export async function syncToCloud() {
+const ROLE_SYNC_KEYS = ['sms_class_teachers', 'sms_teaching_assignments'];
+
+export async function syncRoleAssignmentsToCloud(classTeachers: unknown, teachingAssignments: unknown) {
   if (!IS_CLOUD) return;
-  let isAdmin = false;
   try {
     const currentUser = JSON.parse(localStorage.getItem('sms_current_user') || 'null');
-    isAdmin = currentUser?.role === 'admin';
-  } catch {}
-  const adminOnlyKeys = new Set(['sms_class_teachers', 'sms_teaching_assignments']);
+    if (currentUser?.role !== 'admin') return;
+  } catch { return; }
+
+  const values: Record<string, unknown> = {
+    sms_class_teachers: classTeachers,
+    sms_teaching_assignments: teachingAssignments
+  };
+  await Promise.all(ROLE_SYNC_KEYS.map(async key => {
+    const value = JSON.stringify(values[key]);
+    const updatedAt = new Date().toISOString();
+    try {
+      await supabaseRequest('app_data', 'POST', { key, value, updated_at: updatedAt }, undefined, true);
+    } catch {
+      await supabaseRequest('app_data', 'PATCH', { value, updated_at: updatedAt }, `?key=eq.${encodeURIComponent(key)}`);
+    }
+  }));
+}
+
+export async function syncToCloud() {
+  if (!IS_CLOUD) return;
   for (const key of SYNC_KEYS) {
-    // Role assignments are managed by admin. Teacher devices must never upload stale caches.
-    if (adminOnlyKeys.has(key) && !isAdmin) continue;
     const value = localStorage.getItem(key);
     if (value) {
       try {

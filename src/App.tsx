@@ -117,7 +117,7 @@ function AppInner() {
     const previous = localStorage.getItem('sms_class_teachers');
     localStorage.setItem('sms_class_teachers', value);
     if (previous !== null && previous !== value) localStorage.setItem('sms_class_teachers_ts', String(Date.now()));
-    if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); }
+    if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncRoleAssignmentsToCloud(classTeachers, teachingAssignments),400); return()=>clearTimeout(t); }
   }, [classTeachers]);
   useEffect(() => {
     const value = JSON.stringify(students);
@@ -131,7 +131,7 @@ function AppInner() {
     const previous = localStorage.getItem('sms_teaching_assignments');
     localStorage.setItem('sms_teaching_assignments', value);
     if (previous !== null && previous !== value) localStorage.setItem('sms_teaching_assignments_ts', String(Date.now()));
-    if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); }
+    if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncRoleAssignmentsToCloud(classTeachers, teachingAssignments),400); return()=>clearTimeout(t); }
   }, [teachingAssignments]);
 
   const addTeachingAssignment = (teacherId: string, cls: string, sub: string) => {
