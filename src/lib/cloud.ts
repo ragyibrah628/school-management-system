@@ -403,7 +403,8 @@ export async function syncFromCloud() {
           const isCloudEmpty = item.value === '[]' || item.value === '{}' || item.value === '' || item.value === '""';
           const isLocalNonEmpty = !!localValue && localValue !== '[]' && localValue !== '{}' && localValue !== '' && localValue !== '""';
           // FIX exams bug: if cloud is empty but local has data (admin just created, cloud not yet synced), don't delete local
-          if (isCloudEmpty && isLocalNonEmpty) {
+          const isSharedRoleKey = item.key === 'sms_class_teachers' || item.key === 'sms_teaching_assignments';
+          if (isCloudEmpty && isLocalNonEmpty && !isSharedRoleKey) {
             return;
           }
           // Keep a local edit only while it is newer than the cloud copy.
