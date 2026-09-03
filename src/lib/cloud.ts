@@ -351,8 +351,8 @@ export async function releaseTerm(term: string, adminName: string) {
 // ==================== APP DATA SYNC (Timetable, Settings, etc.) ====================
 
 const SYNC_KEYS = [
-  'sms_school_subjects', 'sms_school_classes', 'sms_class_teachers',
-  'sms_students', 'sms_teaching_assignments', 'sms_exams',
+  'sms_school_subjects', 'sms_school_classes',
+  'sms_students', 'sms_exams',
   'sms_behavior', 'sms_messages', 'sms_registered_students',
   'sms_school_name_setting', 'sms_district_name', 'sms_school_address',
   'sms_school_motto', 'sms_academic_name', 'sms_headmaster_name',
@@ -361,6 +361,30 @@ const SYNC_KEYS = [
   'tt_classes', 'tt_classSubjects', 'tt_timeSlots', 'tt_days',
   'tt_shared_subjects', 'tt_shared_teachers', 'tt_shared_classes'
 ];
+
+const ROLE_SYNC_KEYS = ['sms_class_teachers', 'sms_teaching_assignments'];
+
+export async function syncRoleAssignmentsToCloud(classTeachers: unknown, teachingAssignments: unknown) {
+  if (!IS_CLOUD) return;
+  try {
+    const currentUser = JSON.parse(localStorage.getItem('sms_current_user') || 'null');
+    if (currentUser?.role !== 'admin') return;
+  } catch { return; }
+
+  const values: Record<string, unknown> = {
+    sms_class_teachers: classTeachers,
+    sms_teaching_assignments: teachingAssignments
+  };
+  await Promise.all(ROLE_SYNC_KEYS.map(async key => {
+    const value = JSON.stringify(values[key]);
+    const updatedAt = new Date().toISOString();
+    try {
+      await supabaseRequest('app_data', 'POST', { key, value, updated_at: updatedAt }, undefined, true);
+    } catch {
+      await supabaseRequest('app_data', 'PATCH', { value, updated_at: updatedAt }, `?key=eq.${encodeURIComponent(key)}`);
+    }
+  }));
+}
 
 export async function syncToCloud() {
   if (!IS_CLOUD) return;
@@ -382,6 +406,11 @@ export async function syncToCloud() {
 export async function syncFromCloud() {
   if (!IS_CLOUD) return;
   try {
+    let isAdmin = false;
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('sms_current_user') || 'null');
+      isAdmin = currentUser?.role === 'admin';
+    } catch {}
     const data = await supabaseRequest('app_data', 'GET', undefined, '?select=key,value,updated_at');
     if (Array.isArray(data)) {
       data.forEach((item: any) => {
@@ -403,15 +432,17 @@ export async function syncFromCloud() {
           const isCloudEmpty = item.value === '[]' || item.value === '{}' || item.value === '' || item.value === '""';
           const isLocalNonEmpty = !!localValue && localValue !== '[]' && localValue !== '{}' && localValue !== '' && localValue !== '""';
           // FIX exams bug: if cloud is empty but local has data (admin just created, cloud not yet synced), don't delete local
-          if (isCloudEmpty && isLocalNonEmpty) {
+          const isSharedRoleKey = item.key === 'sms_class_teachers' || item.key === 'sms_teaching_assignments';
+          if (isCloudEmpty && isLocalNonEmpty && !isSharedRoleKey) {
             return;
           }
-          // FIX: respect recent local edits for any key that was just edited (add/delete/assign) — prevent race overwrite
+          // Keep a local edit only while it is newer than the cloud copy.
           try {
             const ts = localStorage.getItem(item.key + '_ts');
-            const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
-            if (isRecent) {
-              // local was just edited (add/delete/assign), keep local, let syncToCloud push it
+            const localTimestamp = ts ? parseInt(ts, 10) : 0;
+            const cloudTimestamp = Date.parse(item.updated_at || '') || 0;
+            const isSharedRoleKey = item.key === 'sms_class_teachers' || item.key === 'sms_teaching_assignments';
+            if (localTimestamp > 0 && localTimestamp >= cloudTimestamp && (!isSharedRoleKey || isAdmin)) {
               return;
             }
           } catch {}
