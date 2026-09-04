@@ -15,7 +15,7 @@ export const DEFAULT_TIME_SLOTS: TimeSlot[] = [
   { id: 'p8', name: 'Period 8', startTime: '13:10', endTime: '13:50', isBreak: false },
   { id: 'p9', name: 'Period 9', startTime: '13:50', endTime: '14:30', isBreak: false },
   { id: 'lunch', name: 'Lunch', startTime: '14:30', endTime: '15:30', isBreak: true },
-  { id: 'act', name: 'Activity', startTime: '15:30', endTime: '17:30', isBreak: false },
+  { id: 'act', name: 'Activity', startTime: '15:30', endTime: '17:30', isBreak: false, isActivity: true } as TimeSlot,
 ];
 
 export const DEFAULT_SUBJECTS: Subject[] = [

@@ -143,10 +143,8 @@ export async function getScores(): Promise<any[]> {
     try {
       const data = await supabaseRequest('scores', 'GET', undefined, '?order=created_at.desc');
       if (Array.isArray(data)) {
-        // cache cloud to local for offline
-        localStorage.setItem('sms_scores', JSON.stringify(data));
         if (data.length > 0) return data;
-        // cloud empty but local has unsynced scores (POST failed before) —  show local so teacher sees what he saved
+        // Keep locally queued scores when the cloud has no rows yet.
         const saved = localStorage.getItem('sms_scores');
         if (saved) {
           try {
@@ -157,6 +155,7 @@ export async function getScores(): Promise<any[]> {
             }
           } catch {}
         }
+        localStorage.setItem('sms_scores', JSON.stringify(data));
         return data;
       }
       return data;

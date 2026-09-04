@@ -20,7 +20,7 @@ const NAMBAWALA_SLOTS: any[] = [
   { id: 'lunch', name: 'Lunch', startTime: '14:30', endTime: '15:30', isBreak: true },
   { id: 'act', name: 'Activity', startTime: '15:30', endTime: '17:30', isBreak: false, isActivity: true },
 ];
-const ACTIVITY_OPTIONS = ['General Cleanliness', 'Debate', 'Self Reliance', 'Subject Clubs', 'Sports and Games'];
+const ACTIVITY_OPTIONS = ['Debate', 'Self Reliance', 'General Cleanness', 'Sports & Games', 'Subject Clubs'];
 const getSubjectCodeTT = (name: string) => { try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(m && m[name]) return m[name]; } catch{} return name.substring(0,4).toUpperCase().replace(' ',''); }
 function findTeacherForSubjectClass(subjectName: string, className: string): { id: string, name: string } | null {
   try {
@@ -56,7 +56,9 @@ export const TimetableViewer: React.FC = () => {
   const [selectedActivity, setSelectedActivity] = useState<string>('');
   const [collisionMsg, setCollisionMsg] = useState<string>('');
 
-  const activePeriods = (timeSlots.length > 0 ? timeSlots : NAMBAWALA_SLOTS) as any;
+  const activePeriods = (timeSlots.length > 0 ? timeSlots : NAMBAWALA_SLOTS).map((slot: any) =>
+    slot.id === 'act' ? { ...slot, isActivity: true } : slot
+  ) as any;
 
   // Auto-select first item when view type changes
   React.useEffect(() => {
@@ -224,6 +226,30 @@ export const TimetableViewer: React.FC = () => {
     }
 
     return null;
+  };
+
+  const getTeacherForSubject = (subjectValue: string): string => {
+    if (!subjectValue || subjectValue === 'ps') return '';
+    const classId = selectedId;
+    const subject = subjects.find((item: any) => item.id === subjectValue || item.name === subjectValue);
+    const assignment = classSubjects.find((item: any) => item.classId === classId && (
+      item.subjectId === subjectValue || item.subjectId === subject?.id || subjects.find((s: any) => s.id === item.subjectId)?.name === subjectValue
+    ));
+    if (assignment?.teacherId) return assignment.teacherId;
+    const className = classes.find((item: any) => item.id === classId)?.name || '';
+    return findTeacherForSubjectClass(subject?.name || subjectValue, className)?.id || '';
+  };
+
+  const getTeacherConflictClass = (day: string, periodId: string, teacherId: string): string => {
+    if (!teacherId) return '';
+    for (const classId of Object.keys(schedule)) {
+      if (classId === selectedId) continue;
+      const cell: any = schedule[classId]?.[day]?.[periodId];
+      if (cell && (cell.teacherId === teacherId || cell.secondTeacherId === teacherId)) {
+        return classes.find((item: any) => item.id === classId)?.name || classId;
+      }
+    }
+    return '';
   };
 
   const currentConflicts = conflicts.filter(c => {
@@ -425,16 +451,18 @@ export const TimetableViewer: React.FC = () => {
                         }
                         const cell = getCellData(d, p.id);
                         const hasConflict = currentConflicts.some((c:any) => c.slot.day === d && c.slot.periodId === p.id);
+                        const selectedTeacherId = getTeacherForSubject(selectedSubject);
+                        const occupiedByClass = selectedTeacherId ? getTeacherConflictClass(d, p.id, selectedTeacherId) : '';
                         if (!cell) {
                           rowCells.push(
                             <td 
                               key={p.id} 
-                              onClick={() => handleCellClick(d, p.id, false)}
-                              className={`p-2 border-r border-slate-100 text-center text-xs text-slate-300 italic align-middle group ${viewType === 'class' ? 'hover:bg-indigo-50/40 cursor-pointer' : ''}`}
+                              onClick={() => { if (!occupiedByClass) handleCellClick(d, p.id, false); }}
+                              title={occupiedByClass ? `Teacher is teaching ${occupiedByClass} at this time` : undefined}
+                              className={`p-2 border-r border-slate-100 text-center text-xs text-slate-300 italic align-middle group ${occupiedByClass ? 'bg-rose-100 border-rose-300 cursor-not-allowed' : viewType === 'class' ? 'hover:bg-indigo-50/40 cursor-pointer' : ''}`}
                             >
-                              <span className="opacity-0 group-hover:opacity-100 font-semibold text-indigo-500 text-xs flex items-center justify-center">
-                                {viewType === 'class' ? <Plus size={12} className="mr-0.5" /> : ''}
-                                {viewType === 'class' ? 'Place Lesson' : 'Free'}
+                              <span className={occupiedByClass ? 'font-semibold text-rose-700 text-[10px] flex items-center justify-center' : 'opacity-0 group-hover:opacity-100 font-semibold text-indigo-500 text-xs flex items-center justify-center'}>
+                                {occupiedByClass ? `Occupied: ${occupiedByClass}` : <>{viewType === 'class' ? <Plus size={12} className="mr-0.5" /> : ''}{viewType === 'class' ? 'Place Lesson' : 'Free'}</>}
                               </span>
                             </td>
                           );
@@ -777,7 +805,7 @@ export const TimetableViewer: React.FC = () => {
                           localStorage.setItem('tt_timetableData', JSON.stringify(dataAct));
                           localStorage.setItem('tt_timetableData_ts', String(Date.now()));
                           // Also try context update for in-memory
-                          try { (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, 'activity', '', ''); } catch {}
+                          try { (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, 'activity', '', '', cell); } catch {}
                           // Patch the in-memory too if activity
                           setTimeout(()=>{
                             try {
@@ -795,7 +823,7 @@ export const TimetableViewer: React.FC = () => {
                             setRefreshKey((k:number)=>k+1);
                           }, 150);
                         } else {
-                          (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, 'activity', '', '');
+                          (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, 'activity', '', '', cell);
                         }
                       } catch(e:any){ setCollisionMsg('Activity save failed: '+String(e)); return; }
                       setActiveCell(null);
@@ -816,7 +844,7 @@ export const TimetableViewer: React.FC = () => {
                         localStorage.setItem('tt_timetableData', JSON.stringify(data));
                         localStorage.setItem('tt_timetableData_ts', String(Date.now()));
                       } else {
-                        (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, 'ps', '', '');
+                        (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, 'ps', '', '', cell);
                       }
                       setActiveCell(null);
                       setCollisionMsg('');
@@ -921,7 +949,7 @@ export const TimetableViewer: React.FC = () => {
                     const isCombined = !!(secondSubjId && secondSubjName);
                     const cellToSave: any = { subjectId: subjId, subjectName: subjName, teacherId, roomId, classId: selectedId, isCombined, secondSubjectId: secondSubjId || undefined, secondSubjectName: secondSubjName || undefined, secondTeacherId: secondTeacherId || undefined, isDouble: periodType==='double', isPS: false, isActivity: false };
                     // Try context update first, then patch localStorage for combined
-                    (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, subjId, teacherId, roomId);
+                    (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, subjId, teacherId, roomId, cellToSave);
                     setTimeout(()=>{
                       try {
                         const raw = localStorage.getItem('tt_timetableData');

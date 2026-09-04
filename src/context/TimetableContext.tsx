@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { Subject, Teacher, Room, SchoolClass, ClassSubject, TimeSlot, DayOfWeek, TimetableData, Conflict } from '../types';
 import { DEFAULT_DAYS, DEFAULT_TIME_SLOTS, DEFAULT_SUBJECTS, DEFAULT_ROOMS, DEFAULT_TEACHERS, DEFAULT_CLASSES, DEFAULT_CLASS_SUBJECTS } from '../utils/dummyData';
 import { generateSchoolTimetable, validateSchedule } from '../utils/scheduler';
+import * as cloud from '../lib/cloud';
 
 interface TimetableContextType {
   teachers: Teacher[];
@@ -48,7 +49,7 @@ interface TimetableContextType {
   
   // Generation and Manual Adjustments
   triggerGeneration: () => void;
-  updateLessonSlot: (classId: string, day: string, periodId: string, subjectId: string, teacherId: string, roomId: string) => void;
+  updateLessonSlot: (classId: string, day: string, periodId: string, subjectId: string, teacherId: string, roomId: string, metadata?: Record<string, any>) => void;
   removeLessonSlot: (classId: string, day: string, periodId: string) => void;
   scheduleUnscheduledLesson: (unscheduledId: string, classId: string, day: string, periodId: string, roomId: string) => void;
   
@@ -163,7 +164,8 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
 
   const [timeSlots, setTimeSlotsState] = useState<TimeSlot[]>(() => {
     const saved = localStorage.getItem('tt_timeSlots');
-    return saved ? JSON.parse(saved) : DEFAULT_TIME_SLOTS;
+    const slots = saved ? JSON.parse(saved) : DEFAULT_TIME_SLOTS;
+    return slots.map((slot: any) => slot.id === 'act' ? { ...slot, isActivity: true } : slot);
   });
 
   const [days, setDaysState] = useState<DayOfWeek[]>(() => {
@@ -189,7 +191,7 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
   });
   
   const [schoolName, setSchoolNameState] = useState<string>(() => {
-    return localStorage.getItem('tt_schoolName') || 'Springfield Secondary School';
+    return localStorage.getItem('sms_school_name_setting') || localStorage.getItem('tt_schoolName') || 'Springfield Secondary School';
   });
 
   const setSchoolLogo = (logo: string | null) => {
@@ -204,6 +206,7 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
   const setSchoolName = (name: string) => {
     setSchoolNameState(name);
     localStorage.setItem('tt_schoolName', name);
+    localStorage.setItem('sms_school_name_setting', name);
   };
 
   // Persistence
@@ -216,12 +219,29 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
   useEffect(() => { localStorage.setItem('tt_days', JSON.stringify(days)); }, [days]);
   useEffect(() => {
     localStorage.setItem('tt_timetableData', JSON.stringify(timetableData));
+    localStorage.setItem('tt_timetableData_ts', String(Date.now()));
+    if (cloud.isCloudMode() && timetableData) cloud.syncToCloud().catch(() => {});
     if (timetableData?.schedule) {
       const result = validateSchedule(timetableData.schedule, days, timeSlots, teachers);
       setConflicts(result.conflicts);
       localStorage.setItem('tt_conflicts', JSON.stringify(result.conflicts));
     }
   }, [timetableData, days, timeSlots, teachers]);
+
+  useEffect(() => {
+    const reloadTimetable = () => {
+      try {
+        const saved = localStorage.getItem('tt_timetableData');
+        if (saved) setTimetableData(JSON.parse(saved));
+      } catch {}
+    };
+    window.addEventListener('cloud-sync-complete', reloadTimetable);
+    window.addEventListener('storage', reloadTimetable);
+    return () => {
+      window.removeEventListener('cloud-sync-complete', reloadTimetable);
+      window.removeEventListener('storage', reloadTimetable);
+    };
+  }, []);
 
   // CRUD Implementations
   const addTeacher = (t: Teacher) => setTeachers([...teachers, t]);
@@ -315,21 +335,22 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
   };
 
   // Manual Adjustments
-  const updateLessonSlot = (classId: string, day: string, periodId: string, subjectId: string, teacherId: string, roomId: string) => {
+  const updateLessonSlot = (classId: string, day: string, periodId: string, subjectId: string, teacherId: string, roomId: string, metadata: Record<string, any> = {}) => {
     if (!timetableData) return;
 
     setTimetableData(prev => {
       if (!prev) return null;
       
       const newSchedule = { ...prev.schedule };
-      if (!newSchedule[classId]) newSchedule[classId] = {};
-      if (!newSchedule[classId][day]) newSchedule[classId][day] = {};
+      newSchedule[classId] = { ...(newSchedule[classId] || {}) };
+      newSchedule[classId][day] = { ...(newSchedule[classId][day] || {}) };
       
       newSchedule[classId][day][periodId] = {
         subjectId,
         teacherId,
         roomId,
-        classId
+        classId,
+        ...metadata
       };
 
       return {

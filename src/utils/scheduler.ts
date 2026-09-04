@@ -30,7 +30,7 @@ export function generateSchoolTimetable({
     });
   });
 
-  const activePeriods = timeSlots.filter(s => !s.isBreak);
+  const activePeriods = timeSlots.filter(s => !s.isBreak && !(s as any).isActivity);
   const periodIds = activePeriods.map(p => p.id);
 
   // 2. Occupancy trackers
@@ -105,7 +105,7 @@ export function generateSchoolTimetable({
   for (let i = 0; i < timeSlots.length - 1; i++) {
     const current = timeSlots[i];
     const next = timeSlots[i + 1];
-    if (!current.isBreak && !next.isBreak) {
+    if (!current.isBreak && !next.isBreak && !(current as any).isActivity && !(next as any).isActivity) {
       consecutivePeriods.push({ period1: current.id, period2: next.id });
     }
   }
