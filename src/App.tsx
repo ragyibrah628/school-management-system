@@ -17,7 +17,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
   componentDidCatch(error: Error, info: ErrorInfo) { console.error('App error:', error, info); }
   render() {
     if (this.state.hasError) {
-      return <div className="p-8 text-center"><h2 className="text-xl font-bold text-red-600 mb-4">Something went wrong</h2><p className="text-sm text-slate-600 mb-4 bg-slate-100 p-3 rounded">{this.state.errorMsg}</p><button onClick={() => { localStorage.clear(); window.location.reload(); }} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold">Clear Data & Reload</button></div>;
+      return <div className="p-8 text-center"><h2 className="text-xl font-bold text-red-600 mb-4">Something went wrong</h2><p className="text-sm text-slate-600 mb-4 bg-slate-100 p-3 rounded">{this.state.errorMsg}</p><button onClick={() => { Object.keys(localStorage).filter(key => key.startsWith('sms_') || key.startsWith('tt_')).forEach(key => localStorage.removeItem(key)); window.location.reload(); }} className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold">Clear App Data & Reload</button></div>;
     }
     return this.props.children;
   }
@@ -162,6 +162,13 @@ function AppInner() {
 
   const assignClassTeacher = (className: string, teacherId: string) => {
     setClassTeachers(prev => ({ ...prev, [className]: teacherId }));
+  };
+
+  const refreshRoleAssignments = async () => {
+    const roles = await cloud.getRoleAssignmentsFromCloud();
+    if (!roles) return;
+    setClassTeachers(prev => JSON.stringify(prev) === JSON.stringify(roles.classTeachers) ? prev : roles.classTeachers);
+    setTeachingAssignments(prev => JSON.stringify(prev) === JSON.stringify(roles.teachingAssignments) ? prev : roles.teachingAssignments);
   };
 
   const [newStudentName, setNewStudentName] = useState('');
@@ -334,6 +341,10 @@ function AppInner() {
     return new Date(deadline) > new Date();
   };
 
+  const teacherHasExamAssignment = (_exam: any, teacherId: string): boolean => {
+    return (teachingAssignments[teacherId] || []).length > 0;
+  };
+
   // Get remaining time string
   const getTimeRemaining = (deadline: string): string => {
     const diff = new Date(deadline).getTime() - Date.now();
@@ -356,6 +367,7 @@ function AppInner() {
     const pollTimer = setInterval(async () => {
       if (cloud.isCloudMode()) {
         await cloud.syncFromCloud();
+        await refreshRoleAssignments();
         try {
           const freshExams = JSON.parse(localStorage.getItem('sms_exams') || '[]');
           setExams(prev => {
@@ -397,6 +409,7 @@ function AppInner() {
     const onFocus = async () => {
       if (cloud.isCloudMode()) {
         await cloud.syncFromCloud();
+        await refreshRoleAssignments();
         try {
           const fe = JSON.parse(localStorage.getItem('sms_exams') || '[]');
           setExams((prev:any) => (Array.isArray(fe) && fe.length===0 && Array.isArray(prev) && prev.length>0) ? prev : fe);
@@ -417,6 +430,7 @@ function AppInner() {
       }
     };
     const onSync = async () => {
+      await refreshRoleAssignments();
       try {
           const fe = JSON.parse(localStorage.getItem('sms_exams') || '[]');
           setExams((prev:any) => (Array.isArray(fe) && fe.length===0 && Array.isArray(prev) && prev.length>0) ? prev : fe);
@@ -446,6 +460,13 @@ function AppInner() {
   const [examScoreSubject, setExamScoreSubject] = useState('');
   const [examScores, setExamScores] = useState<Record<string, string>>({});
 
+  useEffect(() => {
+    const assignments = getTeacherSubjectsForClass(user?.id, examScoreClass);
+    if (assignments.length === 1 && examScoreSubject !== assignments[0]) {
+      setExamScoreSubject(assignments[0]);
+    }
+  }, [examScoreClass, examScoreSubject, user?.id, teachingAssignments]);
+
   // Admin result viewing
   const [viewExamId, setViewExamId] = useState('');
   const [viewClass, setViewClass] = useState('');
@@ -464,6 +485,12 @@ function AppInner() {
 
   const saveExamScores = async () => {
     if (!selectedExam || !examScoreClass || !examScoreSubject) return;
+    const assigned = (teachingAssignments[user?.id] || []).some(a => a.cls === examScoreClass && a.sub === examScoreSubject);
+    if (!assigned || !isExamOpen(selectedExam, user?.id)) {
+      alert('This class/subject is not assigned to you or the deadline has passed.');
+      setSelectedExam(null);
+      return;
+    }
     setLoading(true);
     const studentList = getStudentsForSubject(examScoreClass, examScoreSubject);
     let saved = 0;
@@ -476,8 +503,9 @@ function AppInner() {
       const score = examScores[student];
       if (score !== '' && score != null && Number(score) >= 0) {
         try {
+          const existing = scores.find((savedScore: any) => savedScore.exam_id === selectedExam.id && savedScore.student_name === student && savedScore.class_name === examScoreClass && savedScore.subject === examScoreSubject);
           await cloud.addScore({
-            id: 'sc-' + base + '-' + i + '-' + Math.random().toString(36).substr(2, 5),
+            id: existing?.id || `sc-${selectedExam.id}-${user?.id}-${examScoreClass}-${examScoreSubject}-${student}`.replace(/[^a-zA-Z0-9_-]/g, '_'),
             teacher_name: user?.name,
             student_name: student,
             subject: examScoreSubject,
@@ -486,7 +514,8 @@ function AppInner() {
             max_score: 100,
             term: selectedExam.term,
             exam_name: selectedExam.name,
-            exam_id: selectedExam.id
+            exam_id: selectedExam.id,
+            teacher_id: user?.id
           });
           saved++;
         } catch (e: any) {
@@ -499,7 +528,7 @@ function AppInner() {
     await loadData();
     setLoading(false);
     setExamScores({});
-    if (failed === 0) alert('✅ Scores saved! (' + saved + ' students) — visible to admin & other teachers');
+    if (failed === 0) alert('✅ Scores saved! (' + saved + ' students) — sent to admin');
     else alert('⚠️ Saved ' + saved + ', failed ' + failed + ' — ' + lastError + '\nCheck: Supabase Table Editor → scores → does exam_id column exist? And Netlify env vars VITE_SUPABASE_URL/KEY correct?');
   };
 
@@ -674,6 +703,7 @@ function AppInner() {
         // background sync - don't block login
         (async () => {
           try { await cloud.syncFromCloud(); } catch {}
+          try { await refreshRoleAssignments(); } catch {}
           try { if ((cloud as any).syncScoresToCloud) await (cloud as any).syncScoresToCloud(); } catch {}
           try {
             const fe = JSON.parse(localStorage.getItem('sms_exams') || '[]');
@@ -703,7 +733,7 @@ function AppInner() {
           setScreen('admin');
           setActiveMenu('dashboard');
           setLoading(false);
-          (async () => { try { await cloud.syncFromCloud(); } catch {}; await loadData(); })();
+          (async () => { try { await cloud.syncFromCloud(); } catch {}; try { await refreshRoleAssignments(); } catch {}; await loadData(); })();
           return;
         } else {
           setError('Wrong credentials. Admin: admin / admin123');
@@ -2238,11 +2268,11 @@ function AppInner() {
             <h2 className="font-bold text-lg mb-4">📝 Exams & Score Entry</h2>
 
             {/* List of open exams */}
-            {exams.filter(ex => isExamOpen(ex, user?.id)).length === 0 ? (
-              <p className="text-sm text-slate-500 italic">No active exams. Wait for admin to create an exam.</p>
+            {exams.filter(ex => isExamOpen(ex, user?.id) && teacherHasExamAssignment(ex, user?.id)).length === 0 ? (
+              <p className="text-sm text-slate-500 italic">No active exams assigned to you.</p>
             ) : (
               <div className="space-y-3 mb-4">
-                {exams.filter(ex => isExamOpen(ex, user?.id)).map((ex: any) => {
+                {exams.filter(ex => isExamOpen(ex, user?.id) && teacherHasExamAssignment(ex, user?.id)).map((ex: any) => {
                   const deadline = getTeacherDeadline(ex, user?.id);
                   const timeLeft = getTimeRemaining(deadline);
                   const isSelected = selectedExam?.id === ex.id;
@@ -2265,26 +2295,11 @@ function AppInner() {
               </div>
             )}
 
-            {/* Expired exams */}
-            {exams.filter(ex => !isExamOpen(ex, user?.id)).length > 0 && (
-              <div className="mb-4">
-                <p className="text-xs font-semibold text-red-500 mb-1">Expired Exams:</p>
-                {exams.filter(ex => !isExamOpen(ex, user?.id)).map((ex: any) => (
-                  <p key={ex.id} className="text-xs text-slate-400 line-through">{ex.name} — {ex.term} (Expired)</p>
-                ))}
-              </div>
-            )}
-
             {/* Score entry form when exam is selected */}
-            {selectedExam && (() => {
+            {selectedExam && isExamOpen(selectedExam, user?.id) && teacherHasExamAssignment(selectedExam, user?.id) && (() => {
               const myAssignments = teachingAssignments[user?.id] || [];
               const myClasses = getTeacherClasses(user?.id);
               const mySubjectsForClass = examScoreClass ? getTeacherSubjectsForClass(user?.id, examScoreClass) : [];
-
-              // Auto-select subject if only one for this class
-              if (mySubjectsForClass.length === 1 && examScoreSubject !== mySubjectsForClass[0]) {
-                setTimeout(() => setExamScoreSubject(mySubjectsForClass[0]), 0);
-              }
 
               return (
               <div className="border-t pt-4 mt-4">
@@ -2365,7 +2380,7 @@ function AppInner() {
             {/* My submitted scores */}
             <div className="mt-6 border-t pt-4">
               <h3 className="font-bold mb-2">My Submitted Scores</h3>
-              {scores.filter((s: any) => s.teacher_name === user?.name).length === 0 ? <p className="text-sm text-slate-500">No scores yet.</p> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-slate-500 text-left"><th className="py-2">Student</th><th>Class</th><th>Subject</th><th>Score</th><th>Exam</th></tr></thead><tbody>{scores.filter((s: any) => s.teacher_name === user?.name).map((s: any) => (<tr key={s.id} className="border-b border-slate-100"><td className="py-2">{s.student_name}</td><td>{s.class_name}</td><td>{s.subject}</td><td>{s.score}/{s.max_score}</td><td>{s.exam_name || s.term}</td></tr>))}</tbody></table></div>}
+              {scores.filter((s: any) => (s.teacher_id === user?.id || (!s.teacher_id && s.teacher_name === user?.name)) && exams.some((ex: any) => ex.id === s.exam_id && isExamOpen(ex, user?.id))).length === 0 ? <p className="text-sm text-slate-500">No scores yet.</p> : <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-slate-500 text-left"><th className="py-2">Student</th><th>Class</th><th>Subject</th><th>Score</th><th>Exam</th></tr></thead><tbody>{scores.filter((s: any) => (s.teacher_id === user?.id || (!s.teacher_id && s.teacher_name === user?.name)) && exams.some((ex: any) => ex.id === s.exam_id && isExamOpen(ex, user?.id))).map((s: any) => (<tr key={s.id} className="border-b border-slate-100"><td className="py-2">{s.student_name}</td><td>{s.class_name}</td><td>{s.subject}</td><td>{s.score}/{s.max_score}</td><td>{s.exam_name || s.term}</td></tr>))}</tbody></table></div>}
             </div>
           </div>
           )}

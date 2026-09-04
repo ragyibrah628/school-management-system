@@ -171,16 +171,17 @@ export async function getScores(): Promise<any[]> {
 export async function addScore(score: any) {
   // always keep optimistic local copy
   const localScores: any[] = JSON.parse(localStorage.getItem('sms_scores') || '[]');
-  if (!localScores.find((s: any) => s.id === score.id)) {
-    localScores.push(score);
-    localStorage.setItem('sms_scores', JSON.stringify(localScores));
-  }
+  const existingIndex = localScores.findIndex((s: any) => s.id === score.id);
+  if (existingIndex >= 0) localScores[existingIndex] = { ...localScores[existingIndex], ...score };
+  else localScores.push(score);
+  localStorage.setItem('sms_scores', JSON.stringify(localScores));
   if (IS_CLOUD) {
     try {
       // clean payload — remove undefined, ensure numbers
       const payload: any = {
         id: String(score.id),
         teacher_name: String(score.teacher_name || ''),
+        teacher_id: score.teacher_id ? String(score.teacher_id) : null,
         student_name: String(score.student_name || ''),
         class_name: String(score.class_name || ''),
         subject: String(score.subject || ''),
@@ -194,8 +195,9 @@ export async function addScore(score: any) {
       // drop null/undefined optional fields if needed
       if (!payload.exam_name) delete payload.exam_name;
       if (!payload.exam_id) delete payload.exam_id;
+      if (!payload.teacher_id) delete payload.teacher_id;
       try {
-        await supabaseRequest('scores', 'POST', payload);
+        await supabaseRequest('scores', 'POST', payload, undefined, true);
         return;
       } catch (err: any) {
         const msg = String(err?.message || err);
@@ -205,8 +207,9 @@ export async function addScore(score: any) {
           const fallback: any = { ...payload };
           delete fallback.exam_id;
           delete fallback.exam_name;
+          delete fallback.teacher_id;
           // keep term if exists, as fallback still useful
-          await supabaseRequest('scores', 'POST', fallback);
+          await supabaseRequest('scores', 'POST', fallback, undefined, true);
           return;
         }
         throw err;
@@ -363,6 +366,31 @@ const SYNC_KEYS = [
 ];
 
 const ROLE_SYNC_KEYS = ['sms_class_teachers', 'sms_teaching_assignments'];
+
+export async function getRoleAssignmentsFromCloud(): Promise<{
+  classTeachers: Record<string, string>;
+  teachingAssignments: Record<string, { cls: string; sub: string }[]>;
+} | null> {
+  if (!IS_CLOUD) return null;
+  try {
+    const data = await supabaseRequest('app_data', 'GET', undefined, '?key=in.(sms_class_teachers,sms_teaching_assignments)&select=key,value');
+    const result = {
+      classTeachers: {} as Record<string, string>,
+      teachingAssignments: {} as Record<string, { cls: string; sub: string }[]>
+    };
+    for (const item of Array.isArray(data) ? data : []) {
+      const parsed = JSON.parse(item.value || '{}');
+      if (item.key === 'sms_class_teachers' && parsed && typeof parsed === 'object') result.classTeachers = parsed;
+      if (item.key === 'sms_teaching_assignments' && parsed && typeof parsed === 'object') result.teachingAssignments = parsed;
+    }
+    localStorage.setItem('sms_class_teachers', JSON.stringify(result.classTeachers));
+    localStorage.setItem('sms_teaching_assignments', JSON.stringify(result.teachingAssignments));
+    return result;
+  } catch (e) {
+    console.error('Cloud role assignments fetch failed:', e);
+    return null;
+  }
+}
 
 export async function syncRoleAssignmentsToCloud(classTeachers: unknown, teachingAssignments: unknown) {
   if (!IS_CLOUD) return;

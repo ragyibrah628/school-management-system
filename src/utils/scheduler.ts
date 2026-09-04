@@ -222,7 +222,7 @@ export function generateSchoolTimetable({
 
         if (lesson.requiresRoomType === 'regular') {
           // Try to use assigned classroom first
-          if (schoolClass?.assignedRoomId && !occupiedRooms[schoolClass.assignedRoomId][d][pId]) {
+          if (schoolClass?.assignedRoomId && occupiedRooms[schoolClass.assignedRoomId] && !occupiedRooms[schoolClass.assignedRoomId][d][pId]) {
             selectedRoomId = schoolClass.assignedRoomId;
           } else {
             // Find any regular room
@@ -328,7 +328,7 @@ export function generateSchoolTimetable({
         let selectedRoomId = '';
 
         if (lesson.requiresRoomType === 'regular') {
-          if (schoolClass?.assignedRoomId && !occupiedRooms[schoolClass.assignedRoomId][d][p1] && !occupiedRooms[schoolClass.assignedRoomId][d][p2]) {
+          if (schoolClass?.assignedRoomId && occupiedRooms[schoolClass.assignedRoomId] && !occupiedRooms[schoolClass.assignedRoomId][d][p1] && !occupiedRooms[schoolClass.assignedRoomId][d][p2]) {
             selectedRoomId = schoolClass.assignedRoomId;
           } else {
             const availRegular = getAvailableRoomsDouble('regular', d, p1, p2);
@@ -392,18 +392,7 @@ export function generateSchoolTimetable({
       return true;
     }
 
-    // If could not place as double, let's downgrade it to two single periods or try to place as singles!
-    // But let's return false and let the main loop decide to try singles if we want, or just mark it failed.
-    // For a cleaner algorithm, let's attempt to schedule them as two separate singles right now.
-    const l1: LessonItem = { ...lesson, isDoublePreferred: false, id: lesson.id + '_s1' };
-    const l2: LessonItem = { ...lesson, isDoublePreferred: false, id: lesson.id + '_s2' };
-    
-    const s1Placed = placeSingleLesson(l1);
-    const s2Placed = placeSingleLesson(l2);
-
-    return s1Placed && s2Placed; // if both placed, it returns true! If only one placed, scheduledCount was updated but technically it's a split. 
-    // Wait, let's keep it simple: if it fails to place as double, we try placing as two separate singles. If that fails too, we put it in unscheduled.
-    // Let's actually do the split directly in the loop if double placement fails!
+      return false;
   };
 
   // 5. Main scheduling loop
