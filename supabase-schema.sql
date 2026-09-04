@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS scores (
   id TEXT PRIMARY KEY,
   teacher_name TEXT NOT NULL,
+  teacher_id TEXT,
   student_name TEXT NOT NULL,
   class_name TEXT NOT NULL,
   subject TEXT NOT NULL,
@@ -26,6 +27,8 @@ CREATE TABLE IF NOT EXISTS scores (
   exam_id TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE scores ADD COLUMN IF NOT EXISTS teacher_id TEXT;
 
 CREATE TABLE IF NOT EXISTS duty_reports (
   id TEXT PRIMARY KEY,

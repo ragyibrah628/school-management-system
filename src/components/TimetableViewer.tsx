@@ -56,7 +56,7 @@ export const TimetableViewer: React.FC = () => {
   const [selectedActivity, setSelectedActivity] = useState<string>('');
   const [collisionMsg, setCollisionMsg] = useState<string>('');
 
-  const activePeriods = NAMBAWALA_SLOTS as any; // Nambawala 40min English V10
+  const activePeriods = (timeSlots.length > 0 ? timeSlots : NAMBAWALA_SLOTS) as any;
 
   // Auto-select first item when view type changes
   React.useEffect(() => {

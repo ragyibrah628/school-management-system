@@ -171,16 +171,17 @@ export async function getScores(): Promise<any[]> {
 export async function addScore(score: any) {
   // always keep optimistic local copy
   const localScores: any[] = JSON.parse(localStorage.getItem('sms_scores') || '[]');
-  if (!localScores.find((s: any) => s.id === score.id)) {
-    localScores.push(score);
-    localStorage.setItem('sms_scores', JSON.stringify(localScores));
-  }
+  const existingIndex = localScores.findIndex((s: any) => s.id === score.id);
+  if (existingIndex >= 0) localScores[existingIndex] = { ...localScores[existingIndex], ...score };
+  else localScores.push(score);
+  localStorage.setItem('sms_scores', JSON.stringify(localScores));
   if (IS_CLOUD) {
     try {
       // clean payload — remove undefined, ensure numbers
       const payload: any = {
         id: String(score.id),
         teacher_name: String(score.teacher_name || ''),
+        teacher_id: score.teacher_id ? String(score.teacher_id) : null,
         student_name: String(score.student_name || ''),
         class_name: String(score.class_name || ''),
         subject: String(score.subject || ''),
@@ -194,8 +195,9 @@ export async function addScore(score: any) {
       // drop null/undefined optional fields if needed
       if (!payload.exam_name) delete payload.exam_name;
       if (!payload.exam_id) delete payload.exam_id;
+      if (!payload.teacher_id) delete payload.teacher_id;
       try {
-        await supabaseRequest('scores', 'POST', payload);
+        await supabaseRequest('scores', 'POST', payload, undefined, true);
         return;
       } catch (err: any) {
         const msg = String(err?.message || err);
@@ -205,8 +207,9 @@ export async function addScore(score: any) {
           const fallback: any = { ...payload };
           delete fallback.exam_id;
           delete fallback.exam_name;
+          delete fallback.teacher_id;
           // keep term if exists, as fallback still useful
-          await supabaseRequest('scores', 'POST', fallback);
+          await supabaseRequest('scores', 'POST', fallback, undefined, true);
           return;
         }
         throw err;
