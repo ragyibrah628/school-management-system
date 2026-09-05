@@ -19,6 +19,7 @@ export const Settings: React.FC = () => {
   const [start, setStart] = useState('08:00');
   const [end, setEnd] = useState('08:45');
   const [isBreak, setIsBreak] = useState(false);
+  const [isActivity, setIsActivity] = useState(false);
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -52,7 +53,8 @@ export const Settings: React.FC = () => {
       name,
       startTime: start,
       endTime: end,
-      isBreak
+      isBreak: isActivity ? false : isBreak,
+      isActivity
     };
 
     // Simple chronological sort by start time
@@ -63,6 +65,7 @@ export const Settings: React.FC = () => {
     setStart('08:00');
     setEnd('08:45');
     setIsBreak(false);
+    setIsActivity(false);
   };
 
   const handleRemoveSlot = (id: string) => {
@@ -239,15 +242,30 @@ export const Settings: React.FC = () => {
                 </div>
                 
                 <div className="flex items-end pb-1.5">
-                  <label className="flex items-center space-x-2 text-xs font-medium text-slate-600 cursor-pointer">
+                  <div className="space-y-2">
+                    <label className="flex items-center space-x-2 text-xs font-medium text-slate-600 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={isBreak}
                       onChange={(e) => setIsBreak(e.target.checked)}
+                      disabled={isActivity}
                       className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
                     />
                     <span>This is a break (Recess, Lunch, etc.)</span>
-                  </label>
+                    </label>
+                    <label className="flex items-center space-x-2 text-xs font-medium text-indigo-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isActivity}
+                        onChange={(e) => {
+                          setIsActivity(e.target.checked);
+                          if (e.target.checked) setIsBreak(false);
+                        }}
+                        className="rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                      />
+                      <span>This is an activity slot</span>
+                    </label>
+                  </div>
                 </div>
 
                 <div>
@@ -297,14 +315,17 @@ export const Settings: React.FC = () => {
                 className={`p-3 rounded-xl border flex items-center justify-between text-xs font-medium ${
                   s.isBreak 
                     ? 'bg-slate-50 border-slate-200 text-slate-500 italic' 
-                    : 'bg-white border-slate-200 text-slate-800'
+                    : s.isActivity
+                      ? 'bg-indigo-50 border-indigo-200 text-indigo-800'
+                      : 'bg-white border-slate-200 text-slate-800'
                 }`}
               >
                 <div className="flex items-center space-x-3">
-                  <div className={`w-2 h-2 rounded-full ${s.isBreak ? 'bg-slate-300' : 'bg-indigo-500'}`} />
+                  <div className={`w-2 h-2 rounded-full ${s.isBreak ? 'bg-slate-300' : s.isActivity ? 'bg-indigo-500' : 'bg-emerald-500'}`} />
                   <div>
                     <span className={s.isBreak ? 'font-medium' : 'font-bold'}>{s.name}</span>
                     {s.isBreak && <span className="ml-1.5 font-bold text-2xs bg-slate-200 text-slate-500 px-1 py-0.25 rounded">BREAK</span>}
+                    {s.isActivity && <span className="ml-1.5 font-bold text-2xs bg-indigo-100 text-indigo-600 px-1 py-0.25 rounded">ACTIVITY</span>}
                   </div>
                 </div>
 

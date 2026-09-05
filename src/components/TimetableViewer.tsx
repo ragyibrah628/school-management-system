@@ -57,8 +57,14 @@ export const TimetableViewer: React.FC = () => {
   const [collisionMsg, setCollisionMsg] = useState<string>('');
 
   const activePeriods = (timeSlots.length > 0 ? timeSlots : NAMBAWALA_SLOTS).map((slot: any) =>
-    slot.id === 'act' ? { ...slot, isActivity: true } : slot
+    slot.id === 'act' || slot.isActivity || slot.name?.trim().toLowerCase() === 'activity'
+      ? { ...slot, isActivity: true, isBreak: false }
+      : slot
   ) as any;
+
+  const isActivityCell = (cell: any, period: any) => Boolean(
+    cell && (cell.isActivity || period?.isActivity || period?.id === 'act')
+  );
 
   // Auto-select first item when view type changes
   React.useEffect(() => {
@@ -434,7 +440,7 @@ export const TimetableViewer: React.FC = () => {
                         }
                         if ((p as any).isActivity) {
                           const cellAct = getCellData(d, p.id);
-                          if (!cellAct || !cellAct.isActivity) {
+                          if (!cellAct || !isActivityCell(cellAct, p)) {
                             rowCells.push(
                               <td key={p.id} onClick={() => handleCellClick(d, p.id, false)} className={`p-2 border-r border-slate-100 text-center text-xs italic align-middle ${viewType==='class'?'hover:bg-indigo-50 cursor-pointer':''}`}>
                                 <span className="text-slate-300">{viewType==='class' ? '+' : '—'}</span>
@@ -469,7 +475,7 @@ export const TimetableViewer: React.FC = () => {
                         } else {
                           const sub = subjects.find((s:any) => s.id === cell.subjectId);
                           const isPS = (cell as any).isPS || cell.subjectId==='ps';
-                          const isAct = (cell as any).isActivity;
+                          const isAct = isActivityCell(cell, p);
                           const displaySubRaw = (cell as any).subjectName || sub?.name || (cell.subjectId==='ps' ? 'PS' : isAct ? (cell as any).activity || 'Activity' : 'SUB');
                           let displaySub = displaySubRaw;
                           try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(displaySubRaw && m[displaySubRaw]) displaySub=m[displaySubRaw]; else if(sub && m[sub.name]) displaySub=m[sub.name]; } catch{}

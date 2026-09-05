@@ -165,7 +165,9 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
   const [timeSlots, setTimeSlotsState] = useState<TimeSlot[]>(() => {
     const saved = localStorage.getItem('tt_timeSlots');
     const slots = saved ? JSON.parse(saved) : DEFAULT_TIME_SLOTS;
-    return slots.map((slot: any) => slot.id === 'act' ? { ...slot, isActivity: true } : slot);
+    return slots.map((slot: any) => slot.id === 'act' || slot.isActivity || slot.name.toLowerCase() === 'activity'
+      ? { ...slot, isActivity: true, isBreak: false }
+      : slot);
   });
 
   const [days, setDaysState] = useState<DayOfWeek[]>(() => {
@@ -273,7 +275,11 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
   const updateClassSubject = (cs: ClassSubject) => setClassSubjects(classSubjects.map(x => x.id === cs.id ? cs : x));
   const deleteClassSubject = (id: string) => setClassSubjects(classSubjects.filter(x => x.id !== id));
 
-  const setTimeSlots = (slots: TimeSlot[]) => setTimeSlotsState(slots);
+  const setTimeSlots = (slots: TimeSlot[]) => setTimeSlotsState(slots.map(slot => (
+    slot.id === 'act' || slot.isActivity || slot.name.trim().toLowerCase() === 'activity'
+      ? { ...slot, isActivity: true, isBreak: false }
+      : slot
+  )));
   const setDays = (d: DayOfWeek[]) => setDaysState(d);
 
   // Load / Clear
