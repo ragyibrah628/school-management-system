@@ -40,6 +40,20 @@ const getCellSubjectDisplay = (cell: any, subjects: any[]) => {
   const secondCode = cell?.secondSubjectId === 'ps' ? 'PS' : getSubjectCode(second) || getSubjectCode({ name: cell?.secondSubjectName });
   return cell?.isCombined && secondCode ? `${firstCode}/${secondCode}` : firstCode;
 };
+const getCellSubjectTeacherLines = (cell: any, subjects: any[], teachers: any[], viewType: string, classes: any[]) => {
+  const first = subjects.find(s => s.id === cell?.subjectId || s.name === cell?.subjectName);
+  const second = subjects.find(s => s.id === cell?.secondSubjectId || s.name === cell?.secondSubjectName);
+  const firstCode = cell?.subjectId === 'ps' ? 'PS' : getSubjectCode(first) || getSubjectCode({ name: cell?.subjectName });
+  const secondCode = cell?.secondSubjectId === 'ps' ? 'PS' : getSubjectCode(second) || getSubjectCode({ name: cell?.secondSubjectName });
+  const className = classes.find(c => c.id === cell?.classId)?.name || '';
+  if (viewType === 'teacher') return [{ code: firstCode, teacher: className }];
+  const firstTeacher = teachers.find(t => t.id === cell?.teacherId)?.name || '';
+  const secondTeacher = teachers.find(t => t.id === cell?.secondTeacherId)?.name || '';
+  if (cell?.isCombined && secondCode) {
+    return [{ code: firstCode, teacher: firstTeacher }, { code: secondCode, teacher: secondTeacher }];
+  }
+  return [{ code: firstCode, teacher: firstTeacher }];
+};
 const getSubjectCodeTT = (name: string) => { try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(m && m[name]) return m[name]; } catch{} return name.substring(0,4).toUpperCase().replace(' ',''); }
 function findTeacherForSubjectClass(subjectName: string, className: string): { id: string, name: string } | null {
   try {
@@ -201,7 +215,8 @@ export const TimetableViewer: React.FC = () => {
             else {
               const s = subjects.find((x:any)=>x.id===cell.subjectId);
               subj = getCellSubjectDisplay(cell, subjects) || (cell as any).subjectName || s?.name || cell.subjectId || '';
-              sub = isClass ? (teachers.find((t:any)=>t.id===cell.teacherId)?.name || '') : ((cell as any)._className || '');
+              const teacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, isClass ? 'class' : 'teacher', classes);
+              sub = teacherLines.map(line => `${line.code}: ${line.teacher}`).join('<br>');
             }
             if (cell.isDouble) {
               skipNextPrint = true;
@@ -501,6 +516,7 @@ export const TimetableViewer: React.FC = () => {
                           try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(displaySubRaw && m[displaySubRaw]) displaySub=m[displaySubRaw]; else if(sub && m[sub.name]) displaySub=m[sub.name]; } catch{}
                           if (!isPS && !isAct && displaySubRaw && displaySub===displaySubRaw) { try{ displaySub=displaySubRaw.substring(0,4).toUpperCase(); }catch{} }
                           const tchr = teachers.find((teach:any) => teach.id === cell.teacherId);
+                          const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, viewType, classes);
                           const isDouble = (cell as any).isDouble;
                           if (isDouble) {
                             skipNext = true;
@@ -512,8 +528,12 @@ export const TimetableViewer: React.FC = () => {
                                 className={`p-2 border-r border-slate-100 align-middle text-center relative group ${viewType === 'class' ? 'cursor-pointer' : ''}`}
                               >
                                 <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center ${sub?.color || 'bg-emerald-50 border-emerald-300'} ${hasConflict ? 'ring-2 ring-red-500 animate-pulse' : 'shadow-sm'}`}>
-                                  <div className="font-bold text-slate-900 text-[13px] leading-tight" style={{fontFamily:'Arial, sans-serif'}}>{displaySub}</div>
-                                  <div className="font-semibold text-slate-700 text-[11px] truncate" style={{fontFamily:'Arial, sans-serif'}}>{isPS || isAct ? '' : (viewType==='teacher' ? (classes.find((c:any)=>c.id===cell.classId)?.name || '') : (tchr?.name?.split(' ').slice(-1)[0] || tchr?.name || ''))}</div>
+                                  {isPS || isAct ? <div className="font-bold text-slate-900 text-[13px] leading-tight">{displaySub}</div> : subjectTeacherLines.map((line:any) => (
+                                    <div key={line.code} className="leading-tight mb-0.5">
+                                      <div className="font-bold text-slate-900 text-[13px]" style={{fontFamily:'Arial, sans-serif'}}>{line.code}</div>
+                                      <div className="font-semibold text-slate-700 text-[10px] truncate" style={{fontFamily:'Arial, sans-serif'}}>{line.teacher}</div>
+                                    </div>
+                                  ))}
                                 </div>
                               </td>
                             );
@@ -525,8 +545,12 @@ export const TimetableViewer: React.FC = () => {
                                 className={`p-2 border-r border-slate-100 align-middle text-center relative group ${viewType === 'class' ? 'cursor-pointer' : ''}`}
                               >
                                 <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center ${sub?.color || (isPS ? 'bg-slate-100 border-slate-300' : isAct ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200')} ${hasConflict ? 'ring-2 ring-red-500 animate-pulse' : 'shadow-sm'}`}>
-                                  <div className="font-bold text-slate-900 text-[13px] leading-tight" style={{fontFamily:'Arial, sans-serif'}}>{isPS ? 'PS' : displaySub}</div>
-                                  <div className="font-semibold text-slate-700 text-[11px] truncate" style={{fontFamily:'Arial, sans-serif'}}>{isPS ? '' : isAct ? '' : (viewType==='teacher' ? (classes.find((c:any)=>c.id===cell.classId)?.name || '') : (tchr?.name?.split(' ').slice(-1)[0] || tchr?.name || ''))}</div>
+                                  {isPS || isAct ? <div className="font-bold text-slate-900 text-[13px] leading-tight">{isPS ? 'PS' : displaySub}</div> : subjectTeacherLines.map((line:any) => (
+                                    <div key={line.code} className="leading-tight mb-0.5">
+                                      <div className="font-bold text-slate-900 text-[13px]" style={{fontFamily:'Arial, sans-serif'}}>{line.code}</div>
+                                      <div className="font-semibold text-slate-700 text-[10px] truncate" style={{fontFamily:'Arial, sans-serif'}}>{line.teacher}</div>
+                                    </div>
+                                  ))}
                                   {hasConflict && (
                                     <div className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 shadow-md">
                                       <AlertTriangle size={10} />
@@ -619,12 +643,16 @@ export const TimetableViewer: React.FC = () => {
                                 const cell = schedule[cls.id]?.[d]?.[p.id];
                                 if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
                                 const sub = subjects.find(s => s.id === cell.subjectId);
-                                const t = teachers.find(teach => teach.id === cell.teacherId);
                                 const displaySubject = getCellSubjectDisplay(cell, subjects);
+                                const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, 'class', classes);
                                 return (
                                   <td key={d} className={`p-1 border-r border-slate-100 font-medium ${sub?.color.split(' ')[0] || 'bg-slate-100'}`}>
-                                    <div className="font-bold text-slate-800">{displaySubject || sub?.code}</div>
-                                    <div className="text-[10px] text-slate-500 truncate">{t?.name.split(' ').slice(-1)[0]}</div>
+                                    {subjectTeacherLines.map((line:any) => (
+                                      <div key={line.code} className="leading-tight mb-0.5">
+                                        <div className="font-bold text-slate-800">{line.code}</div>
+                                        <div className="text-[10px] text-slate-500 truncate">{line.teacher}</div>
+                                      </div>
+                                    ))}
                                   </td>
                                 );
                               })}
@@ -707,9 +735,15 @@ export const TimetableViewer: React.FC = () => {
                                 const sub = subjects.find(s => s.id === cell.subjectId);
                                 const cls = classes.find(c => c.id === cell.classId);
                                 const displaySubject = getCellSubjectDisplay(cell, subjects);
+                                const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, 'teacher', classes);
                                 return (
                                   <td key={d} className={`p-1 border-r border-slate-100 font-medium ${sub?.color.split(' ')[0] || 'bg-slate-100'}`}>
-                                    <div className="font-bold text-slate-800">{displaySubject || sub?.code}</div>
+                                    {subjectTeacherLines.map((line:any) => (
+                                      <div key={line.code} className="leading-tight mb-0.5">
+                                        <div className="font-bold text-slate-800">{line.code}</div>
+                                        <div className="text-[10px] text-slate-500 truncate">{line.teacher}</div>
+                                      </div>
+                                    ))}
                                     <div className="text-[10px] text-slate-500 truncate">{cls?.name || 'Class'}</div>
                                   </td>
                                 );
