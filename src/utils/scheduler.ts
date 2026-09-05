@@ -459,7 +459,7 @@ export function validateSchedule(
   timeSlots: TimeSlot[],
   teachers: Teacher[]
 ): { conflicts: any[]; stats: any } {
-  const activePeriods = timeSlots.filter(s => !s.isBreak);
+  const activePeriods = timeSlots.filter(s => !s.isBreak && !(s as any).isActivity);
   const conflicts: any[] = [];
   
   // Trackers to find double bookings

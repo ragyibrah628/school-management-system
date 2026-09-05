@@ -164,10 +164,21 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
 
   const [timeSlots, setTimeSlotsState] = useState<TimeSlot[]>(() => {
     const saved = localStorage.getItem('tt_timeSlots');
-    const slots = saved ? JSON.parse(saved) : DEFAULT_TIME_SLOTS;
-    return slots.map((slot: any) => slot.id === 'act' || slot.isActivity || slot.name.toLowerCase() === 'activity'
-      ? { ...slot, isActivity: true, isBreak: false }
-      : slot);
+    const storedSlots = saved ? JSON.parse(saved) : DEFAULT_TIME_SLOTS;
+    const slots = Array.isArray(storedSlots) ? storedSlots : DEFAULT_TIME_SLOTS;
+    const normalizedSlots = slots.map((slot: any) => {
+      if (slot.id === 'b1') return { ...slot, name: 'Morning Break', startTime: '10:40', endTime: '11:10', isBreak: true, isActivity: false };
+      if (slot.id === 'lunch') return { ...slot, name: 'Lunch', startTime: '14:30', endTime: '15:30', isBreak: true, isActivity: false };
+      if (slot.id === 'act' || slot.isActivity || slot.name?.toLowerCase() === 'activity') {
+        return { ...slot, name: 'Activity', startTime: '15:30', endTime: '17:30', isActivity: true, isBreak: false };
+      }
+      return slot;
+    });
+    if (!normalizedSlots.some((slot: any) => slot.isActivity)) {
+      normalizedSlots.push(DEFAULT_TIME_SLOTS.find(slot => slot.id === 'act')!);
+      normalizedSlots.sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
+    }
+    return normalizedSlots;
   });
 
   const [days, setDaysState] = useState<DayOfWeek[]>(() => {

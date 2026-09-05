@@ -2097,6 +2097,12 @@ function AppInner() {
                               <td colSpan={ttDays.length} className="border border-slate-300 p-1 text-center text-slate-400 text-xs italic">☕ {p.name}</td>
                             </tr>
                           );
+                          if (p.isActivity || p.id === 'act' || p.name?.trim().toLowerCase() === 'activity') return (
+                            <tr key={p.id} className="bg-indigo-50">
+                              <td className="border border-slate-300 p-1 text-xs font-bold">Activity<br/><span className="text-[10px] text-slate-400">{p.startTime}-{p.endTime}</span></td>
+                              <td colSpan={ttDays.length} className="border border-slate-300 p-1 text-center text-indigo-700 text-xs font-bold">Activity</td>
+                            </tr>
+                          );
                           return (
                             <tr key={p.id}>
                               <td className="border border-slate-300 p-1 font-bold text-xs whitespace-nowrap">{p.name}<br/><span className="text-[10px] text-slate-400">{p.startTime}-{p.endTime}</span></td>

@@ -11,7 +11,7 @@ const NAMBAWALA_SLOTS: any[] = [
   { id: 'p2', name: 'Period 2', startTime: '08:40', endTime: '09:20', isBreak: false },
   { id: 'p3', name: 'Period 3', startTime: '09:20', endTime: '10:00', isBreak: false },
   { id: 'p4', name: 'Period 4', startTime: '10:00', endTime: '10:40', isBreak: false },
-  { id: 'b1', name: 'Break', startTime: '10:40', endTime: '11:10', isBreak: true },
+  { id: 'b1', name: 'Morning Break', startTime: '10:40', endTime: '11:10', isBreak: true },
   { id: 'p5', name: 'Period 5', startTime: '11:10', endTime: '11:50', isBreak: false },
   { id: 'p6', name: 'Period 6', startTime: '11:50', endTime: '12:30', isBreak: false },
   { id: 'p7', name: 'Period 7', startTime: '12:30', endTime: '13:10', isBreak: false },
@@ -21,6 +21,7 @@ const NAMBAWALA_SLOTS: any[] = [
   { id: 'act', name: 'Activity', startTime: '15:30', endTime: '17:30', isBreak: false, isActivity: true },
 ];
 const ACTIVITY_OPTIONS = ['Debate', 'Self Reliance', 'General Cleanness', 'Sports & Games', 'Subject Clubs'];
+const isActivitySlot = (slot: any) => Boolean(slot?.isActivity || slot?.id === 'act' || slot?.name?.trim().toLowerCase() === 'activity');
 const getSubjectCodeTT = (name: string) => { try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(m && m[name]) return m[name]; } catch{} return name.substring(0,4).toUpperCase().replace(' ',''); }
 function findTeacherForSubjectClass(subjectName: string, className: string): { id: string, name: string } | null {
   try {
@@ -62,9 +63,7 @@ export const TimetableViewer: React.FC = () => {
       : slot
   ) as any;
 
-  const isActivityCell = (cell: any, period: any) => Boolean(
-    cell && (cell.isActivity || period?.isActivity || period?.id === 'act')
-  );
+  const isActivityCell = (cell: any, period: any) => Boolean(cell && (cell.isActivity || isActivitySlot(period)));
 
   // Auto-select first item when view type changes
   React.useEffect(() => {
@@ -158,7 +157,7 @@ export const TimetableViewer: React.FC = () => {
                 if (c && c.teacherId===targetId) { cellAct = {...c, _className: classes.find((x:any)=>x.id===cid)?.name||cid}; break; }
               }
             }
-            if (!cellAct || !cellAct.isActivity) html += `<td></td>`;
+            if (!cellAct || !isActivityCell(cellAct, p)) html += `<td></td>`;
             else html += `<td style="background:#eef2ff;"><div class="subject">${cellAct.activity || 'Activity'}</div></td>`;
             continue;
           }
@@ -567,13 +566,26 @@ export const TimetableViewer: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {timeSlots.map(p => {
+                        {activePeriods.map((p:any) => {
                           if (p.isBreak) {
                             return (
                               <tr key={p.id} className="bg-slate-100/60 border-b border-slate-200 text-slate-400 text-3xs">
                                 <td className="p-1 font-bold text-center border-r bg-slate-50/60 whitespace-nowrap">{p.name.split(' ')[1] || p.name} ({p.startTime})</td>
                                 <td colSpan={days.length} className="p-1 text-center font-bold text-[10px] uppercase tracking-wider text-slate-400 bg-slate-100/30">
                                   ☕ {p.name}
+                                </td>
+                              </tr>
+                            );
+                          }
+                          if (isActivitySlot(p)) {
+                            return (
+                              <tr key={p.id} className="bg-indigo-50/60 border-b border-indigo-200 text-indigo-700 text-3xs">
+                                <td className="p-1 font-bold text-center border-r bg-indigo-50 whitespace-nowrap">Activity ({p.startTime})</td>
+                                <td colSpan={days.length} className="p-1 text-center font-bold text-[10px] uppercase tracking-wider bg-indigo-50/30">
+                                  {days.map((d:any) => {
+                                    const activity = schedule[cls.id]?.[d]?.[p.id];
+                                    return <span key={d} className="inline-block mx-1">{activity?.activity || 'Activity'}</span>;
+                                  })}
                                 </td>
                               </tr>
                             );
@@ -641,13 +653,23 @@ export const TimetableViewer: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {timeSlots.map(p => {
+                        {activePeriods.map((p:any) => {
                           if (p.isBreak) {
                             return (
                               <tr key={p.id} className="bg-slate-100/60 border-b border-slate-200 text-slate-400 text-3xs">
                                 <td className="p-1 font-bold text-center border-r bg-slate-50/60 whitespace-nowrap">{p.name.split(' ')[1] || p.name} ({p.startTime})</td>
                                 <td colSpan={days.length} className="p-1 text-center font-bold text-[10px] uppercase tracking-wider text-slate-400 bg-slate-100/30">
                                   ☕ {p.name}
+                                </td>
+                              </tr>
+                            );
+                          }
+                          if (isActivitySlot(p)) {
+                            return (
+                              <tr key={p.id} className="bg-indigo-50/60 border-b border-indigo-200 text-indigo-700 text-3xs">
+                                <td className="p-1 font-bold text-center border-r bg-indigo-50 whitespace-nowrap">Activity ({p.startTime})</td>
+                                <td colSpan={days.length} className="p-1 text-center font-bold text-[10px] uppercase tracking-wider bg-indigo-50/30">
+                                  Activity
                                 </td>
                               </tr>
                             );
