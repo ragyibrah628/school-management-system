@@ -2061,9 +2061,13 @@ function AppInner() {
                     const found = myPeriods.find(mp => mp.day === d && mp.period?.id === p.id);
                     if (found) {
                       const sub = ttSubjects.find((s: any) => s.id === found.cell.subjectId);
+                      const secondSub = ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId || s.name === found.cell.secondSubjectName);
+                      const subjectDisplay = found.cell.isCombined && secondSub
+                        ? `${sub?.code || sub?.name?.substring(0, 4) || ''}/${secondSub.code || secondSub.name?.substring(0, 4) || ''}`
+                        : (sub?.code || sub?.name || '');
                       const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
                       const room = ttRooms.find((r: any) => r.id === found.cell.roomId);
-                      pw.document.write(`<td style="font-weight:bold;background:#e8f5e9"><strong>${sub?.code || sub?.name || ''}</strong><br/>${cls?.name || ''}<br/><span style="font-size:9px">${room?.name || ''}</span></td>`);
+                      pw.document.write(`<td style="font-weight:bold;background:#e8f5e9"><strong>${subjectDisplay}</strong><br/>${cls?.name || ''}<br/><span style="font-size:9px">${room?.name || ''}</span></td>`);
                     } else {
                       pw.document.write(`<td style="color:#ccc">—</td>`);
                     }
@@ -2110,11 +2114,15 @@ function AppInner() {
                                 const found = myPeriods.find(mp => mp.day === d && mp.period?.id === p.id);
                                 if (!found) return <td key={d} className="border border-slate-300 p-1 text-center text-slate-300">—</td>;
                                 const sub = ttSubjects.find((s: any) => s.id === found.cell.subjectId);
+                                const secondSub = ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId || s.name === found.cell.secondSubjectName);
+                                const subjectDisplay = found.cell.isCombined && secondSub
+                                  ? `${sub?.code || sub?.name?.substring(0, 4) || ''}/${secondSub.code || secondSub.name?.substring(0, 4) || ''}`
+                                  : (sub?.code || sub?.name?.substring(0, 4) || '');
                                 const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
                                 const room = ttRooms.find((r: any) => r.id === found.cell.roomId);
                                 return (
                                   <td key={d} className="border border-slate-300 p-1 text-center bg-indigo-50">
-                                    <div className="font-bold text-indigo-800">{sub?.code || sub?.name?.substring(0,4) || ''}</div>
+                                    <div className="font-bold text-indigo-800">{subjectDisplay}</div>
                                     <div className="text-[10px] text-slate-600">{cls?.name}</div>
                                     <div className="text-[9px] text-slate-400">{room?.name}</div>
                                   </td>

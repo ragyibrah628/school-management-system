@@ -22,6 +22,24 @@ const NAMBAWALA_SLOTS: any[] = [
 ];
 const ACTIVITY_OPTIONS = ['Debate', 'Self Reliance', 'General Cleanness', 'Sports & Games', 'Subject Clubs'];
 const isActivitySlot = (slot: any) => Boolean(slot?.isActivity || slot?.id === 'act' || slot?.name?.trim().toLowerCase() === 'activity');
+const getConfiguredSchoolName = (fallback: string) => localStorage.getItem('sms_school_name_setting') || fallback || 'NAMBAWALA SECONDARY SCHOOL';
+const getConfiguredDistrict = () => localStorage.getItem('sms_district_name') || 'RUANGWA DISTRICT COUNCIL';
+const getConfiguredLogo = (fallback: string | null) => localStorage.getItem('sms_school_logo') || fallback || '';
+const getSubjectCode = (subject: any) => {
+  if (!subject) return '';
+  try {
+    const configuredCodes = JSON.parse(localStorage.getItem('sms_subject_codes') || '{}');
+    if (configuredCodes[subject.name]) return configuredCodes[subject.name];
+  } catch {}
+  return subject.code || subject.name?.substring(0, 4).toUpperCase() || '';
+};
+const getCellSubjectDisplay = (cell: any, subjects: any[]) => {
+  const first = subjects.find(s => s.id === cell?.subjectId || s.name === cell?.subjectName);
+  const second = subjects.find(s => s.id === cell?.secondSubjectId || s.name === cell?.secondSubjectName);
+  const firstCode = cell?.subjectId === 'ps' ? 'PS' : getSubjectCode(first) || getSubjectCode({ name: cell?.subjectName });
+  const secondCode = cell?.secondSubjectId === 'ps' ? 'PS' : getSubjectCode(second) || getSubjectCode({ name: cell?.secondSubjectName });
+  return cell?.isCombined && secondCode ? `${firstCode}/${secondCode}` : firstCode;
+};
 const getSubjectCodeTT = (name: string) => { try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(m && m[name]) return m[name]; } catch{} return name.substring(0,4).toUpperCase().replace(' ',''); }
 function findTeacherForSubjectClass(subjectName: string, className: string): { id: string, name: string } | null {
   try {
@@ -62,6 +80,9 @@ export const TimetableViewer: React.FC = () => {
       ? { ...slot, isActivity: true, isBreak: false }
       : slot
   ) as any;
+  const configuredSchoolName = getConfiguredSchoolName(schoolName);
+  const configuredDistrict = getConfiguredDistrict();
+  const configuredLogo = getConfiguredLogo(schoolLogo);
 
   const isActivityCell = (cell: any, period: any) => Boolean(cell && (cell.isActivity || isActivitySlot(period)));
 
@@ -94,9 +115,9 @@ export const TimetableViewer: React.FC = () => {
       if ((viewType as any)==='my_teaching') { try{ const cur=JSON.parse(localStorage.getItem('sms_current_user')||'null'); if(cur) finalName=cur.name; }catch{} }
       const title = finalName ? `${finalName} Teaching Timetable` : (isClass ? 'Class Teaching Timetable' : 'Teacher Teaching Timetable');
       const orientation = isClass ? 'landscape' : 'portrait';
-      const logo = localStorage.getItem('sms_school_logo') || (schoolLogo as any) || '';
-      const sName = localStorage.getItem('sms_school_name_setting') || (schoolName as any) || 'NAMBAWALA SECONDARY SCHOOL';
-      const district = localStorage.getItem('sms_district_name') || 'RUANGWA DISTRICT COUNCIL';
+      const logo = getConfiguredLogo(schoolLogo);
+      const sName = getConfiguredSchoolName(schoolName);
+      const district = getConfiguredDistrict();
       const address = localStorage.getItem('sms_school_address') || 'P.O. Box 51, Ruangwa - Lindi';
       const pw = window.open('', '', 'width=1200,height=800');
       if (!pw) { window.print(); return; }
@@ -173,14 +194,13 @@ export const TimetableViewer: React.FC = () => {
             html += `<td></td>`;
           } else {
             const isPS = cell.isPS || cell.subjectId==='ps';
-            const isAct = cell.isActivity;
+            const isAct = isActivityCell(cell, p);
             let subj=''; let sub='';
             if (isPS) { subj='PS'; sub='Private Studies'; }
             else if (isAct) { subj=cell.activity || 'Activity'; sub=''; }
             else {
               const s = subjects.find((x:any)=>x.id===cell.subjectId);
-              subj = (cell as any).subjectName || s?.name || cell.subjectId || '';
-              try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(subj && m[subj]) subj=m[subj]; else if(s && m[s.name]) subj=m[s.name]; else subj=subj.substring(0,4).toUpperCase(); } catch {}
+              subj = getCellSubjectDisplay(cell, subjects) || (cell as any).subjectName || s?.name || cell.subjectId || '';
               sub = isClass ? (teachers.find((t:any)=>t.id===cell.teacherId)?.name || '') : ((cell as any)._className || '');
             }
             if (cell.isDouble) {
@@ -388,11 +408,12 @@ export const TimetableViewer: React.FC = () => {
           {/* Header identifying the schedule (GOOD FOR PRINTING) */}
           <div className="p-4 border-b border-slate-100 hidden print:flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              {schoolLogo && (
-                <img src={schoolLogo} alt="Logo" className="h-12 w-auto max-h-12 object-contain" />
+              {configuredLogo && (
+                <img src={configuredLogo} alt="Logo" className="h-12 w-auto max-h-12 object-contain" />
               )}
               <div className="text-left">
-                <h1 className="text-xl font-bold text-slate-900 leading-tight">{schoolName}</h1>
+                <p className="text-xs font-bold text-slate-500">{configuredDistrict}</p>
+                <h1 className="text-xl font-bold text-slate-900 leading-tight">{configuredSchoolName}</h1>
                 <p className="text-slate-400 text-xs font-semibold">Weekly Timetable Schedule</p>
               </div>
             </div>
@@ -475,7 +496,7 @@ export const TimetableViewer: React.FC = () => {
                           const sub = subjects.find((s:any) => s.id === cell.subjectId);
                           const isPS = (cell as any).isPS || cell.subjectId==='ps';
                           const isAct = isActivityCell(cell, p);
-                          const displaySubRaw = (cell as any).subjectName || sub?.name || (cell.subjectId==='ps' ? 'PS' : isAct ? (cell as any).activity || 'Activity' : 'SUB');
+                          const displaySubRaw = isAct ? (cell as any).activity || 'Activity' : getCellSubjectDisplay(cell, subjects) || (cell as any).subjectName || sub?.name || (cell.subjectId==='ps' ? 'PS' : 'SUB');
                           let displaySub = displaySubRaw;
                           try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(displaySubRaw && m[displaySubRaw]) displaySub=m[displaySubRaw]; else if(sub && m[sub.name]) displaySub=m[sub.name]; } catch{}
                           if (!isPS && !isAct && displaySubRaw && displaySub===displaySubRaw) { try{ displaySub=displaySubRaw.substring(0,4).toUpperCase(); }catch{} }
@@ -541,9 +562,10 @@ export const TimetableViewer: React.FC = () => {
                   {/* Print-only School Header */}
                   <div className="p-3 border-b border-slate-200 hidden print:flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-3">
-                      {schoolLogo && <img src={schoolLogo} alt="Logo" className="h-10 w-auto object-contain" />}
+                      {configuredLogo && <img src={configuredLogo} alt="Logo" className="h-10 w-auto object-contain" />}
                       <div className="text-left">
-                        <h1 className="text-lg font-bold text-slate-900 leading-tight">{schoolName}</h1>
+                        <p className="text-[9px] font-bold text-slate-500">{configuredDistrict}</p>
+                        <h1 className="text-lg font-bold text-slate-900 leading-tight">{configuredSchoolName}</h1>
                         <p className="text-slate-400 text-2xs font-semibold">Official Timetable Schedule</p>
                       </div>
                     </div>
@@ -598,9 +620,10 @@ export const TimetableViewer: React.FC = () => {
                                 if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
                                 const sub = subjects.find(s => s.id === cell.subjectId);
                                 const t = teachers.find(teach => teach.id === cell.teacherId);
+                                const displaySubject = getCellSubjectDisplay(cell, subjects);
                                 return (
                                   <td key={d} className={`p-1 border-r border-slate-100 font-medium ${sub?.color.split(' ')[0] || 'bg-slate-100'}`}>
-                                    <div className="font-bold text-slate-800">{sub?.code}</div>
+                                    <div className="font-bold text-slate-800">{displaySubject || sub?.code}</div>
                                     <div className="text-[10px] text-slate-500 truncate">{t?.name.split(' ').slice(-1)[0]}</div>
                                   </td>
                                 );
@@ -628,9 +651,10 @@ export const TimetableViewer: React.FC = () => {
                   {/* Print-only School Header */}
                   <div className="p-3 border-b border-slate-200 hidden print:flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-3">
-                      {schoolLogo && <img src={schoolLogo} alt="Logo" className="h-10 w-auto object-contain" />}
+                      {configuredLogo && <img src={configuredLogo} alt="Logo" className="h-10 w-auto object-contain" />}
                       <div className="text-left">
-                        <h1 className="text-lg font-bold text-slate-900 leading-tight">{schoolName}</h1>
+                        <p className="text-[9px] font-bold text-slate-500">{configuredDistrict}</p>
+                        <h1 className="text-lg font-bold text-slate-900 leading-tight">{configuredSchoolName}</h1>
                         <p className="text-slate-400 text-2xs font-semibold">Official Faculty Schedule</p>
                       </div>
                     </div>
@@ -682,9 +706,10 @@ export const TimetableViewer: React.FC = () => {
                                 if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
                                 const sub = subjects.find(s => s.id === cell.subjectId);
                                 const cls = classes.find(c => c.id === cell.classId);
+                                const displaySubject = getCellSubjectDisplay(cell, subjects);
                                 return (
                                   <td key={d} className={`p-1 border-r border-slate-100 font-medium ${sub?.color.split(' ')[0] || 'bg-slate-100'}`}>
-                                    <div className="font-bold text-slate-800">{sub?.code}</div>
+                                    <div className="font-bold text-slate-800">{displaySubject || sub?.code}</div>
                                     <div className="text-[10px] text-slate-500 truncate">{cls?.name || 'Class'}</div>
                                   </td>
                                 );
