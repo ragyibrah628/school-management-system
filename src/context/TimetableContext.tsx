@@ -167,6 +167,10 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
     const storedSlots = saved ? JSON.parse(saved) : DEFAULT_TIME_SLOTS;
     const slots = Array.isArray(storedSlots) ? storedSlots : DEFAULT_TIME_SLOTS;
     const normalizedSlots = slots.map((slot: any) => {
+      const defaultSlot = DEFAULT_TIME_SLOTS.find(defaultValue => defaultValue.id === slot.id);
+      if (defaultSlot && !defaultSlot.isBreak && !defaultSlot.isActivity) {
+        return { ...slot, name: defaultSlot.name, startTime: defaultSlot.startTime, endTime: defaultSlot.endTime, isBreak: false, isActivity: false };
+      }
       if (slot.id === 'b1') return { ...slot, name: 'Morning Break', startTime: '10:40', endTime: '11:10', isBreak: true, isActivity: false };
       if (slot.id === 'lunch') return { ...slot, name: 'Lunch', startTime: '14:30', endTime: '15:30', isBreak: true, isActivity: false };
       if (slot.id === 'act' || slot.isActivity || slot.name?.toLowerCase() === 'activity') {
