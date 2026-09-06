@@ -204,15 +204,21 @@ export async function getScores(): Promise<any[]> {
         data = await supabaseRequest('scores', 'GET', undefined, '?select=id,teacher_name,student_name,class_name,subject,term,score,max_score,exam_name,exam_id,created_at&order=created_at.desc&limit=5000');
       }
       if (Array.isArray(data)) {
-        if (data.length > 0) return data;
-        // Keep locally queued scores when the cloud has no rows yet.
         const saved = localStorage.getItem('sms_scores');
+        let localScores: any[] = [];
+        try { localScores = saved ? JSON.parse(saved) : []; } catch {}
+        if (data.length > 0) {
+          const cloudIds = new Set(data.map((score: any) => score.id));
+          const merged = [...data, ...localScores.filter((score: any) => !cloudIds.has(score.id))];
+          localStorage.setItem('sms_scores', JSON.stringify(merged));
+          return merged;
+        }
+        // Keep locally queued scores when the cloud has no rows yet.
         if (saved) {
           try {
-            const local = JSON.parse(saved);
-            if (Array.isArray(local) && local.length > 0) {
-              console.warn('Cloud scores empty, showing local cache (' + local.length + ' scores) — check Supabase POST error in console');
-              return local;
+            if (Array.isArray(localScores) && localScores.length > 0) {
+              console.warn('Cloud scores empty, showing local cache (' + localScores.length + ' scores) — check Supabase POST error in console');
+              return localScores;
             }
           } catch {}
         }
@@ -261,6 +267,12 @@ export async function addScore(score: any) {
         return;
       } catch (err: any) {
         const msg = String(err?.message || err);
+        if (msg.includes('teacher_id')) {
+          const withoutTeacherId = { ...payload };
+          delete withoutTeacherId.teacher_id;
+          await supabaseRequest('scores', 'POST', withoutTeacherId, undefined, true);
+          return;
+        }
         // 🔧 AUTO-FIX for live DB missing exam_id / exam_name columns (PGRST204)
         if (msg.includes('exam_id') || msg.includes('exam_name') || msg.includes('PGRST204')) {
           console.warn('Retrying addScore without exam_id/exam_name (column missing in Supabase) — run ALTER TABLE SQL to fix permanently');
