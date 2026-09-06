@@ -437,16 +437,28 @@ function AppInner() {
 
   // Scores are the only cross-device data that must appear promptly for admins.
   useEffect(() => {
-    if (!cloud.isCloudMode() || user?.role !== 'admin') return;
+    if (!cloud.isCloudMode() || (user?.role !== 'admin' && user?.role !== 'teacher')) return;
     let active = true;
     const refreshScores = async () => {
-      const freshScores = await cloud.getScores().catch(() => null);
-      if (active && Array.isArray(freshScores)) setScores(freshScores);
+      if (user?.role === 'admin') {
+        const freshScores = await cloud.getScores().catch(() => null);
+        if (active && Array.isArray(freshScores)) setScores(freshScores);
+      }
+    };
+    const refreshExams = async () => {
+      await cloud.refreshAppDataKey('sms_exams');
+      if (!active) return;
+      try {
+        const freshExams = JSON.parse(localStorage.getItem('sms_exams') || '[]');
+        setExams(prev => JSON.stringify(prev) !== JSON.stringify(freshExams) ? freshExams : prev);
+      } catch {}
     };
     refreshScores();
-    const timer = setInterval(refreshScores, 30000);
-    const unsubscribe = cloud.subscribeToScoreChanges(refreshScores);
-    return () => { active = false; clearInterval(timer); unsubscribe(); };
+    refreshExams();
+    const timer = setInterval(() => { refreshScores(); refreshExams(); }, 30000);
+    const unsubscribeScores = user?.role === 'admin' ? cloud.subscribeToScoreChanges(refreshScores) : () => {};
+    const unsubscribeExams = cloud.subscribeToAppDataChanges('sms_exams', refreshExams);
+    return () => { active = false; clearInterval(timer); unsubscribeScores(); unsubscribeExams(); };
   }, [user?.role]);
 
   // Score entry state for exam mode

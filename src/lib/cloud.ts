@@ -25,6 +25,29 @@ export function subscribeToScoreChanges(onChange: () => void): () => void {
     .subscribe();
   return () => { realtimeClient.removeChannel(channel); };
 }
+
+export function subscribeToAppDataChanges(key: string, onChange: () => void): () => void {
+  if (!realtimeClient) return () => {};
+  const channel = realtimeClient
+    .channel(`app-data-${key}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'app_data', filter: `key=eq.${key}` }, onChange)
+    .subscribe();
+  return () => { realtimeClient.removeChannel(channel); };
+}
+
+export async function refreshAppDataKey(key: string): Promise<void> {
+  if (!IS_CLOUD) return;
+  try {
+    const data = await supabaseRequest('app_data', 'GET', undefined, `?key=eq.${encodeURIComponent(key)}&select=key,value,updated_at`);
+    const item = Array.isArray(data) ? data[0] : null;
+    if (item?.value) {
+      localStorage.setItem(key, item.value);
+      localStorage.setItem(`${key}_ts`, String(Date.parse(item.updated_at || '') || Date.now()));
+    }
+  } catch (error) {
+    console.error(`Cloud refresh failed for ${key}:`, error);
+  }
+}
 export function isOperaMini(): boolean {
   try {
     const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
