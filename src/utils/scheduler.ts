@@ -290,7 +290,8 @@ export function generateSchoolTimetable({
         subjectId: lesson.subjectId,
         teacherId: lesson.teacherId,
         roomId: roomId,
-        classId: lesson.classId
+        classId: lesson.classId,
+        isDouble: false
       };
 
       // Mark occupied
@@ -366,7 +367,8 @@ export function generateSchoolTimetable({
         subjectId: lesson.subjectId,
         teacherId: lesson.teacherId,
         roomId: roomId,
-        classId: lesson.classId
+        classId: lesson.classId,
+        isDouble: true
       };
       occupiedClasses[lesson.classId][day][p1] = true;
       occupiedTeachers[lesson.teacherId][day][p1] = true;
@@ -377,7 +379,9 @@ export function generateSchoolTimetable({
         subjectId: lesson.subjectId,
         teacherId: lesson.teacherId,
         roomId: roomId,
-        classId: lesson.classId
+        classId: lesson.classId,
+        isDouble: true,
+        isDoubleSpan: true
       };
       occupiedClasses[lesson.classId][day][p2] = true;
       occupiedTeachers[lesson.teacherId][day][p2] = true;

@@ -282,11 +282,19 @@ export const TimetableViewer: React.FC = () => {
 
   const getTeacherConflictClass = (day: string, periodId: string, teacherId: string): string => {
     if (!teacherId) return '';
+    const periodIndex = activePeriods.findIndex((period: any) => period.id === periodId);
     for (const classId of Object.keys(schedule)) {
       if (classId === selectedId) continue;
       const cell: any = schedule[classId]?.[day]?.[periodId];
       if (cell && (cell.teacherId === teacherId || cell.secondTeacherId === teacherId)) {
         return classes.find((item: any) => item.id === classId)?.name || classId;
+      }
+      if (periodIndex > 0) {
+        const previousPeriod = activePeriods[periodIndex - 1];
+        const previousCell: any = schedule[classId]?.[day]?.[previousPeriod.id];
+        if (previousCell?.isDouble && (previousCell.teacherId === teacherId || previousCell.secondTeacherId === teacherId)) {
+          return classes.find((item: any) => item.id === classId)?.name || classId;
+        }
       }
     }
     return '';
@@ -990,46 +998,50 @@ export const TimetableViewer: React.FC = () => {
                       setCollisionMsg('No teacher assigned to teach ' + subjName + ' in ' + (classes.find((c:any)=>c.id===selectedId)?.name || selectedId) + '. Go to Assign Teaching Classes & Subjects first.');
                       return;
                     }
-                    for (const cid of Object.keys(((timetableData as any)?.schedule||{}))) {
-                      if (cid === selectedId) continue;
-                      const cell = (timetableData as any).schedule[cid]?.[activeCell.day]?.[activeCell.periodId];
-                      if (cell && (cell.teacherId === teacherId || (secondTeacherId && cell.teacherId === secondTeacherId) || (cell.secondTeacherId && (cell.secondTeacherId===teacherId || cell.secondTeacherId===secondTeacherId)))) {
-                        const clsName = classes.find((c:any)=>c.id===cid)?.name || cid;
-                        const whichTeacher = (cell.teacherId===teacherId || cell.secondTeacherId===teacherId) ? (teachers.find((t:any)=>t.id===teacherId)?.name || teacherId) : (teachers.find((t:any)=>t.id===secondTeacherId)?.name || secondTeacherId);
-                        setCollisionMsg('Teacher ' + whichTeacher + ' is already assigned to ' + clsName + ' on ' + activeCell.day + ' ' + activeCell.periodId + '.');
-                        return;
-                      }
-                    }
-                    // Also check second teacher double booking on same check
-                    if (secondTeacherId) {
-                      for (const cid of Object.keys(((timetableData as any)?.schedule||{}))) {
-                        if (cid === selectedId) continue;
-                        const cell = (timetableData as any).schedule[cid]?.[activeCell.day]?.[activeCell.periodId];
-                        if (cell && cell.teacherId === secondTeacherId) {
-                          const clsName = classes.find((c:any)=>c.id===cid)?.name || cid;
-                          setCollisionMsg('Teacher ' + (teachers.find((t:any)=>t.id===secondTeacherId)?.name || secondTeacherId) + ' is already assigned to ' + clsName + ' on ' + activeCell.day + ' ' + activeCell.periodId + '.');
-                          return;
-                        }
-                      }
-                    }
+                    const teachingIds = activePeriods.filter((s:any)=>!s.isBreak && !(s as any).isActivity).map((s:any)=>s.id);
+                    const activeIndex = teachingIds.indexOf(activeCell.periodId);
+                    const nextId = teachingIds[activeIndex + 1];
                     if (periodType==='double') {
-                      const teachingIds = activePeriods.filter((s:any)=>!s.isBreak && !(s as any).isActivity).map((s:any)=>s.id);
-                      const idx = teachingIds.indexOf(activeCell.periodId);
-                      const nextId = teachingIds[idx+1];
                       if (!nextId) { setCollisionMsg('Double cannot be last period. Choose Single.'); return; }
                       const existingNext = (timetableData as any).schedule[selectedId]?.[activeCell.day]?.[nextId];
                       if (existingNext) { setCollisionMsg('Next period already has a lesson. Remove it first.'); return; }
+                    }
+                    const targetPeriodIds = periodType === 'double' ? [activeCell.periodId, nextId] : [activeCell.periodId];
+                    const teacherMatches = (cell: any, id: string) => Boolean(cell && (cell.teacherId === id || cell.secondTeacherId === id));
+                    const getOccupiedCell = (classId: string, periodId: string) => {
+                      const classSchedule = (timetableData as any).schedule[classId]?.[activeCell.day] || {};
+                      const directCell = classSchedule[periodId];
+                      if (directCell) return directCell;
+                      const periodIndex = teachingIds.indexOf(periodId);
+                      if (periodIndex > 0) {
+                        const previousCell = classSchedule[teachingIds[periodIndex - 1]];
+                        if (previousCell?.isDouble) return previousCell;
+                      }
+                      return null;
+                    };
+                    for (const cid of Object.keys(((timetableData as any)?.schedule||{}))) {
+                      if (cid === selectedId) continue;
+                      for (const periodId of targetPeriodIds) {
+                        const cell = getOccupiedCell(cid, periodId);
+                        const matchedTeacher = teacherMatches(cell, teacherId) ? teacherId : (secondTeacherId && teacherMatches(cell, secondTeacherId) ? secondTeacherId : '');
+                        if (matchedTeacher) {
+                          const clsName = classes.find((c:any)=>c.id===cid)?.name || cid;
+                          const teacherName = teachers.find((t:any)=>t.id===matchedTeacher)?.name || matchedTeacher;
+                          setCollisionMsg('Teacher ' + teacherName + ' is already assigned to ' + clsName + ' on ' + activeCell.day + ' ' + periodId + '.');
+                          return;
+                        }
+                      }
                     }
                     const subForRoom = subjects.find((s:any)=>s.id===subjId);
                     const roomType = (subForRoom as any)?.requiresRoomType || 'regular';
                     const schoolClass = classes.find((c:any)=>c.id===selectedId);
                     let roomId = '';
                     if (roomType === 'regular' && (schoolClass as any)?.assignedRoomId) {
-                      const occupied = Object.keys((timetableData as any).schedule||{}).some(cid => (timetableData as any).schedule[cid]?.[activeCell.day]?.[activeCell.periodId]?.roomId === (schoolClass as any).assignedRoomId);
+                      const occupied = targetPeriodIds.some(periodId => Object.keys((timetableData as any).schedule||{}).some(cid => getOccupiedCell(cid, periodId)?.roomId === (schoolClass as any).assignedRoomId));
                       if (!occupied) roomId = (schoolClass as any).assignedRoomId;
                     }
                     if (!roomId) {
-                      const avail = rooms.filter((r:any)=> r.type===roomType && !Object.keys((timetableData as any).schedule||{}).some(cid => (timetableData as any).schedule[cid]?.[activeCell.day]?.[activeCell.periodId]?.roomId===r.id));
+                      const avail = rooms.filter((r:any)=> r.type===roomType && !targetPeriodIds.some(periodId => Object.keys((timetableData as any).schedule||{}).some(cid => getOccupiedCell(cid, periodId)?.roomId === r.id)));
                       roomId = avail[0]?.id || rooms.find((r:any)=>r.type===roomType)?.id || rooms[0]?.id || '';
                     }
                     // If combined, store second subject info too
