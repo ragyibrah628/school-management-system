@@ -7,6 +7,9 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const IS_CLOUD = !!(SUPABASE_URL && SUPABASE_KEY && SUPABASE_URL.startsWith('https://'));
 const LEGACY_DEFAULT_CLASSES = ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
+const GET_CACHE_TTL_MS = 30000;
+const getCache = new Map<string, { expiresAt: number; data: any }>();
+const getInFlight = new Map<string, Promise<any>>();
 
 export function isCloudMode() {
   return IS_CLOUD;
@@ -20,6 +23,13 @@ export function isOperaMini(): boolean {
 
 async function supabaseRequest(table: string, method: string, body?: any, query?: string, upsert = false) {
   const url = `${SUPABASE_URL}/rest/v1/${table}${query || ''}`;
+  const cacheKey = `${method}:${url}`;
+  if (method === 'GET') {
+    const cached = getCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.data;
+    const pending = getInFlight.get(cacheKey);
+    if (pending) return pending;
+  }
   const headers: any = {
     'apikey': SUPABASE_KEY,
     'Authorization': `Bearer ${SUPABASE_KEY}`,
@@ -30,35 +40,46 @@ async function supabaseRequest(table: string, method: string, body?: any, query?
   };
 
   // Opera Mini + low-end browser fix: timeout + no-cache, skip cloud if fetch hangs
-  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timeout = controller ? setTimeout(() => controller.abort(), 5000) : null;
-  let res: any;
-  try {
-    res = await fetch(url, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-      signal: controller ? controller.signal : undefined,
-      // cache bypass for Opera Mini proxy
-      cache: 'no-store' as any,
-    } as any);
-  } catch (e: any) {
-    if (e?.name === 'AbortError') throw new Error('Network timeout - using offline cache');
-    throw e;
-  } finally {
-    if (timeout) clearTimeout(timeout);
-  }
+  const request = (async () => {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeout = controller ? setTimeout(() => controller.abort(), 5000) : null;
+    let res: any;
+    try {
+      res = await fetch(url, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller ? controller.signal : undefined,
+        cache: 'no-store' as any,
+      } as any);
+    } catch (e: any) {
+      if (e?.name === 'AbortError') throw new Error('Network timeout - using offline cache');
+      throw e;
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
 
-  if (!res.ok) {
-    const text = await res.text();
-    console.error(`Supabase ${method} ${table} failed:`, text);
-    throw new Error(text);
-  }
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`Supabase ${method} ${table} failed:`, text);
+      throw new Error(text);
+    }
 
+    if (method === 'GET') return res.json();
+    return null;
+  })();
   if (method === 'GET') {
-    return res.json();
+    getInFlight.set(cacheKey, request);
+    request.then(data => getCache.set(cacheKey, { expiresAt: Date.now() + GET_CACHE_TTL_MS, data }), () => undefined)
+      .finally(() => getInFlight.delete(cacheKey));
+  } else {
+    request.then(() => {
+      for (const key of getCache.keys()) {
+        if (key.startsWith(`GET:${SUPABASE_URL}/rest/v1/${table}`)) getCache.delete(key);
+      }
+    }, () => undefined);
   }
-  return null;
+  return request;
 }
 
 // Convert JS array to PostgreSQL array format
@@ -72,7 +93,7 @@ function toPgArray(arr: string[]): string {
 export async function getUsers(): Promise<any[]> {
   if (IS_CLOUD) {
     try {
-      const data = await supabaseRequest('users', 'GET', undefined, '?order=created_at.desc');
+      const data = await supabaseRequest('users', 'GET', undefined, '?select=id,name,username,password,role,subjects,created_at&order=created_at.desc&limit=500');
       const mapped = data.map((u: any) => ({
         ...u,
         subjects: Array.isArray(u.subjects) ? u.subjects : []
@@ -141,7 +162,7 @@ export async function deleteUser(id: string) {
 export async function getScores(): Promise<any[]> {
   if (IS_CLOUD) {
     try {
-      const data = await supabaseRequest('scores', 'GET', undefined, '?order=created_at.desc');
+      const data = await supabaseRequest('scores', 'GET', undefined, '?select=id,teacher_name,teacher_id,student_name,class_name,subject,term,score,max_score,exam_name,exam_id,created_at&order=created_at.desc&limit=5000');
       if (Array.isArray(data)) {
         if (data.length > 0) return data;
         // Keep locally queued scores when the cloud has no rows yet.
@@ -242,7 +263,7 @@ export async function syncScoresToCloud() {
 export async function getDutyReports(): Promise<any[]> {
   if (IS_CLOUD) {
     try {
-      return await supabaseRequest('duty_reports', 'GET', undefined, '?order=created_at.desc');
+      return await supabaseRequest('duty_reports', 'GET', undefined, '?select=id,teacher_name,date,present_count,absent_count,events_summary,day_end_summary,created_at&order=created_at.desc&limit=200');
     } catch (e) {
       console.error('Cloud getDutyReports failed:', e);
     }
@@ -284,7 +305,7 @@ export async function addDutyReport(report: any) {
 export async function getDutyReportsFull(): Promise<any[]> {
   if (IS_CLOUD) {
     try {
-      const data = await supabaseRequest('duty_reports', 'GET', undefined, '?order=created_at.desc');
+      const data = await supabaseRequest('duty_reports', 'GET', undefined, '?select=id,teacher_name,date,present_count,absent_count,events_summary,day_end_summary,created_at&order=created_at.desc&limit=200');
       return data.map((d: any) => {
         try {
           const extra = JSON.parse(d.events_summary || '{}');
@@ -314,7 +335,7 @@ export async function getDutyReportsFull(): Promise<any[]> {
 export async function getReleased(): Promise<string[]> {
   if (IS_CLOUD) {
     try {
-      const data = await supabaseRequest('release_state', 'GET', undefined, '?approved=eq.true');
+      const data = await supabaseRequest('release_state', 'GET', undefined, '?select=term&approved=eq.true&limit=10');
       return data.map((r: any) => r.term);
     } catch (e) {
       console.error('Cloud getReleased failed:', e);
@@ -413,20 +434,26 @@ export async function syncRoleAssignmentsToCloud(classTeachers: unknown, teachin
   }));
 }
 
-export async function syncToCloud() {
-  if (!IS_CLOUD) return;
-  for (const key of SYNC_KEYS) {
-    const value = localStorage.getItem(key);
-    if (value) {
-      try {
-        await supabaseRequest('app_data', 'POST', { key, value, updated_at: new Date().toISOString() }, undefined, true);
-      } catch {
+let syncToCloudPromise: Promise<void> | null = null;
+
+export function syncToCloud(): Promise<void> {
+  if (!IS_CLOUD) return Promise.resolve();
+  if (syncToCloudPromise) return syncToCloudPromise;
+  syncToCloudPromise = (async () => {
+    for (const key of SYNC_KEYS) {
+      const value = localStorage.getItem(key);
+      if (value) {
         try {
-          await supabaseRequest('app_data', 'PATCH', { value, updated_at: new Date().toISOString() }, `?key=eq.${encodeURIComponent(key)}`);
-        } catch (e) { console.error('Sync to cloud failed for', key, e); }
+          await supabaseRequest('app_data', 'POST', { key, value, updated_at: new Date().toISOString() }, undefined, true);
+        } catch {
+          try {
+            await supabaseRequest('app_data', 'PATCH', { value, updated_at: new Date().toISOString() }, `?key=eq.${encodeURIComponent(key)}`);
+          } catch (e) { console.error('Sync to cloud failed for', key, e); }
+        }
       }
     }
-  }
+  })().finally(() => { syncToCloudPromise = null; });
+  return syncToCloudPromise;
 }
 
 // ✅ FIXED — handles classes deletion + addition without reverting
@@ -438,7 +465,7 @@ export async function syncFromCloud() {
       const currentUser = JSON.parse(localStorage.getItem('sms_current_user') || 'null');
       isAdmin = currentUser?.role === 'admin';
     } catch {}
-    const data = await supabaseRequest('app_data', 'GET', undefined, '?select=key,value,updated_at');
+    const data = await supabaseRequest('app_data', 'GET', undefined, '?select=key,value,updated_at&limit=100');
     if (Array.isArray(data)) {
       data.forEach((item: any) => {
         if (item.key && item.value) {
@@ -535,26 +562,12 @@ export async function saveRegisteredStudents(
   localStorage.setItem('sms_registered_students', value);
 
   if (IS_CLOUD) {
-    const payload = { value, updated_at: new Date().toISOString() };
+    const payload = { key: 'sms_registered_students', value, updated_at: new Date().toISOString() };
     try {
-      await supabaseRequest(
-        'app_data', 'PATCH', payload,
-        `?key=eq.sms_registered_students`
-      );
-      const check = await supabaseRequest(
-        'app_data', 'GET', undefined,
-        `?key=eq.sms_registered_students&select=key`
-      );
-      if (!Array.isArray(check) || check.length === 0) {
-        await supabaseRequest('app_data', 'POST', {
-          key: 'sms_registered_students', value, updated_at: new Date().toISOString()
-        });
-      }
+      await supabaseRequest('app_data', 'POST', payload, undefined, true);
     } catch (e) {
       try {
-        await supabaseRequest('app_data', 'POST', {
-          key: 'sms_registered_students', value, updated_at: new Date().toISOString()
-        });
+        await supabaseRequest('app_data', 'PATCH', { value, updated_at: payload.updated_at }, '?key=eq.sms_registered_students');
       } catch (e2) {
         console.error('Cloud saveRegisteredStudents failed:', e2);
       }

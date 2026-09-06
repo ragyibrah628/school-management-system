@@ -361,9 +361,7 @@ function AppInner() {
   const [, setTick] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => setTick(t => t + 1), 60000);
-    // Sync to cloud every 2 minutes (keep for safety)
-    const syncTimer = setInterval(() => { cloud.syncToCloud(); }, 120000);
-    // Poll cloud every 15s for new exams / scores / madarasa / class teacher / students — device nyingine inaona
+    // Poll cloud for cross-device changes without repeatedly rewriting all app_data keys.
     const pollTimer = setInterval(async () => {
       if (cloud.isCloudMode()) {
         await cloud.syncFromCloud();
@@ -405,7 +403,7 @@ function AppInner() {
         } catch {}
         await loadData();
       }
-    }, 8000);
+    }, 60000);
     const onFocus = async () => {
       if (cloud.isCloudMode()) {
         await cloud.syncFromCloud();
@@ -429,29 +427,8 @@ function AppInner() {
         await loadData();
       }
     };
-    const onSync = async () => {
-      await refreshRoleAssignments();
-      try {
-          const fe = JSON.parse(localStorage.getItem('sms_exams') || '[]');
-          setExams((prev:any) => (Array.isArray(fe) && fe.length===0 && Array.isArray(prev) && prev.length>0) ? prev : fe);
-        } catch {}
-      try { setClassTeachers(JSON.parse(localStorage.getItem('sms_class_teachers') || '{}')); } catch {}
-      try { setStudents(JSON.parse(localStorage.getItem('sms_students') || '{}')); } catch {}
-      try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
-      try {
-        const fc = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
-        const ts = localStorage.getItem('sms_school_classes_ts');
-        const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
-        if (isRecent) {
-          // keep local
-        } else if (Array.isArray(fc) && fc.length) setSchoolClasses((prev:any) => JSON.stringify(prev) !== JSON.stringify(fc) ? fc : prev);
-        else if (Array.isArray(fc) && fc.length === 0) setSchoolClasses([]);
-      } catch {}
-      await loadData();
-    };
     window.addEventListener('focus', onFocus);
-    window.addEventListener('cloud-sync-complete', onSync);
-    return () => { clearInterval(timer); clearInterval(syncTimer); clearInterval(pollTimer); window.removeEventListener('focus', onFocus); window.removeEventListener('cloud-sync-complete', onSync); };
+    return () => { clearInterval(timer); clearInterval(pollTimer); window.removeEventListener('focus', onFocus); };
   }, []);
 
   // Score entry state for exam mode
