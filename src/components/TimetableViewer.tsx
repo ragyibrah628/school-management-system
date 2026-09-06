@@ -3,7 +3,7 @@ import { useTimetable } from '../context/TimetableContext';
 import { DayOfWeek, TimetableCell } from '../types';
 import { 
   Printer, Grid, 
-  AlertTriangle, X, Trash2, Plus 
+  AlertTriangle, X, Trash2, Plus, Play, RefreshCw
 } from 'lucide-react';
 
 const NAMBAWALA_SLOTS: any[] = [
@@ -74,7 +74,7 @@ export const TimetableViewer: React.FC = () => {
   const { 
     timetableData, classes, teachers, subjects, rooms, timeSlots, days, conflicts, classSubjects,
     schoolLogo, schoolName,
-    removeLessonSlot, scheduleUnscheduledLesson, updateLessonSlot 
+    removeLessonSlot, scheduleUnscheduledLesson, updateLessonSlot, triggerGeneration, isGenerating
   } = useTimetable() as any;
 
   const [viewType, setViewType] = useState<'class' | 'teacher' | 'room' | 'master' | 'all_classes' | 'all_teachers'>('class');
@@ -109,10 +109,21 @@ export const TimetableViewer: React.FC = () => {
 
   if (!timetableData) {
     return (
-      <div className="bg-white p-12 rounded-2xl border border-slate-100 text-center text-slate-400 max-w-2xl mx-auto shadow-sm mt-12">
-        <Grid size={48} className="mx-auto text-slate-300 mb-4 animate-pulse" />
+      <div className="bg-white p-12 rounded-2xl border border-slate-100 text-center max-w-2xl mx-auto shadow-sm mt-12">
+        {isGenerating ? <RefreshCw size={48} className="mx-auto text-indigo-500 mb-4 animate-spin" /> : <Grid size={48} className="mx-auto text-slate-300 mb-4" />}
         <h2 className="text-xl font-bold text-slate-800 mb-2">No Timetable Generated Yet</h2>
-        <p className="text-sm text-slate-500 mb-6">Go to the Dashboard and click "Generate Timetable" to create your school's master schedule.</p>
+        <p className="text-sm text-slate-500 mb-6">Generate the master timetable using the classes, subjects, and teachers registered by the admin.</p>
+        <button
+          onClick={triggerGeneration}
+          disabled={isGenerating || classes.length === 0 || teachers.length === 0}
+          className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 text-white font-semibold shadow-lg shadow-indigo-600/20 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+        >
+          {isGenerating ? <RefreshCw size={18} className="animate-spin" /> : <Play size={18} fill="currentColor" />}
+          {isGenerating ? 'Generating Timetable...' : 'Generate Timetable'}
+        </button>
+        {(classes.length === 0 || teachers.length === 0) && !isGenerating && (
+          <p className="text-xs text-amber-600 mt-4">Register at least one class and one teacher before generating.</p>
+        )}
       </div>
     );
   }
@@ -152,7 +163,6 @@ export const TimetableViewer: React.FC = () => {
         .subteacher { font-weight:600; font-size:11px; color:#334155; margin-top:2px; }
         .breakCell { background:#fff7ed; color:#9a3412; font-weight:800; font-size:10px; }
         .dayCol { background:#f8fafc; font-weight:900; font-size:12px; }
-        .footer { text-align:center; margin-top:12px; font-size:9px; color:#64748b; border-top:1px solid #cbd5e1; padding-top:6px; font-style:italic; }
         @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } a { text-decoration:none !important; color:inherit !important; } }
       </style></head><body>`;
       html += `<div class="header">`;
@@ -229,7 +239,6 @@ export const TimetableViewer: React.FC = () => {
         html += `</tr>`;
       }
       html += `</tbody></table>`;
-      html += `<div class="footer">${sName}: Honor All Build Together</div>`;
       html += `</body></html>`;
       pw.document.write(html);
       pw.document.close();
@@ -282,11 +291,19 @@ export const TimetableViewer: React.FC = () => {
 
   const getTeacherConflictClass = (day: string, periodId: string, teacherId: string): string => {
     if (!teacherId) return '';
+    const periodIndex = activePeriods.findIndex((period: any) => period.id === periodId);
     for (const classId of Object.keys(schedule)) {
       if (classId === selectedId) continue;
       const cell: any = schedule[classId]?.[day]?.[periodId];
       if (cell && (cell.teacherId === teacherId || cell.secondTeacherId === teacherId)) {
         return classes.find((item: any) => item.id === classId)?.name || classId;
+      }
+      if (periodIndex > 0) {
+        const previousPeriod = activePeriods[periodIndex - 1];
+        const previousCell: any = schedule[classId]?.[day]?.[previousPeriod.id];
+        if (previousCell?.isDouble && (previousCell.teacherId === teacherId || previousCell.secondTeacherId === teacherId)) {
+          return classes.find((item: any) => item.id === classId)?.name || classId;
+        }
       }
     }
     return '';
@@ -733,8 +750,6 @@ export const TimetableViewer: React.FC = () => {
                                 const cell = getCellData(d, p.id, t.id, 'all_teachers');
                                 if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
                                 const sub = subjects.find(s => s.id === cell.subjectId);
-                                const cls = classes.find(c => c.id === cell.classId);
-                                const displaySubject = getCellSubjectDisplay(cell, subjects);
                                 const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, 'teacher', classes);
                                 return (
                                   <td key={d} className={`p-1 border-r border-slate-100 font-medium ${sub?.color.split(' ')[0] || 'bg-slate-100'}`}>
@@ -744,7 +759,6 @@ export const TimetableViewer: React.FC = () => {
                                         <div className="text-[10px] text-slate-500 truncate">{line.teacher}</div>
                                       </div>
                                     ))}
-                                    <div className="text-[10px] text-slate-500 truncate">{cls?.name || 'Class'}</div>
                                   </td>
                                 );
                               })}
@@ -990,46 +1004,50 @@ export const TimetableViewer: React.FC = () => {
                       setCollisionMsg('No teacher assigned to teach ' + subjName + ' in ' + (classes.find((c:any)=>c.id===selectedId)?.name || selectedId) + '. Go to Assign Teaching Classes & Subjects first.');
                       return;
                     }
-                    for (const cid of Object.keys(((timetableData as any)?.schedule||{}))) {
-                      if (cid === selectedId) continue;
-                      const cell = (timetableData as any).schedule[cid]?.[activeCell.day]?.[activeCell.periodId];
-                      if (cell && (cell.teacherId === teacherId || (secondTeacherId && cell.teacherId === secondTeacherId) || (cell.secondTeacherId && (cell.secondTeacherId===teacherId || cell.secondTeacherId===secondTeacherId)))) {
-                        const clsName = classes.find((c:any)=>c.id===cid)?.name || cid;
-                        const whichTeacher = (cell.teacherId===teacherId || cell.secondTeacherId===teacherId) ? (teachers.find((t:any)=>t.id===teacherId)?.name || teacherId) : (teachers.find((t:any)=>t.id===secondTeacherId)?.name || secondTeacherId);
-                        setCollisionMsg('Teacher ' + whichTeacher + ' is already assigned to ' + clsName + ' on ' + activeCell.day + ' ' + activeCell.periodId + '.');
-                        return;
-                      }
-                    }
-                    // Also check second teacher double booking on same check
-                    if (secondTeacherId) {
-                      for (const cid of Object.keys(((timetableData as any)?.schedule||{}))) {
-                        if (cid === selectedId) continue;
-                        const cell = (timetableData as any).schedule[cid]?.[activeCell.day]?.[activeCell.periodId];
-                        if (cell && cell.teacherId === secondTeacherId) {
-                          const clsName = classes.find((c:any)=>c.id===cid)?.name || cid;
-                          setCollisionMsg('Teacher ' + (teachers.find((t:any)=>t.id===secondTeacherId)?.name || secondTeacherId) + ' is already assigned to ' + clsName + ' on ' + activeCell.day + ' ' + activeCell.periodId + '.');
-                          return;
-                        }
-                      }
-                    }
+                    const teachingIds = activePeriods.filter((s:any)=>!s.isBreak && !(s as any).isActivity).map((s:any)=>s.id);
+                    const activeIndex = teachingIds.indexOf(activeCell.periodId);
+                    const nextId = teachingIds[activeIndex + 1];
                     if (periodType==='double') {
-                      const teachingIds = activePeriods.filter((s:any)=>!s.isBreak && !(s as any).isActivity).map((s:any)=>s.id);
-                      const idx = teachingIds.indexOf(activeCell.periodId);
-                      const nextId = teachingIds[idx+1];
                       if (!nextId) { setCollisionMsg('Double cannot be last period. Choose Single.'); return; }
                       const existingNext = (timetableData as any).schedule[selectedId]?.[activeCell.day]?.[nextId];
                       if (existingNext) { setCollisionMsg('Next period already has a lesson. Remove it first.'); return; }
+                    }
+                    const targetPeriodIds = periodType === 'double' ? [activeCell.periodId, nextId] : [activeCell.periodId];
+                    const teacherMatches = (cell: any, id: string) => Boolean(cell && (cell.teacherId === id || cell.secondTeacherId === id));
+                    const getOccupiedCell = (classId: string, periodId: string) => {
+                      const classSchedule = (timetableData as any).schedule[classId]?.[activeCell.day] || {};
+                      const directCell = classSchedule[periodId];
+                      if (directCell) return directCell;
+                      const periodIndex = teachingIds.indexOf(periodId);
+                      if (periodIndex > 0) {
+                        const previousCell = classSchedule[teachingIds[periodIndex - 1]];
+                        if (previousCell?.isDouble) return previousCell;
+                      }
+                      return null;
+                    };
+                    for (const cid of Object.keys(((timetableData as any)?.schedule||{}))) {
+                      if (cid === selectedId) continue;
+                      for (const periodId of targetPeriodIds) {
+                        const cell = getOccupiedCell(cid, periodId);
+                        const matchedTeacher = teacherMatches(cell, teacherId) ? teacherId : (secondTeacherId && teacherMatches(cell, secondTeacherId) ? secondTeacherId : '');
+                        if (matchedTeacher) {
+                          const clsName = classes.find((c:any)=>c.id===cid)?.name || cid;
+                          const teacherName = teachers.find((t:any)=>t.id===matchedTeacher)?.name || matchedTeacher;
+                          setCollisionMsg('Teacher ' + teacherName + ' is already assigned to ' + clsName + ' on ' + activeCell.day + ' ' + periodId + '.');
+                          return;
+                        }
+                      }
                     }
                     const subForRoom = subjects.find((s:any)=>s.id===subjId);
                     const roomType = (subForRoom as any)?.requiresRoomType || 'regular';
                     const schoolClass = classes.find((c:any)=>c.id===selectedId);
                     let roomId = '';
                     if (roomType === 'regular' && (schoolClass as any)?.assignedRoomId) {
-                      const occupied = Object.keys((timetableData as any).schedule||{}).some(cid => (timetableData as any).schedule[cid]?.[activeCell.day]?.[activeCell.periodId]?.roomId === (schoolClass as any).assignedRoomId);
+                      const occupied = targetPeriodIds.some(periodId => Object.keys((timetableData as any).schedule||{}).some(cid => getOccupiedCell(cid, periodId)?.roomId === (schoolClass as any).assignedRoomId));
                       if (!occupied) roomId = (schoolClass as any).assignedRoomId;
                     }
                     if (!roomId) {
-                      const avail = rooms.filter((r:any)=> r.type===roomType && !Object.keys((timetableData as any).schedule||{}).some(cid => (timetableData as any).schedule[cid]?.[activeCell.day]?.[activeCell.periodId]?.roomId===r.id));
+                      const avail = rooms.filter((r:any)=> r.type===roomType && !targetPeriodIds.some(periodId => Object.keys((timetableData as any).schedule||{}).some(cid => getOccupiedCell(cid, periodId)?.roomId === r.id)));
                       roomId = avail[0]?.id || rooms.find((r:any)=>r.type===roomType)?.id || rooms[0]?.id || '';
                     }
                     // If combined, store second subject info too

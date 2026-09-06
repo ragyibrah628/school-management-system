@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Subject, Teacher, Room, SchoolClass, ClassSubject, TimeSlot, DayOfWeek, TimetableData, Conflict } from '../types';
 import { DEFAULT_DAYS, DEFAULT_TIME_SLOTS, DEFAULT_SUBJECTS, DEFAULT_ROOMS, DEFAULT_TEACHERS, DEFAULT_CLASSES, DEFAULT_CLASS_SUBJECTS } from '../utils/dummyData';
 import { generateSchoolTimetable, validateSchedule } from '../utils/scheduler';
@@ -166,19 +166,33 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
     const saved = localStorage.getItem('tt_timeSlots');
     const storedSlots = saved ? JSON.parse(saved) : DEFAULT_TIME_SLOTS;
     const slots = Array.isArray(storedSlots) ? storedSlots : DEFAULT_TIME_SLOTS;
-    const normalizedSlots = slots.map((slot: any) => {
-      if (slot.id === 'b1') return { ...slot, name: 'Morning Break', startTime: '10:40', endTime: '11:10', isBreak: true, isActivity: false };
-      if (slot.id === 'lunch') return { ...slot, name: 'Lunch', startTime: '14:30', endTime: '15:30', isBreak: true, isActivity: false };
-      if (slot.id === 'act' || slot.isActivity || slot.name?.toLowerCase() === 'activity') {
-        return { ...slot, name: 'Activity', startTime: '15:30', endTime: '17:30', isActivity: true, isBreak: false };
+    const normalizeSlot = (slot: any) => {
+      const slotName = String(slot.name || '').trim().toLowerCase();
+      if (slotName === 'morning break' || slotName === 'recess' || slot.id === 'b1') {
+        return { ...slot, id: 'b1', name: 'Morning Break', startTime: '10:40', endTime: '11:10', isBreak: true, isActivity: false };
+      }
+      if (slotName === 'lunch' || slotName === 'lunch break' || slotName.includes('lunch') || slot.id === 'lunch') {
+        return { ...slot, id: 'lunch', name: 'Lunch', startTime: '14:30', endTime: '15:30', isBreak: true, isActivity: false };
+      }
+      if (slotName === 'activity' || slot.id === 'act' || slot.isActivity) {
+        return { ...slot, id: 'act', name: 'Activity', startTime: '15:30', endTime: '17:30', isActivity: true, isBreak: false };
+      }
+      const defaultSlot = DEFAULT_TIME_SLOTS.find(defaultValue => defaultValue.id === slot.id);
+      if (defaultSlot && !defaultSlot.isBreak && !defaultSlot.isActivity) {
+        return { ...slot, name: defaultSlot.name, startTime: defaultSlot.startTime, endTime: defaultSlot.endTime, isBreak: false, isActivity: false };
       }
       return slot;
+    };
+    const normalizedSlots = slots.map(normalizeSlot);
+    const canonicalSlots = DEFAULT_TIME_SLOTS.map(defaultSlot => {
+      const existing = normalizedSlots.find(slot => slot.id === defaultSlot.id);
+      return existing || defaultSlot;
     });
-    if (!normalizedSlots.some((slot: any) => slot.isActivity)) {
-      normalizedSlots.push(DEFAULT_TIME_SLOTS.find(slot => slot.id === 'act')!);
-      normalizedSlots.sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
-    }
-    return normalizedSlots;
+    const canonicalIds = new Set(DEFAULT_TIME_SLOTS.map(slot => slot.id));
+    const customSlots = normalizedSlots
+      .filter(slot => !canonicalIds.has(slot.id))
+      .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
+    return [...canonicalSlots, ...customSlots];
   });
 
   const [days, setDaysState] = useState<DayOfWeek[]>(() => {
@@ -198,13 +212,16 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const timetableSyncInFlight = useRef(false);
+  const cloudReloadPending = useRef(false);
+  const lastSyncedTimetableValue = useRef(JSON.stringify(timetableData));
 
   const [schoolLogo, setSchoolLogoState] = useState<string | null>(() => {
     return localStorage.getItem('tt_schoolLogo');
   });
   
   const [schoolName, setSchoolNameState] = useState<string>(() => {
-    return localStorage.getItem('sms_school_name_setting') || localStorage.getItem('tt_schoolName') || 'Springfield Secondary School';
+    return localStorage.getItem('sms_school_name_setting') || localStorage.getItem('tt_schoolName') || 'NAMBAWALA SECONDARY SCHOOL';
   });
 
   const setSchoolLogo = (logo: string | null) => {
@@ -231,9 +248,24 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
   useEffect(() => { localStorage.setItem('tt_timeSlots', JSON.stringify(timeSlots)); }, [timeSlots]);
   useEffect(() => { localStorage.setItem('tt_days', JSON.stringify(days)); }, [days]);
   useEffect(() => {
-    localStorage.setItem('tt_timetableData', JSON.stringify(timetableData));
+    const serializedTimetable = JSON.stringify(timetableData);
+    localStorage.setItem('tt_timetableData', serializedTimetable);
     localStorage.setItem('tt_timetableData_ts', String(Date.now()));
-    if (cloud.isCloudMode() && timetableData) cloud.syncToCloud().catch(() => {});
+    if (cloudReloadPending.current) {
+      cloudReloadPending.current = false;
+      lastSyncedTimetableValue.current = serializedTimetable;
+    } else if (
+      cloud.isCloudMode() &&
+      timetableData &&
+      serializedTimetable !== lastSyncedTimetableValue.current &&
+      !timetableSyncInFlight.current
+    ) {
+      timetableSyncInFlight.current = true;
+      cloud.syncToCloud()
+        .then(() => { lastSyncedTimetableValue.current = serializedTimetable; })
+        .catch(() => {})
+        .finally(() => { timetableSyncInFlight.current = false; });
+    }
     if (timetableData?.schedule) {
       const result = validateSchedule(timetableData.schedule, days, timeSlots, teachers);
       setConflicts(result.conflicts);
@@ -245,7 +277,10 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
     const reloadTimetable = () => {
       try {
         const saved = localStorage.getItem('tt_timetableData');
-        if (saved) setTimetableData(JSON.parse(saved));
+        if (saved) {
+          cloudReloadPending.current = true;
+          setTimetableData(JSON.parse(saved));
+        }
       } catch {}
     };
     window.addEventListener('cloud-sync-complete', reloadTimetable);

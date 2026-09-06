@@ -113,26 +113,29 @@ function AppInner() {
   });
 
   useEffect(() => {
-    const value = JSON.stringify(classTeachers);
-    const previous = localStorage.getItem('sms_class_teachers');
-    localStorage.setItem('sms_class_teachers', value);
-    if (previous !== null && previous !== value) localStorage.setItem('sms_class_teachers_ts', String(Date.now()));
-    if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncRoleAssignmentsToCloud(classTeachers, teachingAssignments),400); return()=>clearTimeout(t); }
-  }, [classTeachers]);
+    const classTeachersValue = JSON.stringify(classTeachers);
+    const teachingAssignmentsValue = JSON.stringify(teachingAssignments);
+    const previousClassTeachers = localStorage.getItem('sms_class_teachers');
+    const previousTeachingAssignments = localStorage.getItem('sms_teaching_assignments');
+    localStorage.setItem('sms_class_teachers', classTeachersValue);
+    localStorage.setItem('sms_teaching_assignments', teachingAssignmentsValue);
+    const classTeachersChanged = previousClassTeachers !== null && previousClassTeachers !== classTeachersValue;
+    const teachingAssignmentsChanged = previousTeachingAssignments !== null && previousTeachingAssignments !== teachingAssignmentsValue;
+    if (classTeachersChanged) localStorage.setItem('sms_class_teachers_ts', String(Date.now()));
+    if (teachingAssignmentsChanged) localStorage.setItem('sms_teaching_assignments_ts', String(Date.now()));
+    if (cloud.isCloudMode() && (classTeachersChanged || teachingAssignmentsChanged)) {
+      const t=setTimeout(()=>cloud.syncRoleAssignmentsToCloud(classTeachers, teachingAssignments),400);
+      return()=>clearTimeout(t);
+    }
+  }, [classTeachers, teachingAssignments]);
   useEffect(() => {
     const value = JSON.stringify(students);
     const previous = localStorage.getItem('sms_students');
     localStorage.setItem('sms_students', value);
-    if (previous !== null && previous !== value) localStorage.setItem('sms_students_ts', String(Date.now()));
-    if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); }
+    const changed = previous !== null && previous !== value;
+    if (changed) localStorage.setItem('sms_students_ts', String(Date.now()));
+    if (cloud.isCloudMode() && changed) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); }
   }, [students]);
-  useEffect(() => {
-    const value = JSON.stringify(teachingAssignments);
-    const previous = localStorage.getItem('sms_teaching_assignments');
-    localStorage.setItem('sms_teaching_assignments', value);
-    if (previous !== null && previous !== value) localStorage.setItem('sms_teaching_assignments_ts', String(Date.now()));
-    if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncRoleAssignmentsToCloud(classTeachers, teachingAssignments),400); return()=>clearTimeout(t); }
-  }, [teachingAssignments]);
 
   const addTeachingAssignment = (teacherId: string, cls: string, sub: string) => {
     if (!cls || !sub) return;
@@ -291,9 +294,11 @@ function AppInner() {
     try { return JSON.parse(localStorage.getItem('sms_exams') || '[]'); } catch { return []; }
   });
   useEffect(() => {
-    localStorage.setItem('sms_exams', JSON.stringify(exams));
+    const value = JSON.stringify(exams);
+    const previous = localStorage.getItem('sms_exams');
+    localStorage.setItem('sms_exams', value);
     localStorage.setItem('sms_exams_ts', String(Date.now()));
-    if (cloud.isCloudMode()) {
+    if (cloud.isCloudMode() && previous !== null && previous !== value) {
       const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
       return () => clearTimeout(t);
     }
@@ -533,20 +538,24 @@ function AppInner() {
     } catch { return {}; }
   });
   useEffect(() => { 
-    localStorage.setItem('sms_school_subjects', JSON.stringify(schoolSubjects));
-    if (cloud.isCloudMode()) {
+    const value = JSON.stringify(schoolSubjects);
+    const previous = localStorage.getItem('sms_school_subjects');
+    localStorage.setItem('sms_school_subjects', value);
+    if (cloud.isCloudMode() && previous !== null && previous !== value) {
       const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
       return () => clearTimeout(t);
     }
   }, [schoolSubjects]);
   useEffect(() => {
-    localStorage.setItem('sms_subject_codes', JSON.stringify(schoolSubjectCodes));
+    const value = JSON.stringify(schoolSubjectCodes);
+    const previous = localStorage.getItem('sms_subject_codes');
+    localStorage.setItem('sms_subject_codes', value);
     // sync to timetable shared
     try {
       const mapped = schoolSubjects.map(name => ({ name, code: schoolSubjectCodes[name] || name.substring(0,4).toUpperCase().replace(' ','') }));
       localStorage.setItem('tt_shared_subjects_codes', JSON.stringify(mapped));
     } catch {}
-    if (cloud.isCloudMode()) {
+    if (cloud.isCloudMode() && previous !== null && previous !== value) {
       const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
       return () => clearTimeout(t);
     }
@@ -810,10 +819,12 @@ function AppInner() {
       .finally(() => setSchoolClassesReady(true));
   }, []);
   useEffect(() => {
-    localStorage.setItem('sms_school_classes', JSON.stringify(schoolClasses));
-    localStorage.setItem('tt_shared_classes', JSON.stringify(schoolClasses));
+    const value = JSON.stringify(schoolClasses);
+    const previous = localStorage.getItem('sms_school_classes');
+    localStorage.setItem('sms_school_classes', value);
+    localStorage.setItem('tt_shared_classes', value);
     // ✅ FIX: sync classes to Supabase immediately so admin changes appear for teachers
-    if (cloud.isCloudMode() && schoolClassesReady) {
+    if (cloud.isCloudMode() && schoolClassesReady && previous !== null && previous !== value) {
       // debounced very short - fire and forget
       const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
       return () => clearTimeout(t);
@@ -938,7 +949,7 @@ function AppInner() {
     { id: 'exams', label: 'Exam Management', icon: '📝' },
     { id: 'results', label: 'Results & Approval', icon: '📈' },
     { id: 'duty', label: 'Duty Reports', icon: '📅' },
-    { id: 'timetable', label: 'Timetable System', icon: '🗓️' },
+    { id: 'timetable', label: 'Timetable Schedule', icon: '🗓️' },
     { id: 'messages', label: 'Messages to Parents', icon: '✉️' },
     { id: 'settings', label: 'School Settings', icon: '⚙️' },
   ];
@@ -1983,7 +1994,6 @@ function AppInner() {
               const ttSlots = JSON.parse(localStorage.getItem('tt_timeSlots') || '[]');
               const ttSubjects = JSON.parse(localStorage.getItem('tt_subjects') || '[]');
               const ttClasses = JSON.parse(localStorage.getItem('tt_classes') || '[]');
-              const ttRooms = JSON.parse(localStorage.getItem('tt_rooms') || '[]');
               if (!ttData?.schedule) return null;
 
               // Find all periods for this teacher
@@ -2043,8 +2053,7 @@ function AppInner() {
                         ? `${sub?.code || sub?.name?.substring(0, 4) || ''}/${secondSub.code || secondSub.name?.substring(0, 4) || ''}`
                         : (sub?.code || sub?.name || '');
                       const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
-                      const room = ttRooms.find((r: any) => r.id === found.cell.roomId);
-                      pw.document.write(`<td style="font-weight:bold;background:#e8f5e9"><strong>${subjectDisplay}</strong><br/>${cls?.name || ''}<br/><span style="font-size:9px">${room?.name || ''}</span></td>`);
+                      pw.document.write(`<td style="font-weight:bold;background:#e8f5e9"><strong>${subjectDisplay}</strong><br/><span style="font-size:9px">${cls?.name || ''}</span></td>`);
                     } else {
                       pw.document.write(`<td style="color:#ccc">—</td>`);
                     }
@@ -2096,12 +2105,10 @@ function AppInner() {
                                   ? `${sub?.code || sub?.name?.substring(0, 4) || ''}/${secondSub.code || secondSub.name?.substring(0, 4) || ''}`
                                   : (sub?.code || sub?.name?.substring(0, 4) || '');
                                 const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
-                                const room = ttRooms.find((r: any) => r.id === found.cell.roomId);
                                 return (
                                   <td key={d} className="border border-slate-300 p-1 text-center bg-indigo-50">
                                     <div className="font-bold text-indigo-800">{subjectDisplay}</div>
                                     <div className="text-[10px] text-slate-600">{cls?.name}</div>
-                                    <div className="text-[9px] text-slate-400">{room?.name}</div>
                                   </td>
                                 );
                               })}
