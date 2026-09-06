@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { Subject, Teacher, Room, SchoolClass, ClassSubject, TimeSlot, DayOfWeek, TimetableData, Conflict } from '../types';
 import { DEFAULT_DAYS, DEFAULT_TIME_SLOTS, DEFAULT_SUBJECTS, DEFAULT_ROOMS, DEFAULT_TEACHERS, DEFAULT_CLASSES, DEFAULT_CLASS_SUBJECTS } from '../utils/dummyData';
 import { generateSchoolTimetable, validateSchedule } from '../utils/scheduler';
@@ -198,6 +198,9 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const timetableSyncInFlight = useRef(false);
+  const cloudReloadPending = useRef(false);
+  const lastSyncedTimetableValue = useRef(JSON.stringify(timetableData));
 
   const [schoolLogo, setSchoolLogoState] = useState<string | null>(() => {
     return localStorage.getItem('tt_schoolLogo');
@@ -231,9 +234,24 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
   useEffect(() => { localStorage.setItem('tt_timeSlots', JSON.stringify(timeSlots)); }, [timeSlots]);
   useEffect(() => { localStorage.setItem('tt_days', JSON.stringify(days)); }, [days]);
   useEffect(() => {
-    localStorage.setItem('tt_timetableData', JSON.stringify(timetableData));
+    const serializedTimetable = JSON.stringify(timetableData);
+    localStorage.setItem('tt_timetableData', serializedTimetable);
     localStorage.setItem('tt_timetableData_ts', String(Date.now()));
-    if (cloud.isCloudMode() && timetableData) cloud.syncToCloud().catch(() => {});
+    if (cloudReloadPending.current) {
+      cloudReloadPending.current = false;
+      lastSyncedTimetableValue.current = serializedTimetable;
+    } else if (
+      cloud.isCloudMode() &&
+      timetableData &&
+      serializedTimetable !== lastSyncedTimetableValue.current &&
+      !timetableSyncInFlight.current
+    ) {
+      timetableSyncInFlight.current = true;
+      cloud.syncToCloud()
+        .then(() => { lastSyncedTimetableValue.current = serializedTimetable; })
+        .catch(() => {})
+        .finally(() => { timetableSyncInFlight.current = false; });
+    }
     if (timetableData?.schedule) {
       const result = validateSchedule(timetableData.schedule, days, timeSlots, teachers);
       setConflicts(result.conflicts);
@@ -245,7 +263,10 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
     const reloadTimetable = () => {
       try {
         const saved = localStorage.getItem('tt_timetableData');
-        if (saved) setTimetableData(JSON.parse(saved));
+        if (saved) {
+          cloudReloadPending.current = true;
+          setTimetableData(JSON.parse(saved));
+        }
       } catch {}
     };
     window.addEventListener('cloud-sync-complete', reloadTimetable);

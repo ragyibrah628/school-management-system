@@ -435,6 +435,7 @@ export async function syncRoleAssignmentsToCloud(classTeachers: unknown, teachin
 }
 
 let syncToCloudPromise: Promise<void> | null = null;
+const lastSyncedAppDataValues = new Map<string, string>();
 
 export function syncToCloud(): Promise<void> {
   if (!IS_CLOUD) return Promise.resolve();
@@ -442,12 +443,14 @@ export function syncToCloud(): Promise<void> {
   syncToCloudPromise = (async () => {
     for (const key of SYNC_KEYS) {
       const value = localStorage.getItem(key);
-      if (value) {
+      if (value && lastSyncedAppDataValues.get(key) !== value) {
         try {
           await supabaseRequest('app_data', 'POST', { key, value, updated_at: new Date().toISOString() }, undefined, true);
+          lastSyncedAppDataValues.set(key, value);
         } catch {
           try {
             await supabaseRequest('app_data', 'PATCH', { value, updated_at: new Date().toISOString() }, `?key=eq.${encodeURIComponent(key)}`);
+            lastSyncedAppDataValues.set(key, value);
           } catch (e) { console.error('Sync to cloud failed for', key, e); }
         }
       }
