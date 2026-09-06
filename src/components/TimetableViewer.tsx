@@ -739,8 +739,6 @@ export const TimetableViewer: React.FC = () => {
                                 const cell = getCellData(d, p.id, t.id, 'all_teachers');
                                 if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
                                 const sub = subjects.find(s => s.id === cell.subjectId);
-                                const cls = classes.find(c => c.id === cell.classId);
-                                const displaySubject = getCellSubjectDisplay(cell, subjects);
                                 const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, 'teacher', classes);
                                 return (
                                   <td key={d} className={`p-1 border-r border-slate-100 font-medium ${sub?.color.split(' ')[0] || 'bg-slate-100'}`}>
@@ -750,7 +748,6 @@ export const TimetableViewer: React.FC = () => {
                                         <div className="text-[10px] text-slate-500 truncate">{line.teacher}</div>
                                       </div>
                                     ))}
-                                    <div className="text-[10px] text-slate-500 truncate">{cls?.name || 'Class'}</div>
                                   </td>
                                 );
                               })}
