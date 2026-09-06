@@ -116,22 +116,25 @@ function AppInner() {
     const value = JSON.stringify(classTeachers);
     const previous = localStorage.getItem('sms_class_teachers');
     localStorage.setItem('sms_class_teachers', value);
-    if (previous !== null && previous !== value) localStorage.setItem('sms_class_teachers_ts', String(Date.now()));
-    if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncRoleAssignmentsToCloud(classTeachers, teachingAssignments),400); return()=>clearTimeout(t); }
+    const changed = previous !== null && previous !== value;
+    if (changed) localStorage.setItem('sms_class_teachers_ts', String(Date.now()));
+    if (cloud.isCloudMode() && changed) { const t=setTimeout(()=>cloud.syncRoleAssignmentsToCloud(classTeachers, teachingAssignments),400); return()=>clearTimeout(t); }
   }, [classTeachers]);
   useEffect(() => {
     const value = JSON.stringify(students);
     const previous = localStorage.getItem('sms_students');
     localStorage.setItem('sms_students', value);
-    if (previous !== null && previous !== value) localStorage.setItem('sms_students_ts', String(Date.now()));
-    if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); }
+    const changed = previous !== null && previous !== value;
+    if (changed) localStorage.setItem('sms_students_ts', String(Date.now()));
+    if (cloud.isCloudMode() && changed) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); }
   }, [students]);
   useEffect(() => {
     const value = JSON.stringify(teachingAssignments);
     const previous = localStorage.getItem('sms_teaching_assignments');
     localStorage.setItem('sms_teaching_assignments', value);
-    if (previous !== null && previous !== value) localStorage.setItem('sms_teaching_assignments_ts', String(Date.now()));
-    if (cloud.isCloudMode()) { const t=setTimeout(()=>cloud.syncRoleAssignmentsToCloud(classTeachers, teachingAssignments),400); return()=>clearTimeout(t); }
+    const changed = previous !== null && previous !== value;
+    if (changed) localStorage.setItem('sms_teaching_assignments_ts', String(Date.now()));
+    if (cloud.isCloudMode() && changed) { const t=setTimeout(()=>cloud.syncRoleAssignmentsToCloud(classTeachers, teachingAssignments),400); return()=>clearTimeout(t); }
   }, [teachingAssignments]);
 
   const addTeachingAssignment = (teacherId: string, cls: string, sub: string) => {
@@ -291,9 +294,11 @@ function AppInner() {
     try { return JSON.parse(localStorage.getItem('sms_exams') || '[]'); } catch { return []; }
   });
   useEffect(() => {
-    localStorage.setItem('sms_exams', JSON.stringify(exams));
+    const value = JSON.stringify(exams);
+    const previous = localStorage.getItem('sms_exams');
+    localStorage.setItem('sms_exams', value);
     localStorage.setItem('sms_exams_ts', String(Date.now()));
-    if (cloud.isCloudMode()) {
+    if (cloud.isCloudMode() && previous !== null && previous !== value) {
       const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
       return () => clearTimeout(t);
     }
@@ -533,20 +538,24 @@ function AppInner() {
     } catch { return {}; }
   });
   useEffect(() => { 
-    localStorage.setItem('sms_school_subjects', JSON.stringify(schoolSubjects));
-    if (cloud.isCloudMode()) {
+    const value = JSON.stringify(schoolSubjects);
+    const previous = localStorage.getItem('sms_school_subjects');
+    localStorage.setItem('sms_school_subjects', value);
+    if (cloud.isCloudMode() && previous !== null && previous !== value) {
       const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
       return () => clearTimeout(t);
     }
   }, [schoolSubjects]);
   useEffect(() => {
-    localStorage.setItem('sms_subject_codes', JSON.stringify(schoolSubjectCodes));
+    const value = JSON.stringify(schoolSubjectCodes);
+    const previous = localStorage.getItem('sms_subject_codes');
+    localStorage.setItem('sms_subject_codes', value);
     // sync to timetable shared
     try {
       const mapped = schoolSubjects.map(name => ({ name, code: schoolSubjectCodes[name] || name.substring(0,4).toUpperCase().replace(' ','') }));
       localStorage.setItem('tt_shared_subjects_codes', JSON.stringify(mapped));
     } catch {}
-    if (cloud.isCloudMode()) {
+    if (cloud.isCloudMode() && previous !== null && previous !== value) {
       const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
       return () => clearTimeout(t);
     }
@@ -810,10 +819,12 @@ function AppInner() {
       .finally(() => setSchoolClassesReady(true));
   }, []);
   useEffect(() => {
-    localStorage.setItem('sms_school_classes', JSON.stringify(schoolClasses));
-    localStorage.setItem('tt_shared_classes', JSON.stringify(schoolClasses));
+    const value = JSON.stringify(schoolClasses);
+    const previous = localStorage.getItem('sms_school_classes');
+    localStorage.setItem('sms_school_classes', value);
+    localStorage.setItem('tt_shared_classes', value);
     // ✅ FIX: sync classes to Supabase immediately so admin changes appear for teachers
-    if (cloud.isCloudMode() && schoolClassesReady) {
+    if (cloud.isCloudMode() && schoolClassesReady && previous !== null && previous !== value) {
       // debounced very short - fire and forget
       const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
       return () => clearTimeout(t);
