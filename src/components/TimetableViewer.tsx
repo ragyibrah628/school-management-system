@@ -3,7 +3,7 @@ import { useTimetable } from '../context/TimetableContext';
 import { DayOfWeek, TimetableCell } from '../types';
 import { 
   Printer, Grid, 
-  AlertTriangle, X, Trash2, Plus 
+  AlertTriangle, X, Trash2, Plus, Play, RefreshCw
 } from 'lucide-react';
 
 const NAMBAWALA_SLOTS: any[] = [
@@ -74,7 +74,7 @@ export const TimetableViewer: React.FC = () => {
   const { 
     timetableData, classes, teachers, subjects, rooms, timeSlots, days, conflicts, classSubjects,
     schoolLogo, schoolName,
-    removeLessonSlot, scheduleUnscheduledLesson, updateLessonSlot 
+    removeLessonSlot, scheduleUnscheduledLesson, updateLessonSlot, triggerGeneration, isGenerating
   } = useTimetable() as any;
 
   const [viewType, setViewType] = useState<'class' | 'teacher' | 'room' | 'master' | 'all_classes' | 'all_teachers'>('class');
@@ -109,10 +109,21 @@ export const TimetableViewer: React.FC = () => {
 
   if (!timetableData) {
     return (
-      <div className="bg-white p-12 rounded-2xl border border-slate-100 text-center text-slate-400 max-w-2xl mx-auto shadow-sm mt-12">
-        <Grid size={48} className="mx-auto text-slate-300 mb-4 animate-pulse" />
+      <div className="bg-white p-12 rounded-2xl border border-slate-100 text-center max-w-2xl mx-auto shadow-sm mt-12">
+        {isGenerating ? <RefreshCw size={48} className="mx-auto text-indigo-500 mb-4 animate-spin" /> : <Grid size={48} className="mx-auto text-slate-300 mb-4" />}
         <h2 className="text-xl font-bold text-slate-800 mb-2">No Timetable Generated Yet</h2>
-        <p className="text-sm text-slate-500 mb-6">Go to the Dashboard and click "Generate Timetable" to create your school's master schedule.</p>
+        <p className="text-sm text-slate-500 mb-6">Generate the master timetable using the classes, subjects, and teachers registered by the admin.</p>
+        <button
+          onClick={triggerGeneration}
+          disabled={isGenerating || classes.length === 0 || teachers.length === 0}
+          className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 text-white font-semibold shadow-lg shadow-indigo-600/20 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+        >
+          {isGenerating ? <RefreshCw size={18} className="animate-spin" /> : <Play size={18} fill="currentColor" />}
+          {isGenerating ? 'Generating Timetable...' : 'Generate Timetable'}
+        </button>
+        {(classes.length === 0 || teachers.length === 0) && !isGenerating && (
+          <p className="text-xs text-amber-600 mt-4">Register at least one class and one teacher before generating.</p>
+        )}
       </div>
     );
   }
