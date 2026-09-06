@@ -175,7 +175,6 @@ function AppInner() {
   };
 
   const [newStudentName, setNewStudentName] = useState('');
-  const [newStudentPhone, setNewStudentPhone] = useState('');
   const [selectedParentExam, setSelectedParentExam] = useState('');
 
   // Messaging system
@@ -435,6 +434,20 @@ function AppInner() {
     window.addEventListener('focus', onFocus);
     return () => { clearInterval(timer); clearInterval(pollTimer); window.removeEventListener('focus', onFocus); };
   }, []);
+
+  // Scores are the only cross-device data that must appear promptly for admins.
+  useEffect(() => {
+    if (!cloud.isCloudMode() || user?.role !== 'admin') return;
+    let active = true;
+    const refreshScores = async () => {
+      const freshScores = await cloud.getScores().catch(() => null);
+      if (active && Array.isArray(freshScores)) setScores(freshScores);
+    };
+    refreshScores();
+    const timer = setInterval(refreshScores, 30000);
+    const unsubscribe = cloud.subscribeToScoreChanges(refreshScores);
+    return () => { active = false; clearInterval(timer); unsubscribe(); };
+  }, [user?.role]);
 
   // Score entry state for exam mode
   const [selectedExam, setSelectedExam] = useState<any>(null);
@@ -950,7 +963,6 @@ function AppInner() {
     { id: 'results', label: 'Results & Approval', icon: '📈' },
     { id: 'duty', label: 'Duty Reports', icon: '📅' },
     { id: 'timetable', label: 'Timetable Schedule', icon: '🗓️' },
-    { id: 'messages', label: 'Messages to Parents', icon: '✉️' },
     { id: 'settings', label: 'School Settings', icon: '⚙️' },
   ];
 
@@ -960,7 +972,6 @@ function AppInner() {
     { id: 'my_timetable', label: 'My Timetable', icon: '🗓️' },
     ...(myClass ? [{ id: 'students', label: `Register Students (${myClass})`, icon: '📝' }] : []),
     ...(myClass ? [{ id: 'behavior', label: 'Behavior Assessment', icon: '📋' }] : []),
-    ...(myClass ? [{ id: 'messages', label: 'Message Parents', icon: '✉️' }] : []),
     { id: 'exams', label: 'Exams & Scores', icon: '📊' },
     { id: 'duty', label: 'Duty Report', icon: '📅' },
     { id: 'settings', label: 'My Account', icon: '⚙️' },
@@ -1882,52 +1893,6 @@ function AppInner() {
           </div>
           )}
 
-          {/* Messages to Parents - Admin */}
-          {activeMenu === 'messages' && (
-            <div className="bg-white p-6 rounded-2xl border space-y-4">
-              <h2 className="font-bold text-lg">✉️ Send Message to Parents</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Send To</label>
-                  <select value={msgTarget} onChange={e => setMsgTarget(e.target.value)} className="w-full border px-3 py-2.5 rounded-xl">
-                    <option value="all">All Parents (Whole School)</option>
-                    {[...new Set(CLASSES.map(c => c.replace(/\s*[A-C]$/, '')))].map(form => (
-                      <option key={form} value={form}>{form} (All Streams)</option>
-                    ))}
-                    {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Subject</label>
-                  <input value={msgSubject} onChange={e => setMsgSubject(e.target.value)} placeholder="e.g. Parents Meeting Notice" className="w-full border px-3 py-2.5 rounded-xl" />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Message</label>
-                <textarea value={msgText} onChange={e => setMsgText(e.target.value)} placeholder="Write your message here..." className="w-full border px-3 py-2.5 rounded-xl" rows={4} />
-              </div>
-              <button onClick={() => sendMessage(`Uongozi wa Shule, ${schoolNameSetting}`)} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-semibold">Send Message</button>
-
-              <div className="border-t pt-4 mt-4">
-                <h3 className="font-bold text-sm mb-3">Sent Messages ({messages.length})</h3>
-                {messages.length === 0 ? <p className="text-sm text-slate-500">No messages sent yet.</p> :
-                  messages.map((m: any) => (
-                    <div key={m.id} className="border rounded-xl p-3 mb-2">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-bold text-sm">{m.subject}</p>
-                          <p className="text-xs text-slate-500">To: {m.target === 'all' ? 'All Parents' : m.target} | {m.targetPhones?.length} recipients | {new Date(m.date).toLocaleDateString()}</p>
-                        </div>
-                        <span className="text-xs text-slate-400">{m.sender}</span>
-                      </div>
-                      <p className="text-sm text-slate-700 mt-2">{m.text}</p>
-                    </div>
-                  ))
-                }
-              </div>
-            </div>
-          )}
-
           {printReport && <DutyReportPrint report={printReport} onClose={() => setPrintReport(null)} />}
         </div>
         </div>
@@ -2130,51 +2095,16 @@ function AppInner() {
           {activeMenu === 'students' && myClass && (
             <div className="bg-white p-6 rounded-2xl border">
               <h2 className="font-bold text-lg mb-2">Register Students — {myClass}</h2>
-              <p className="text-xs text-slate-500 mb-4">Add students with parent's phone number. Parent phone is used as login username (password: Parent@123).</p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+              <p className="text-xs text-slate-500 mb-4">Register students for this class. Student records remain here until you delete them.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                 <input placeholder="Student full name" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} className="border px-3 py-2.5 rounded-xl" />
-                <input placeholder="Parent phone (07xx/06xx)" value={newStudentPhone} onChange={e => {
-                  const v = e.target.value.replace(/\D/g, '').substring(0, 10);
-                  setNewStudentPhone(v);
-                }} className="border px-3 py-2.5 rounded-xl" maxLength={10} />
                 <button onClick={async () => {
                   if (!newStudentName.trim()) { alert('Enter student name'); return; }
-                  if (!newStudentPhone || newStudentPhone.length !== 10 || (!newStudentPhone.startsWith('07') && !newStudentPhone.startsWith('06'))) {
-                    alert('Parent phone must be 10 digits starting with 07 or 06'); return;
-                  }
-                  // Add student
-                  setStudents(prev => ({ ...prev, [myClass]: [...(prev[myClass] || []), { name: newStudentName.trim(), subjects: [...ALL_SUBJECTS], phone: newStudentPhone }] }));
-                  // Auto-create parent account if not exists
-                  const allUsers = await cloud.getUsers();
-                  if (!allUsers.some((u: any) => u.username === newStudentPhone)) {
-                    await cloud.createUser({
-                      id: 'p-' + Date.now(),
-                      name: `Parent of ${newStudentName.trim()}`,
-                      username: newStudentPhone,
-                      password: 'Parent@123',
-                      role: 'parent',
-                      subjects: [],
-                      studentName: newStudentName.trim(),
-                      studentClass: myClass
-                    });
-                  }
-                  // Send welcome message to parent
-                  const sName = localStorage.getItem('sms_school_name_setting') || 'Nambawala Secondary School';
-                  setMessages(prev => [{
-                    id: 'msg-welcome-' + Date.now(),
-                    subject: 'Karibu kwenye Mfumo wa Shule',
-                    text: `Habari Mzazi wa ${newStudentName.trim()},\n\nAkaunti yako imefunguliwa kikamilifu. Sasa unaweza kuangalia matokeo ya mtoto wako kwa urahisi kupitia mfumo wetu.\n\nHapa ndipo tutakapokuwa tunakupa taarifa (updates) za mara kwa mara kuhusu programu mbalimbali za shule, matukio muhimu, na maendeleo ya kitaaluma ya mtoto wako.\n\nKaribu sana, na tunashukuru kwa ushirikiano wako.`,
-                    sender: `Uongozi wa Shule, ${sName}`,
-                    target: myClass,
-                    targetPhones: [newStudentPhone],
-                    date: new Date().toISOString(),
-                    readBy: []
-                  }, ...prev]);
+                  setStudents(prev => ({ ...prev, [myClass]: [...(prev[myClass] || []), { name: newStudentName.trim(), subjects: [...ALL_SUBJECTS] }] }));
 
                   await loadData();
                   setNewStudentName('');
-                  setNewStudentPhone('');
-                  alert(`Student added! Parent account created: ${newStudentPhone} / Parent@123`);
+                  alert('Student added. The record remains until you delete it.');
                 }} className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-semibold">Add Student</button>
               </div>
               <div>
@@ -2186,16 +2116,8 @@ function AppInner() {
                         <div className="flex justify-between items-center mb-2">
                           <div>
                             <span className="font-semibold text-sm">{i + 1}. {s.name}</span>
-                            {s.phone && <span className="text-xs text-slate-400 ml-2">📱 {s.phone}</span>}
                           </div>
                           <div className="flex gap-1">
-                            {s.phone && <button onClick={async () => {
-                              const updatedUsers = users.map((u: any) => u.username === s.phone ? { ...u, password: 'Parent@123' } : u);
-                              localStorage.setItem('sms_users', JSON.stringify(updatedUsers));
-                              setUsers(updatedUsers);
-                              try { if (cloud.isCloudMode()) { const pu = updatedUsers.find((u: any) => u.username === s.phone); if (pu) { await cloud.deleteUser(pu.id); await cloud.createUser(pu); }}} catch {}
-                              alert(`Parent password reset to Parent@123 for ${s.phone}`);
-                            }} className="text-amber-600 text-[10px] font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">🔑 Reset Parent</button>}
                             <button onClick={() => removeStudent(myClass, s.name)} className="text-red-500 text-xs font-bold hover:text-red-700">✕</button>
                           </div>
                         </div>
@@ -2241,22 +2163,6 @@ function AppInner() {
                 </div>
               }
               <p className="text-xs text-emerald-600 mt-3 font-semibold">✅ Changes saved automatically</p>
-            </div>
-          )}
-
-          {/* Messages to Parents - Class Teacher */}
-          {activeMenu === 'messages' && myClass && (
-            <div className="bg-white p-6 rounded-2xl border space-y-4">
-              <h2 className="font-bold text-lg">✉️ Send Message to Parents — {myClass}</h2>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Subject</label>
-                <input value={msgSubject} onChange={e => setMsgSubject(e.target.value)} placeholder="e.g. Class Meeting" className="w-full border px-3 py-2.5 rounded-xl" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Message</label>
-                <textarea value={msgText} onChange={e => setMsgText(e.target.value)} placeholder="Write your message..." className="w-full border px-3 py-2.5 rounded-xl" rows={4} />
-              </div>
-              <button onClick={() => { setMsgTarget(myClass || ''); sendMessage(`Uongozi wa Shule, ${localStorage.getItem('sms_school_name_setting') || ''}`); }} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-semibold">Send to {myClass} Parents</button>
             </div>
           )}
 

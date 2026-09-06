@@ -2,10 +2,12 @@
 // Cloud database using Supabase REST API (no library import needed)
 // Falls back to localStorage if Supabase is not configured
 // ✅ FIXED VERSION — paste this over src/lib/cloud.ts
+import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const IS_CLOUD = !!(SUPABASE_URL && SUPABASE_KEY && SUPABASE_URL.startsWith('https://'));
+const realtimeClient = IS_CLOUD ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 const LEGACY_DEFAULT_CLASSES = ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
 const GET_CACHE_TTL_MS = 30000;
 const getCache = new Map<string, { expiresAt: number; data: any }>();
@@ -13,6 +15,15 @@ const getInFlight = new Map<string, Promise<any>>();
 
 export function isCloudMode() {
   return IS_CLOUD;
+}
+
+export function subscribeToScoreChanges(onChange: () => void): () => void {
+  if (!realtimeClient) return () => {};
+  const channel = realtimeClient
+    .channel('scores-live-updates')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, onChange)
+    .subscribe();
+  return () => { realtimeClient.removeChannel(channel); };
 }
 export function isOperaMini(): boolean {
   try {
@@ -162,7 +173,13 @@ export async function deleteUser(id: string) {
 export async function getScores(): Promise<any[]> {
   if (IS_CLOUD) {
     try {
-      const data = await supabaseRequest('scores', 'GET', undefined, '?select=id,teacher_name,teacher_id,student_name,class_name,subject,term,score,max_score,exam_name,exam_id,created_at&order=created_at.desc&limit=5000');
+      let data: any[];
+      try {
+        data = await supabaseRequest('scores', 'GET', undefined, '?select=id,teacher_name,teacher_id,student_name,class_name,subject,term,score,max_score,exam_name,exam_id,created_at&order=created_at.desc&limit=5000');
+      } catch (error: any) {
+        if (!String(error?.message || error).includes('teacher_id')) throw error;
+        data = await supabaseRequest('scores', 'GET', undefined, '?select=id,teacher_name,student_name,class_name,subject,term,score,max_score,exam_name,exam_id,created_at&order=created_at.desc&limit=5000');
+      }
       if (Array.isArray(data)) {
         if (data.length > 0) return data;
         // Keep locally queued scores when the cloud has no rows yet.
