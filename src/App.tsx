@@ -949,7 +949,7 @@ function AppInner() {
     { id: 'exams', label: 'Exam Management', icon: '📝' },
     { id: 'results', label: 'Results & Approval', icon: '📈' },
     { id: 'duty', label: 'Duty Reports', icon: '📅' },
-    { id: 'timetable', label: 'Timetable System', icon: '🗓️' },
+    { id: 'timetable', label: 'Timetable Schedule', icon: '🗓️' },
     { id: 'messages', label: 'Messages to Parents', icon: '✉️' },
     { id: 'settings', label: 'School Settings', icon: '⚙️' },
   ];
@@ -1994,7 +1994,6 @@ function AppInner() {
               const ttSlots = JSON.parse(localStorage.getItem('tt_timeSlots') || '[]');
               const ttSubjects = JSON.parse(localStorage.getItem('tt_subjects') || '[]');
               const ttClasses = JSON.parse(localStorage.getItem('tt_classes') || '[]');
-              const ttRooms = JSON.parse(localStorage.getItem('tt_rooms') || '[]');
               if (!ttData?.schedule) return null;
 
               // Find all periods for this teacher
@@ -2054,8 +2053,7 @@ function AppInner() {
                         ? `${sub?.code || sub?.name?.substring(0, 4) || ''}/${secondSub.code || secondSub.name?.substring(0, 4) || ''}`
                         : (sub?.code || sub?.name || '');
                       const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
-                      const room = ttRooms.find((r: any) => r.id === found.cell.roomId);
-                      pw.document.write(`<td style="font-weight:bold;background:#e8f5e9"><strong>${subjectDisplay}</strong><br/>${cls?.name || ''}<br/><span style="font-size:9px">${room?.name || ''}</span></td>`);
+                      pw.document.write(`<td style="font-weight:bold;background:#e8f5e9"><strong>${subjectDisplay}</strong><br/><span style="font-size:9px">${cls?.name || ''}</span></td>`);
                     } else {
                       pw.document.write(`<td style="color:#ccc">—</td>`);
                     }
@@ -2107,12 +2105,10 @@ function AppInner() {
                                   ? `${sub?.code || sub?.name?.substring(0, 4) || ''}/${secondSub.code || secondSub.name?.substring(0, 4) || ''}`
                                   : (sub?.code || sub?.name?.substring(0, 4) || '');
                                 const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
-                                const room = ttRooms.find((r: any) => r.id === found.cell.roomId);
                                 return (
                                   <td key={d} className="border border-slate-300 p-1 text-center bg-indigo-50">
                                     <div className="font-bold text-indigo-800">{subjectDisplay}</div>
                                     <div className="text-[10px] text-slate-600">{cls?.name}</div>
-                                    <div className="text-[9px] text-slate-400">{room?.name}</div>
                                   </td>
                                 );
                               })}
