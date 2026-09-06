@@ -152,7 +152,6 @@ export const TimetableViewer: React.FC = () => {
         .subteacher { font-weight:600; font-size:11px; color:#334155; margin-top:2px; }
         .breakCell { background:#fff7ed; color:#9a3412; font-weight:800; font-size:10px; }
         .dayCol { background:#f8fafc; font-weight:900; font-size:12px; }
-        .footer { text-align:center; margin-top:12px; font-size:9px; color:#64748b; border-top:1px solid #cbd5e1; padding-top:6px; font-style:italic; }
         @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } a { text-decoration:none !important; color:inherit !important; } }
       </style></head><body>`;
       html += `<div class="header">`;
@@ -229,7 +228,6 @@ export const TimetableViewer: React.FC = () => {
         html += `</tr>`;
       }
       html += `</tbody></table>`;
-      html += `<div class="footer">${sName}: Honor All Build Together</div>`;
       html += `</body></html>`;
       pw.document.write(html);
       pw.document.close();

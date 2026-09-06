@@ -221,7 +221,7 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
   });
   
   const [schoolName, setSchoolNameState] = useState<string>(() => {
-    return localStorage.getItem('sms_school_name_setting') || localStorage.getItem('tt_schoolName') || 'Springfield Secondary School';
+    return localStorage.getItem('sms_school_name_setting') || localStorage.getItem('tt_schoolName') || 'NAMBAWALA SECONDARY SCHOOL';
   });
 
   const setSchoolLogo = (logo: string | null) => {
