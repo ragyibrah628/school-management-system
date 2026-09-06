@@ -3,19 +3,19 @@ import { Subject, Teacher, Room, SchoolClass, ClassSubject, TimeSlot, DayOfWeek 
 export const DEFAULT_DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
 export const DEFAULT_TIME_SLOTS: TimeSlot[] = [
-  // ✅ NAMBWALA SECONDARY - 40 min per period, Break 10:40-11:10, Lunch 14:30-15:30, Activity 15:30-17:30
+  // NAMBWALA SECONDARY - 40 min single periods, 80 min double periods
   { id: 'p1', name: 'Period 1', startTime: '08:00', endTime: '08:40', isBreak: false },
   { id: 'p2', name: 'Period 2', startTime: '08:40', endTime: '09:20', isBreak: false },
   { id: 'p3', name: 'Period 3', startTime: '09:20', endTime: '10:00', isBreak: false },
   { id: 'p4', name: 'Period 4', startTime: '10:00', endTime: '10:40', isBreak: false },
-  { id: 'b1', name: 'Break', startTime: '10:40', endTime: '11:10', isBreak: true },
+  { id: 'b1', name: 'Morning Break', startTime: '10:40', endTime: '11:10', isBreak: true },
   { id: 'p5', name: 'Period 5', startTime: '11:10', endTime: '11:50', isBreak: false },
   { id: 'p6', name: 'Period 6', startTime: '11:50', endTime: '12:30', isBreak: false },
   { id: 'p7', name: 'Period 7', startTime: '12:30', endTime: '13:10', isBreak: false },
   { id: 'p8', name: 'Period 8', startTime: '13:10', endTime: '13:50', isBreak: false },
   { id: 'p9', name: 'Period 9', startTime: '13:50', endTime: '14:30', isBreak: false },
   { id: 'lunch', name: 'Lunch', startTime: '14:30', endTime: '15:30', isBreak: true },
-  { id: 'act', name: 'Activity', startTime: '15:30', endTime: '17:30', isBreak: false },
+  { id: 'act', name: 'Activity', startTime: '15:30', endTime: '17:30', isBreak: false, isActivity: true } as TimeSlot,
 ];
 
 export const DEFAULT_SUBJECTS: Subject[] = [

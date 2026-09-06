@@ -361,9 +361,7 @@ function AppInner() {
   const [, setTick] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => setTick(t => t + 1), 60000);
-    // Sync to cloud every 2 minutes (keep for safety)
-    const syncTimer = setInterval(() => { cloud.syncToCloud(); }, 120000);
-    // Poll cloud every 15s for new exams / scores / madarasa / class teacher / students — device nyingine inaona
+    // Poll cloud for cross-device changes without repeatedly rewriting all app_data keys.
     const pollTimer = setInterval(async () => {
       if (cloud.isCloudMode()) {
         await cloud.syncFromCloud();
@@ -405,7 +403,7 @@ function AppInner() {
         } catch {}
         await loadData();
       }
-    }, 8000);
+    }, 60000);
     const onFocus = async () => {
       if (cloud.isCloudMode()) {
         await cloud.syncFromCloud();
@@ -429,29 +427,8 @@ function AppInner() {
         await loadData();
       }
     };
-    const onSync = async () => {
-      await refreshRoleAssignments();
-      try {
-          const fe = JSON.parse(localStorage.getItem('sms_exams') || '[]');
-          setExams((prev:any) => (Array.isArray(fe) && fe.length===0 && Array.isArray(prev) && prev.length>0) ? prev : fe);
-        } catch {}
-      try { setClassTeachers(JSON.parse(localStorage.getItem('sms_class_teachers') || '{}')); } catch {}
-      try { setStudents(JSON.parse(localStorage.getItem('sms_students') || '{}')); } catch {}
-      try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
-      try {
-        const fc = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
-        const ts = localStorage.getItem('sms_school_classes_ts');
-        const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
-        if (isRecent) {
-          // keep local
-        } else if (Array.isArray(fc) && fc.length) setSchoolClasses((prev:any) => JSON.stringify(prev) !== JSON.stringify(fc) ? fc : prev);
-        else if (Array.isArray(fc) && fc.length === 0) setSchoolClasses([]);
-      } catch {}
-      await loadData();
-    };
     window.addEventListener('focus', onFocus);
-    window.addEventListener('cloud-sync-complete', onSync);
-    return () => { clearInterval(timer); clearInterval(syncTimer); clearInterval(pollTimer); window.removeEventListener('focus', onFocus); window.removeEventListener('cloud-sync-complete', onSync); };
+    return () => { clearInterval(timer); clearInterval(pollTimer); window.removeEventListener('focus', onFocus); };
   }, []);
 
   // Score entry state for exam mode
@@ -2061,9 +2038,13 @@ function AppInner() {
                     const found = myPeriods.find(mp => mp.day === d && mp.period?.id === p.id);
                     if (found) {
                       const sub = ttSubjects.find((s: any) => s.id === found.cell.subjectId);
+                      const secondSub = ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId || s.name === found.cell.secondSubjectName);
+                      const subjectDisplay = found.cell.isCombined && secondSub
+                        ? `${sub?.code || sub?.name?.substring(0, 4) || ''}/${secondSub.code || secondSub.name?.substring(0, 4) || ''}`
+                        : (sub?.code || sub?.name || '');
                       const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
                       const room = ttRooms.find((r: any) => r.id === found.cell.roomId);
-                      pw.document.write(`<td style="font-weight:bold;background:#e8f5e9"><strong>${sub?.code || sub?.name || ''}</strong><br/>${cls?.name || ''}<br/><span style="font-size:9px">${room?.name || ''}</span></td>`);
+                      pw.document.write(`<td style="font-weight:bold;background:#e8f5e9"><strong>${subjectDisplay}</strong><br/>${cls?.name || ''}<br/><span style="font-size:9px">${room?.name || ''}</span></td>`);
                     } else {
                       pw.document.write(`<td style="color:#ccc">—</td>`);
                     }
@@ -2097,6 +2078,12 @@ function AppInner() {
                               <td colSpan={ttDays.length} className="border border-slate-300 p-1 text-center text-slate-400 text-xs italic">☕ {p.name}</td>
                             </tr>
                           );
+                          if (p.isActivity || p.id === 'act' || p.name?.trim().toLowerCase() === 'activity') return (
+                            <tr key={p.id} className="bg-indigo-50">
+                              <td className="border border-slate-300 p-1 text-xs font-bold">Activity<br/><span className="text-[10px] text-slate-400">{p.startTime}-{p.endTime}</span></td>
+                              <td colSpan={ttDays.length} className="border border-slate-300 p-1 text-center text-indigo-700 text-xs font-bold">Activity</td>
+                            </tr>
+                          );
                           return (
                             <tr key={p.id}>
                               <td className="border border-slate-300 p-1 font-bold text-xs whitespace-nowrap">{p.name}<br/><span className="text-[10px] text-slate-400">{p.startTime}-{p.endTime}</span></td>
@@ -2104,11 +2091,15 @@ function AppInner() {
                                 const found = myPeriods.find(mp => mp.day === d && mp.period?.id === p.id);
                                 if (!found) return <td key={d} className="border border-slate-300 p-1 text-center text-slate-300">—</td>;
                                 const sub = ttSubjects.find((s: any) => s.id === found.cell.subjectId);
+                                const secondSub = ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId || s.name === found.cell.secondSubjectName);
+                                const subjectDisplay = found.cell.isCombined && secondSub
+                                  ? `${sub?.code || sub?.name?.substring(0, 4) || ''}/${secondSub.code || secondSub.name?.substring(0, 4) || ''}`
+                                  : (sub?.code || sub?.name?.substring(0, 4) || '');
                                 const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
                                 const room = ttRooms.find((r: any) => r.id === found.cell.roomId);
                                 return (
                                   <td key={d} className="border border-slate-300 p-1 text-center bg-indigo-50">
-                                    <div className="font-bold text-indigo-800">{sub?.code || sub?.name?.substring(0,4) || ''}</div>
+                                    <div className="font-bold text-indigo-800">{subjectDisplay}</div>
                                     <div className="text-[10px] text-slate-600">{cls?.name}</div>
                                     <div className="text-[9px] text-slate-400">{room?.name}</div>
                                   </td>

@@ -172,8 +172,11 @@ export function AdminRegisteredStudents() {
 
   useEffect(() => {
     let mounted = true;
+    let requestInFlight = false;
     // Load classes + registered from Supabase
     const load = async () => {
+      if (requestInFlight) return;
+      requestInFlight = true;
       try {
         const [cls, reg] = await Promise.all([
           (cloud.getSchoolClassesFromCloud ? cloud.getSchoolClassesFromCloud() : Promise.resolve(getSchoolClasses())),
@@ -186,11 +189,11 @@ export function AdminRegisteredStudents() {
           localStorage.setItem('sms_registered_students', JSON.stringify(reg));
           setSyncInfo(`🔄 Synced from cloud at ${new Date().toLocaleTimeString()}`);
         }
-      } catch {}
+      } catch {} finally { requestInFlight = false; }
     };
     load();
-    // Poll classes + registered every 30s + on focus so new class appears without refresh
-    const id = setInterval(load, 30000);
+    // Poll classes + registered every 60s + on focus so new class appears without refresh
+    const id = setInterval(load, 60000);
     const onSync = () => load();
     window.addEventListener('cloud-sync-complete', onSync);
     window.addEventListener('focus', onSync);
@@ -289,7 +292,10 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
 
   useEffect(() => {
     let mounted = true;
+    let requestInFlight = false;
     const fetchAll = async () => {
+      if (requestInFlight) return;
+      requestInFlight = true;
       try {
         const [cls, reg] = await Promise.all([
           (cloud.getSchoolClassesFromCloud ? cloud.getSchoolClassesFromCloud() : Promise.resolve(getSchoolClasses())),
@@ -301,10 +307,10 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
           setRegistered(reg);
           setLastSync(new Date().toLocaleTimeString());
         }
-      } catch {}
+      } catch {} finally { requestInFlight = false; }
     };
     fetchAll();
-    const interval = setInterval(fetchAll, 30000);
+    const interval = setInterval(fetchAll, 60000);
     const onSync = () => fetchAll();
     window.addEventListener('cloud-sync-complete', onSync);
     window.addEventListener('focus', onSync);

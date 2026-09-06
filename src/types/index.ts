@@ -63,6 +63,7 @@ export interface TimeSlot {
   startTime: string; // e.g. "08:30"
   endTime: string; // e.g. "09:15"
   isBreak: boolean;
+  isActivity?: boolean;
 }
 
 export type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
