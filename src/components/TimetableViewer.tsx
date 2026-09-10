@@ -21,6 +21,7 @@ const NAMBAWALA_SLOTS: any[] = [
   { id: 'act', name: 'Activity', startTime: '15:30', endTime: '17:30', isBreak: false, isActivity: true },
 ];
 const ACTIVITY_OPTIONS = ['Debate', 'Self Reliance', 'General Cleanness', 'Sports & Games', 'Subject Clubs'];
+const isReligionSelection = (value: string) => value === 'religion' || value === 'Religion';
 const isActivitySlot = (slot: any) => Boolean(slot?.isActivity || slot?.id === 'act' || slot?.name?.trim().toLowerCase() === 'activity');
 const getConfiguredSchoolName = (fallback: string) => localStorage.getItem('sms_school_name_setting') || fallback || 'NAMBAWALA SECONDARY SCHOOL';
 const getConfiguredDistrict = () => localStorage.getItem('sms_district_name') || 'RUANGWA DISTRICT COUNCIL';
@@ -218,9 +219,11 @@ export const TimetableViewer: React.FC = () => {
             html += `<td></td>`;
           } else {
             const isPS = cell.isPS || cell.subjectId==='ps';
+            const isReligion = cell.isReligion || cell.subjectId==='religion';
             const isAct = isActivityCell(cell, p);
             let subj=''; let sub='';
             if (isPS) { subj='PS'; sub='Private Studies'; }
+            else if (isReligion) { subj='Religion'; sub=''; }
             else if (isAct) { subj=cell.activity || 'Activity'; sub=''; }
             else {
               const s = subjects.find((x:any)=>x.id===cell.subjectId);
@@ -527,11 +530,12 @@ export const TimetableViewer: React.FC = () => {
                         } else {
                           const sub = subjects.find((s:any) => s.id === cell.subjectId);
                           const isPS = (cell as any).isPS || cell.subjectId==='ps';
+                          const isReligion = (cell as any).isReligion || cell.subjectId==='religion';
                           const isAct = isActivityCell(cell, p);
                           const displaySubRaw = isAct ? (cell as any).activity || 'Activity' : getCellSubjectDisplay(cell, subjects) || (cell as any).subjectName || sub?.name || (cell.subjectId==='ps' ? 'PS' : 'SUB');
                           let displaySub = displaySubRaw;
                           try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(displaySubRaw && m[displaySubRaw]) displaySub=m[displaySubRaw]; else if(sub && m[sub.name]) displaySub=m[sub.name]; } catch{}
-                          if (!isPS && !isAct && displaySubRaw && displaySub===displaySubRaw) { try{ displaySub=displaySubRaw.substring(0,4).toUpperCase(); }catch{} }
+                          if (!isPS && !isReligion && !isAct && displaySubRaw && displaySub===displaySubRaw) { try{ displaySub=displaySubRaw.substring(0,4).toUpperCase(); }catch{} }
                           const tchr = teachers.find((teach:any) => teach.id === cell.teacherId);
                           const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, viewType, classes);
                           const isDouble = (cell as any).isDouble;
@@ -545,7 +549,7 @@ export const TimetableViewer: React.FC = () => {
                                 className={`p-2 border-r border-slate-100 align-middle text-center relative group ${viewType === 'class' ? 'cursor-pointer' : ''}`}
                               >
                                 <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center ${sub?.color || 'bg-emerald-50 border-emerald-300'} ${hasConflict ? 'ring-2 ring-red-500 animate-pulse' : 'shadow-sm'}`}>
-                                  {isPS || isAct ? <div className="font-bold text-slate-900 text-[13px] leading-tight">{displaySub}</div> : subjectTeacherLines.map((line:any) => (
+                                  {isPS || isReligion || isAct ? <div className="font-bold text-slate-900 text-[13px] leading-tight">{displaySub}</div> : subjectTeacherLines.map((line:any) => (
                                     <div key={line.code} className="leading-tight mb-0.5">
                                       <div className="font-bold text-slate-900 text-[13px]" style={{fontFamily:'Arial, sans-serif'}}>{line.code}</div>
                                       <div className="font-semibold text-slate-700 text-[10px] truncate" style={{fontFamily:'Arial, sans-serif'}}>{line.teacher}</div>
@@ -561,8 +565,8 @@ export const TimetableViewer: React.FC = () => {
                                 onClick={() => handleCellClick(d, p.id, false)}
                                 className={`p-2 border-r border-slate-100 align-middle text-center relative group ${viewType === 'class' ? 'cursor-pointer' : ''}`}
                               >
-                                <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center ${sub?.color || (isPS ? 'bg-slate-100 border-slate-300' : isAct ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200')} ${hasConflict ? 'ring-2 ring-red-500 animate-pulse' : 'shadow-sm'}`}>
-                                  {isPS || isAct ? <div className="font-bold text-slate-900 text-[13px] leading-tight">{isPS ? 'PS' : displaySub}</div> : subjectTeacherLines.map((line:any) => (
+                                <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center ${sub?.color || (isPS || isReligion ? 'bg-slate-100 border-slate-300' : isAct ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200')} ${hasConflict ? 'ring-2 ring-red-500 animate-pulse' : 'shadow-sm'}`}>
+                                  {isPS || isReligion || isAct ? <div className="font-bold text-slate-900 text-[13px] leading-tight">{isPS ? 'PS' : displaySub}</div> : subjectTeacherLines.map((line:any) => (
                                     <div key={line.code} className="leading-tight mb-0.5">
                                       <div className="font-bold text-slate-900 text-[13px]" style={{fontFamily:'Arial, sans-serif'}}>{line.code}</div>
                                       <div className="font-semibold text-slate-700 text-[10px] truncate" style={{fontFamily:'Arial, sans-serif'}}>{line.teacher}</div>
@@ -833,8 +837,10 @@ export const TimetableViewer: React.FC = () => {
                     <option value="">-- Select subject --</option>
                     {subjectOptions.map((name:string)=> <option key={name} value={name}>{name} ({getSubjectCodeTT(name)})</option>)}
                     <option value="ps">PS - Private Studies (no teacher)</option>
+                    <option value="religion">Religion (no teacher)</option>
                   </select>
                   {selectedSubject && (()=> {
+                    if (isReligionSelection(selectedSubject) || selectedSubject === 'ps') return <p className="text-xs text-slate-500 mt-1">No teacher or room required.</p>;
                     const found = findTeacherForSubjectClass(selectedSubject, classes.find((c:any)=>c.id===selectedId)?.name || '');
                     return found ? <p className="text-xs text-emerald-600 mt-1">Teacher: <b>{found.name}</b> (Teaching Assignments)</p> : <p className="text-xs text-amber-600 mt-1">No teacher assigned to teach {selectedSubject} in this class. Go to Assign Teaching Classes & Subjects.</p>;
                   })()}
@@ -845,6 +851,7 @@ export const TimetableViewer: React.FC = () => {
                     <option value="">None (single subject)</option>
                     {subjectOptions.map((name:string)=> <option key={name+'-2'} value={name}>{name} ({getSubjectCodeTT(name)})</option>)}
                     <option value="ps">PS - Private Studies</option>
+                    <option value="religion">Religion (no teacher)</option>
                   </select>
                   <p className="text-[10px] text-slate-500 mt-1">Example: Select MATH above + HIST here = cell shows <b>MATH/HIST</b> (two subjects in one period). Leave as None for single subject.</p>
                   <div className="mt-2 flex gap-2">
@@ -934,21 +941,36 @@ export const TimetableViewer: React.FC = () => {
                     }
                     // Determine if PS selected as subject (can be single or double)
                     const isPS_selected = selectedSubject==='ps' || selectedSubject==='PS - Private Studies' || selectedSubject?.toLowerCase().startsWith('ps');
-                    if (isPS_selected) {
-                      const cell: any = { subjectId: 'ps', subjectName: 'PS', teacherId: '', isPS: true, isDouble: false };
+                    const isReligion_selected = isReligionSelection(selectedSubject);
+                    if (isPS_selected || isReligion_selected) {
+                      const specialId = isReligion_selected ? 'religion' : 'ps';
+                      const specialName = isReligion_selected ? 'Religion' : 'PS';
+                      const teachingIds = activePeriods.filter((s:any)=>!s.isBreak && !(s as any).isActivity).map((s:any)=>s.id);
+                      const activeIndex = teachingIds.indexOf(activeCell.periodId);
+                      const nextId = teachingIds[activeIndex + 1];
+                      if (periodType === 'double' && !nextId) { setCollisionMsg('Double cannot be last period. Choose Single.'); return; }
+                      const isDouble = periodType === 'double';
+                      const cell: any = { subjectId: specialId, subjectName: specialName, teacherId: '', roomId: '', classId: selectedId, isPS: isPS_selected, isReligion: isReligion_selected, isDouble, isDoubleSpan: false };
                       const raw = localStorage.getItem('tt_timetableData');
                       if (raw) {
                         const data = JSON.parse(raw);
                         if (!data.schedule[selectedId]) data.schedule[selectedId] = {};
                         if (!data.schedule[selectedId][activeCell.day]) data.schedule[selectedId][activeCell.day] = {};
                         data.schedule[selectedId][activeCell.day][activeCell.periodId] = cell;
+                        if (isDouble && nextId) {
+                          data.schedule[selectedId][activeCell.day][nextId] = { ...cell, isDoubleSpan: true };
+                        }
                         localStorage.setItem('tt_timetableData', JSON.stringify(data));
                         localStorage.setItem('tt_timetableData_ts', String(Date.now()));
                       } else {
-                        (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, 'ps', '', '', cell);
+                        (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, specialId, '', '', cell);
+                        if (isDouble && nextId) {
+                          setTimeout(() => (updateLessonSlot as any)(selectedId, activeCell.day, nextId, specialId, '', '', { ...cell, isDoubleSpan: true }), 0);
+                        }
                       }
                       setActiveCell(null);
                       setCollisionMsg('');
+                      setRefreshKey((k:number)=>k+1);
                       return;
                     }
                     if (!selectedSubject || selectedSubject==='ps') { setCollisionMsg('Select a subject (PS handled separately)'); return; }
