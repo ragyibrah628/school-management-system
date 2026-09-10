@@ -244,11 +244,8 @@ function AppInner() {
     const updatedUsers = users.map((u: any) => u.id === editingTeacherId ? { ...u, name: editTeacherName.trim(), subjects: editSubjects } : u);
     // Save to cloud if available
     try {
-      if (cloud.isCloudMode()) {
-        await cloud.deleteUser(editingTeacherId);
-        const teacher = updatedUsers.find((u: any) => u.id === editingTeacherId);
-        if (teacher) await cloud.createUser(teacher);
-      }
+      const teacher = updatedUsers.find((u: any) => u.id === editingTeacherId);
+      if (teacher) await cloud.updateUser(editingTeacherId, teacher);
     } catch (e) { console.error('Edit subjects error:', e); }
     // Update localStorage
     localStorage.setItem('sms_users', JSON.stringify(updatedUsers));
@@ -915,7 +912,44 @@ function AppInner() {
   const [behaviorData, setBehaviorData] = useState<Record<string, Record<string, string>>>(() => {
     try { return JSON.parse(localStorage.getItem('sms_behavior') || '{}'); } catch { return {}; }
   });
-  useEffect(() => { localStorage.setItem('sms_behavior', JSON.stringify(behaviorData)); }, [behaviorData]);
+  useEffect(() => {
+    const value = JSON.stringify(behaviorData);
+    const previous = localStorage.getItem('sms_behavior');
+    localStorage.setItem('sms_behavior', value);
+    if (cloud.isCloudMode() && previous !== null && previous !== value) {
+      cloud.syncToCloud().catch(() => {});
+    }
+  }, [behaviorData]);
+  useEffect(() => {
+    if (!cloud.isCloudMode() || (user?.role !== 'admin' && user?.role !== 'teacher')) return;
+    const refreshBehavior = async () => {
+      await cloud.refreshAppDataKey('sms_behavior');
+      try {
+        const fresh = JSON.parse(localStorage.getItem('sms_behavior') || '{}');
+        setBehaviorData(prev => JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh);
+      } catch {}
+    };
+    refreshBehavior();
+    const unsubscribe = cloud.subscribeToAppDataChanges('sms_behavior', refreshBehavior);
+    const timer = setInterval(refreshBehavior, 15000);
+    return () => { unsubscribe(); clearInterval(timer); };
+  }, [user?.role]);
+  useEffect(() => {
+    if (!cloud.isCloudMode() || (user?.role !== 'admin' && user?.role !== 'teacher')) return;
+    const refreshUsers = async () => {
+      const fresh = await cloud.getUsers().catch(() => null);
+      if (!Array.isArray(fresh)) return;
+      setUsers(fresh);
+      const current = user && fresh.find((item: any) => item.id === user.id);
+      if (current) {
+        setUser(current);
+        localStorage.setItem('sms_current_user', JSON.stringify(current));
+      }
+    };
+    const unsubscribe = cloud.subscribeToUserChanges(refreshUsers);
+    const timer = setInterval(refreshUsers, 15000);
+    return () => { unsubscribe(); clearInterval(timer); };
+  }, [user?.id, user?.role]);
   const setBehavior = (student: string, category: string, rating: string) => {
     setBehaviorData(prev => ({ ...prev, [student]: { ...(prev[student] || {}), [category]: rating } }));
   };

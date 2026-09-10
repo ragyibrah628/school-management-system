@@ -35,6 +35,20 @@ export function subscribeToAppDataChanges(key: string, onChange: () => void): ()
   return () => { realtimeClient.removeChannel(channel); };
 }
 
+export function subscribeToUserChanges(onChange: () => void): () => void {
+  if (!realtimeClient) return () => {};
+  const channel = realtimeClient
+    .channel('users-live-updates')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+      for (const key of getCache.keys()) {
+        if (key.startsWith(`GET:${SUPABASE_URL}/rest/v1/users`)) getCache.delete(key);
+      }
+      onChange();
+    })
+    .subscribe();
+  return () => { realtimeClient.removeChannel(channel); };
+}
+
 export async function refreshAppDataKey(key: string): Promise<void> {
   if (!IS_CLOUD) return;
   try {
@@ -175,6 +189,25 @@ export async function createUser(user: any) {
   const users = JSON.parse(localStorage.getItem('sms_users') || '[]');
   users.push(user);
   localStorage.setItem('sms_users', JSON.stringify(users));
+}
+
+export async function updateUser(id: string, user: any) {
+  if (IS_CLOUD) {
+    try {
+      await supabaseRequest('users', 'PATCH', {
+        name: user.name,
+        username: user.username,
+        password: user.password,
+        role: user.role,
+        subjects: toPgArray(user.subjects || [])
+      }, `?id=eq.${encodeURIComponent(id)}`);
+      return;
+    } catch (e) {
+      console.error('Cloud updateUser failed:', e);
+    }
+  }
+  const users = JSON.parse(localStorage.getItem('sms_users') || '[]');
+  localStorage.setItem('sms_users', JSON.stringify(users.map((item: any) => item.id === id ? { ...item, ...user, id } : item)));
 }
 
 export async function deleteUser(id: string) {
