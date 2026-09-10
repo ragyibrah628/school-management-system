@@ -944,20 +944,33 @@ export const TimetableViewer: React.FC = () => {
                     const isReligion_selected = isReligionSelection(selectedSubject);
                     if (isPS_selected || isReligion_selected) {
                       const specialId = isReligion_selected ? 'religion' : 'ps';
-                      const cell: any = { subjectId: specialId, subjectName: isReligion_selected ? 'Religion' : 'PS', teacherId: '', roomId: '', isPS: isPS_selected, isReligion: isReligion_selected, isDouble: false };
+                      const specialName = isReligion_selected ? 'Religion' : 'PS';
+                      const teachingIds = activePeriods.filter((s:any)=>!s.isBreak && !(s as any).isActivity).map((s:any)=>s.id);
+                      const activeIndex = teachingIds.indexOf(activeCell.periodId);
+                      const nextId = teachingIds[activeIndex + 1];
+                      if (periodType === 'double' && !nextId) { setCollisionMsg('Double cannot be last period. Choose Single.'); return; }
+                      const isDouble = periodType === 'double';
+                      const cell: any = { subjectId: specialId, subjectName: specialName, teacherId: '', roomId: '', classId: selectedId, isPS: isPS_selected, isReligion: isReligion_selected, isDouble, isDoubleSpan: false };
                       const raw = localStorage.getItem('tt_timetableData');
                       if (raw) {
                         const data = JSON.parse(raw);
                         if (!data.schedule[selectedId]) data.schedule[selectedId] = {};
                         if (!data.schedule[selectedId][activeCell.day]) data.schedule[selectedId][activeCell.day] = {};
                         data.schedule[selectedId][activeCell.day][activeCell.periodId] = cell;
+                        if (isDouble && nextId) {
+                          data.schedule[selectedId][activeCell.day][nextId] = { ...cell, isDoubleSpan: true };
+                        }
                         localStorage.setItem('tt_timetableData', JSON.stringify(data));
                         localStorage.setItem('tt_timetableData_ts', String(Date.now()));
                       } else {
-                        (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, 'ps', '', '', cell);
+                        (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, specialId, '', '', cell);
+                        if (isDouble && nextId) {
+                          setTimeout(() => (updateLessonSlot as any)(selectedId, activeCell.day, nextId, specialId, '', '', { ...cell, isDoubleSpan: true }), 0);
+                        }
                       }
                       setActiveCell(null);
                       setCollisionMsg('');
+                      setRefreshKey((k:number)=>k+1);
                       return;
                     }
                     if (!selectedSubject || selectedSubject==='ps') { setCollisionMsg('Select a subject (PS handled separately)'); return; }

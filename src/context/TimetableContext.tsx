@@ -96,16 +96,17 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
       const shared = JSON.parse(localStorage.getItem('tt_shared_teachers') || '[]');
       if (shared.length > 0) {
         return shared.map((t: any) => {
-          // Preserve existing teacher data if available
           const existing = JSON.parse(localStorage.getItem('tt_teachers') || '[]');
           const found = existing.find((e: any) => e.id === t.id || e.name === t.name);
-          return found || {
+          return {
+            ...(found || {
+              email: '',
+              maxPeriodsPerWeek: 25,
+              unavailableSlots: []
+            }),
             id: t.id,
             name: t.name,
-            email: '',
-            maxPeriodsPerWeek: 25,
-            qualifiedSubjects: [],
-            unavailableSlots: []
+            qualifiedSubjects: t.subjects || []
           };
         });
       }
@@ -117,10 +118,19 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
   const [teachers, setTeachers] = useState<Teacher[]>(getTeachersFromAdmin);
   const [subjects, setSubjects] = useState<Subject[]>(getSubjectsFromAdmin);
 
-  // Auto-sync when timetable opens
+  // Keep timetable data aligned with admin account changes in the same browser.
   useEffect(() => {
-    setTeachers(getTeachersFromAdmin());
-    setSubjects(getSubjectsFromAdmin());
+    const reloadAdminData = () => {
+      setTeachers(getTeachersFromAdmin());
+      setSubjects(getSubjectsFromAdmin());
+    };
+    reloadAdminData();
+    window.addEventListener('admin-teachers-updated', reloadAdminData);
+    window.addEventListener('storage', reloadAdminData);
+    return () => {
+      window.removeEventListener('admin-teachers-updated', reloadAdminData);
+      window.removeEventListener('storage', reloadAdminData);
+    };
   }, []);
 
   const [rooms, setRooms] = useState<Room[]>(() => {

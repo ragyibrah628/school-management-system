@@ -611,6 +611,7 @@ function AppInner() {
     localStorage.setItem('tt_shared_subjects', JSON.stringify(schoolSubjects));
     // Share registered teachers with timetable
     localStorage.setItem('tt_shared_teachers', JSON.stringify(users.filter((u: any) => u.role === 'teacher').map((t: any) => ({ id: t.id, name: t.name, subjects: t.subjects }))));
+    window.dispatchEvent(new Event('admin-teachers-updated'));
   }, [schoolSubjects, users]);
 
   const [newTeacher, setNewTeacher] = useState({ name: '', username: '', password: '', subjects: [] as string[] });
