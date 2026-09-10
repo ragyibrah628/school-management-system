@@ -231,9 +231,14 @@ export const TimetableViewer: React.FC = () => {
             else if (isAct) { subj=cell.activity || 'Activity'; sub=''; }
             else {
               const s = subjects.find((x:any)=>x.id===cell.subjectId);
-              subj = getCellSubjectDisplay(cell, subjects) || (cell as any).subjectName || s?.name || cell.subjectId || '';
               const teacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, isClass ? 'class' : 'teacher', classes, isClass ? '' : targetId);
-              sub = teacherLines.map(line => line.code ? `${line.code}: ${line.teacher}` : line.teacher).join('<br>');
+              if (isClass) {
+                subj = getCellSubjectDisplay(cell, subjects) || (cell as any).subjectName || s?.name || cell.subjectId || '';
+                sub = teacherLines.map(line => line.code ? `${line.code}: ${line.teacher}` : line.teacher).join('<br>');
+              } else {
+                subj = teacherLines[0]?.code || getSubjectCode(s) || (cell as any).subjectName || cell.subjectId || '';
+                sub = teacherLines[0]?.teacher || '';
+              }
             }
             if (cell.isDouble) {
               skipNextPrint = true;
