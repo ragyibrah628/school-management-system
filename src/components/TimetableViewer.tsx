@@ -135,7 +135,7 @@ export const TimetableViewer: React.FC = () => {
 
   const schedule = timetableData.schedule;
 
-  // Print function - English, A4 Landscape class / Portrait teacher, fonts 13px CODE, no links, double merged, no blank - V10
+  // Generate a clean landscape document for both teacher and class schedules.
   const handlePrint = () => {
     try {
       const isClass = (viewType as any) === 'class' || (viewType as any) === 'all_classes';
@@ -144,7 +144,7 @@ export const TimetableViewer: React.FC = () => {
       let finalName: string = targetName;
       if ((viewType as any)==='my_teaching') { try{ const cur=JSON.parse(localStorage.getItem('sms_current_user')||'null'); if(cur) finalName=cur.name; }catch{} }
       const title = finalName ? `${finalName} Teaching Timetable` : (isClass ? 'Class Teaching Timetable' : 'Teacher Teaching Timetable');
-      const orientation = isClass ? 'landscape' : 'portrait';
+      const orientation = 'landscape';
       const logo = getConfiguredLogo(schoolLogo);
       const sName = getConfiguredSchoolName(schoolName);
       const district = getConfiguredDistrict();
@@ -152,23 +152,31 @@ export const TimetableViewer: React.FC = () => {
       const pw = window.open('', '', 'width=1200,height=800');
       if (!pw) { window.print(); return; }
       let html = `<!DOCTYPE html><html><head><title> ${title} </title><style>
-        @page { size: A4 ${orientation}; margin: 10mm 12mm; }
+        @page { size: A4 landscape; margin: 8mm 9mm; }
         * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color:#000; background:#fff; }
-        table { width:100%; border-collapse:collapse; table-layout:fixed; }
-        th, td { border:1.5px solid #000; padding: 7px 5px; text-align:center; vertical-align:middle; }
-        th { background:#eef2ff; font-weight:800; font-size: 11px; color:#1e293b; }
-        td { font-size: 11px; line-height:1.3; }
-        .header { text-align:center; margin-bottom:12px; border-bottom:3px double #000; padding-bottom:10px; }
-        .header img { height:58px; margin-bottom:6px; }
-        .header h1 { font-size:18px; font-weight:900; letter-spacing:1px; }
-        .header h2 { font-size:14px; font-weight:800; color:#4338ca; margin-top:4px; }
-        .header p { font-size:10px; color:#555; margin-top:2px; }
-        .subject { font-weight:800; font-size:13px; color:#0f172a; line-height:1.2; }
-        .subteacher { font-weight:600; font-size:11px; color:#334155; margin-top:2px; }
-        .breakCell { background:#fff7ed; color:#9a3412; font-weight:800; font-size:10px; }
-        .dayCol { background:#f8fafc; font-weight:900; font-size:12px; }
-        @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } a { text-decoration:none !important; color:inherit !important; } }
+        html, body { width:100%; background:#fff; }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 9px; color:#172033; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+        a, a:visited, a:hover, a:active { color:inherit !important; text-decoration:none !important; }
+        table { width:100%; border-collapse:collapse; table-layout:fixed; page-break-inside:auto; }
+        thead { display:table-header-group; }
+        tr { page-break-inside:avoid; page-break-after:auto; }
+        th, td { border:1px solid #b8c2d1; padding: 5px 4px; text-align:center; vertical-align:middle; }
+        th { background:#e8eef8; font-weight:800; font-size: 9px; color:#172033; }
+        td { font-size: 9px; line-height:1.2; }
+        .header { text-align:center; margin-bottom:8px; border-bottom:2px solid #274c77; padding-bottom:7px; page-break-after:avoid; }
+        .header img { height:42px; max-width:90px; object-fit:contain; margin-bottom:3px; }
+        .header h1 { font-size:17px; font-weight:900; letter-spacing:.5px; color:#14213d; }
+        .header h2 { font-size:12px; font-weight:800; color:#274c77; margin-top:3px; }
+        .header p { font-size:8px; color:#53657d; margin-top:2px; }
+        .subject { font-weight:800; font-size:11px; color:#14213d; line-height:1.15; }
+        .subteacher { font-weight:600; font-size:9px; color:#40516a; margin-top:2px; }
+        .breakCell { background:#fff3df; color:#8a4b08; font-weight:800; font-size:8px; }
+        .dayCol { background:#f1f5fa; font-weight:900; font-size:10px; color:#274c77; }
+        @media print {
+          body { margin:0; padding:0; }
+          a, a::after, a::before { content:none !important; }
+          .no-print, nav, footer { display:none !important; }
+        }
       </style></head><body>`;
       html += `<div class="header">`;
       if (logo) html += `<img src="${logo}" alt="Logo" />`;
@@ -176,7 +184,7 @@ export const TimetableViewer: React.FC = () => {
       html += `<h1>${sName}</h1>`;
       html += `<div style="font-size:10px; color:#64748b;">${address}</div>`;
       html += `<h2>${title}</h2>`;
-      html += `<p>Weekly Teaching Timetable • ${isClass ? 'Class' : 'Teacher'} • A4 ${orientation.charAt(0).toUpperCase()+orientation.slice(1)} • ${new Date().toLocaleDateString()}</p>`;
+      html += `<p>Weekly Teaching Timetable • ${isClass ? 'Class' : 'Teacher'} • A4 Landscape • ${new Date().toLocaleDateString()}</p>`;
       html += `</div>`;
       html += `<table><thead><tr><th style="width:90px;">Day / Time</th>`;
       for (const p of activePeriods) {
@@ -231,9 +239,14 @@ export const TimetableViewer: React.FC = () => {
             else if (isAct) { subj=cell.activity || 'Activity'; sub=''; }
             else {
               const s = subjects.find((x:any)=>x.id===cell.subjectId);
-              subj = getCellSubjectDisplay(cell, subjects) || (cell as any).subjectName || s?.name || cell.subjectId || '';
               const teacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, isClass ? 'class' : 'teacher', classes, isClass ? '' : targetId);
-              sub = teacherLines.map(line => line.code ? `${line.code}: ${line.teacher}` : line.teacher).join('<br>');
+              if (isClass) {
+                subj = getCellSubjectDisplay(cell, subjects) || (cell as any).subjectName || s?.name || cell.subjectId || '';
+                sub = teacherLines.map(line => line.code ? `${line.code}: ${line.teacher}` : line.teacher).join('<br>');
+              } else {
+                subj = teacherLines[0]?.code || getSubjectCode(s) || (cell as any).subjectName || cell.subjectId || '';
+                sub = teacherLines[0]?.teacher || '';
+              }
             }
             if (cell.isDouble) {
               skipNextPrint = true;
