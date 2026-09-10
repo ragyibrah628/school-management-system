@@ -484,6 +484,12 @@ export async function getRoleAssignmentsFromCloud(): Promise<{
 } | null> {
   if (!IS_CLOUD) return null;
   try {
+    for (const cacheKey of getCache.keys()) {
+      if (cacheKey.startsWith(`GET:${SUPABASE_URL}/rest/v1/app_data`)) getCache.delete(cacheKey);
+    }
+    for (const requestKey of getInFlight.keys()) {
+      if (requestKey.startsWith(`GET:${SUPABASE_URL}/rest/v1/app_data`)) getInFlight.delete(requestKey);
+    }
     const data = await supabaseRequest('app_data', 'GET', undefined, '?key=in.(sms_class_teachers,sms_teaching_assignments)&select=key,value');
     const result = {
       classTeachers: {} as Record<string, string>,

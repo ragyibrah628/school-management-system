@@ -951,6 +951,24 @@ function AppInner() {
     const timer = setInterval(refreshUsers, 15000);
     return () => { unsubscribe(); clearInterval(timer); };
   }, [user?.id, user?.role]);
+  useEffect(() => {
+    if (!cloud.isCloudMode() || (user?.role !== 'admin' && user?.role !== 'teacher')) return;
+    const refreshRoles = async () => {
+      const roles = await cloud.getRoleAssignmentsFromCloud();
+      if (!roles) return;
+      setClassTeachers(prev => JSON.stringify(prev) === JSON.stringify(roles.classTeachers) ? prev : roles.classTeachers);
+      setTeachingAssignments(prev => JSON.stringify(prev) === JSON.stringify(roles.teachingAssignments) ? prev : roles.teachingAssignments);
+    };
+    refreshRoles();
+    const unsubscribeClassTeachers = cloud.subscribeToAppDataChanges('sms_class_teachers', refreshRoles);
+    const unsubscribeTeachingAssignments = cloud.subscribeToAppDataChanges('sms_teaching_assignments', refreshRoles);
+    const timer = setInterval(refreshRoles, 15000);
+    return () => {
+      unsubscribeClassTeachers();
+      unsubscribeTeachingAssignments();
+      clearInterval(timer);
+    };
+  }, [user?.role]);
   const setBehavior = (student: string, category: string, rating: string) => {
     setBehaviorData(prev => ({ ...prev, [student]: { ...(prev[student] || {}), [category]: rating } }));
   };
