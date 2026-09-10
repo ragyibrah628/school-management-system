@@ -41,13 +41,16 @@ const getCellSubjectDisplay = (cell: any, subjects: any[]) => {
   const secondCode = cell?.secondSubjectId === 'ps' ? 'PS' : getSubjectCode(second) || getSubjectCode({ name: cell?.secondSubjectName });
   return cell?.isCombined && secondCode ? `${firstCode}/${secondCode}` : firstCode;
 };
-const getCellSubjectTeacherLines = (cell: any, subjects: any[], teachers: any[], viewType: string, classes: any[]) => {
+const getCellSubjectTeacherLines = (cell: any, subjects: any[], teachers: any[], viewType: string, classes: any[], targetTeacherId = '') => {
   const first = subjects.find(s => s.id === cell?.subjectId || s.name === cell?.subjectName);
   const second = subjects.find(s => s.id === cell?.secondSubjectId || s.name === cell?.secondSubjectName);
   const firstCode = cell?.subjectId === 'ps' ? 'PS' : getSubjectCode(first) || getSubjectCode({ name: cell?.subjectName });
   const secondCode = cell?.secondSubjectId === 'ps' ? 'PS' : getSubjectCode(second) || getSubjectCode({ name: cell?.secondSubjectName });
   const className = classes.find(c => c.id === cell?.classId)?.name || '';
-  if (viewType === 'teacher') return [{ code: firstCode, teacher: className }];
+  if (viewType === 'teacher') {
+    const teachesSecond = targetTeacherId && cell?.secondTeacherId === targetTeacherId;
+    return [{ code: teachesSecond ? secondCode : firstCode, teacher: className }];
+  }
   const firstTeacher = teachers.find(t => t.id === cell?.teacherId)?.name || '';
   const secondTeacher = teachers.find(t => t.id === cell?.secondTeacherId)?.name || '';
   if (cell?.isCombined && secondCode) {
@@ -55,6 +58,7 @@ const getCellSubjectTeacherLines = (cell: any, subjects: any[], teachers: any[],
   }
   return [{ code: '', teacher: firstTeacher }];
 };
+const teacherOwnsCell = (cell: any, teacherId: string) => Boolean(cell && (cell.teacherId === teacherId || cell.secondTeacherId === teacherId));
 const getSubjectCodeTT = (name: string) => { try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(m && m[name]) return m[name]; } catch{} return name.substring(0,4).toUpperCase().replace(' ',''); }
 function findTeacherForSubjectClass(subjectName: string, className: string): { id: string, name: string } | null {
   try {
@@ -103,10 +107,10 @@ export const TimetableViewer: React.FC = () => {
 
   // Auto-select first item when view type changes
   React.useEffect(() => {
-    if (viewType === 'class' && classes.length > 0) setSelectedId(classes[0].id);
-    else if (viewType === 'teacher' && teachers.length > 0) setSelectedId(teachers[0].id);
-    else if (viewType === 'room' && rooms.length > 0) setSelectedId(rooms[0].id);
-  }, [viewType, classes, teachers, rooms]);
+    if (viewType === 'class' && classes.length > 0 && !classes.some(c => c.id === selectedId)) setSelectedId(classes[0].id);
+    else if (viewType === 'teacher' && teachers.length > 0 && !teachers.some(t => t.id === selectedId)) setSelectedId(teachers[0].id);
+    else if (viewType === 'room' && rooms.length > 0 && !rooms.some(r => r.id === selectedId)) setSelectedId(rooms[0].id);
+  }, [viewType, classes, teachers, rooms, selectedId]);
 
   if (!timetableData) {
     return (
@@ -200,7 +204,7 @@ export const TimetableViewer: React.FC = () => {
               for (const cid of Object.keys((timetableData as any).schedule||{})) {
                 const c = (timetableData as any).schedule[cid]?.[day]?.[p.id];
                 if (c && c.isActivity) { cellAct = c; break; }
-                if (c && c.teacherId===targetId) { cellAct = {...c, _className: classes.find((x:any)=>x.id===cid)?.name||cid}; break; }
+                if (teacherOwnsCell(c, targetId)) { cellAct = {...c, _className: classes.find((x:any)=>x.id===cid)?.name||cid}; break; }
               }
             }
             if (!cellAct || !isActivityCell(cellAct, p)) html += `<td></td>`;
@@ -212,7 +216,7 @@ export const TimetableViewer: React.FC = () => {
           else {
             for (const cid of Object.keys((timetableData as any).schedule||{})) {
               const c = (timetableData as any).schedule[cid]?.[day]?.[p.id];
-              if (c && c.teacherId===targetId) { cell = {...c, _className: classes.find((x:any)=>x.id===cid)?.name||cid}; break; }
+              if (teacherOwnsCell(c, targetId)) { cell = {...c, _className: classes.find((x:any)=>x.id===cid)?.name||cid}; break; }
             }
           }
           if (!cell) {
@@ -228,7 +232,7 @@ export const TimetableViewer: React.FC = () => {
             else {
               const s = subjects.find((x:any)=>x.id===cell.subjectId);
               subj = getCellSubjectDisplay(cell, subjects) || (cell as any).subjectName || s?.name || cell.subjectId || '';
-              const teacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, isClass ? 'class' : 'teacher', classes);
+              const teacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, isClass ? 'class' : 'teacher', classes, isClass ? '' : targetId);
               sub = teacherLines.map(line => line.code ? `${line.code}: ${line.teacher}` : line.teacher).join('<br>');
             }
             if (cell.isDouble) {
@@ -260,7 +264,7 @@ export const TimetableViewer: React.FC = () => {
     if (forceType === 'teacher' || forceType === 'all_teachers') {
       for (const cId of Object.keys(schedule)) {
         const cell = schedule[cId]?.[day]?.[periodId];
-        if (cell && cell.teacherId === customId) {
+        if (teacherOwnsCell(cell, customId)) {
           return cell;
         }
       }
@@ -537,7 +541,7 @@ export const TimetableViewer: React.FC = () => {
                           try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(displaySubRaw && m[displaySubRaw]) displaySub=m[displaySubRaw]; else if(sub && m[sub.name]) displaySub=m[sub.name]; } catch{}
                           if (!isPS && !isReligion && !isAct && displaySubRaw && displaySub===displaySubRaw) { try{ displaySub=displaySubRaw.substring(0,4).toUpperCase(); }catch{} }
                           const tchr = teachers.find((teach:any) => teach.id === cell.teacherId);
-                          const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, viewType, classes);
+                          const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, viewType, classes, viewType === 'teacher' ? selectedId : '');
                           const isDouble = (cell as any).isDouble;
                           if (isDouble) {
                             skipNext = true;
@@ -753,7 +757,7 @@ export const TimetableViewer: React.FC = () => {
                                 const cell = getCellData(d, p.id, t.id, 'all_teachers');
                                 if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
                                 const sub = subjects.find(s => s.id === cell.subjectId);
-                                const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, 'teacher', classes);
+                                const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, 'teacher', classes, t.id);
                                 return (
                                   <td key={d} className={`p-1 border-r border-slate-100 font-medium ${sub?.color.split(' ')[0] || 'bg-slate-100'}`}>
                                     {subjectTeacherLines.map((line:any) => (
