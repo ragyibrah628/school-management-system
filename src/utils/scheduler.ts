@@ -495,32 +495,36 @@ export function validateSchedule(
           scheduledCount++;
           const { teacherId, roomId } = cell;
 
-          // 1. Teacher double booking
-          if (teacherBookings[day][p.id][teacherId]) {
-            conflicts.push({
-              id: `c_t_${classId}_${day}_${p.id}`,
-              type: 'teacher_double_booking',
-              description: `Teacher is double booked for Class ${classId} and Class ${teacherBookings[day][p.id][teacherId]} at the same time.`,
-              severity: 'error',
-              entityIds: [teacherId, classId, teacherBookings[day][p.id][teacherId]],
-              slot: { day, periodId: p.id }
-            });
-          } else {
-            teacherBookings[day][p.id][teacherId] = classId;
+          // 1. Teacher double booking; teacherless subjects (PS/Religion) are valid.
+          if (teacherId) {
+            if (teacherBookings[day][p.id][teacherId]) {
+              conflicts.push({
+                id: `c_t_${classId}_${day}_${p.id}`,
+                type: 'teacher_double_booking',
+                description: `Teacher is double booked for Class ${classId} and Class ${teacherBookings[day][p.id][teacherId]} at the same time.`,
+                severity: 'error',
+                entityIds: [teacherId, classId, teacherBookings[day][p.id][teacherId]],
+                slot: { day, periodId: p.id }
+              });
+            } else {
+              teacherBookings[day][p.id][teacherId] = classId;
+            }
           }
 
-          // 2. Room double booking
-          if (roomBookings[day][p.id][roomId]) {
-            conflicts.push({
-              id: `c_r_${classId}_${day}_${p.id}`,
-              type: 'room_double_booking',
-              description: `Room is double booked for Class ${classId} and Class ${roomBookings[day][p.id][roomId]} at the same time.`,
-              severity: 'error',
-              entityIds: [roomId, classId, roomBookings[day][p.id][roomId]],
-              slot: { day, periodId: p.id }
-            });
-          } else {
-            roomBookings[day][p.id][roomId] = classId;
+          // 2. Room double booking; teacherless subjects do not require a room.
+          if (roomId) {
+            if (roomBookings[day][p.id][roomId]) {
+              conflicts.push({
+                id: `c_r_${classId}_${day}_${p.id}`,
+                type: 'room_double_booking',
+                description: `Room is double booked for Class ${classId} and Class ${roomBookings[day][p.id][roomId]} at the same time.`,
+                severity: 'error',
+                entityIds: [roomId, classId, roomBookings[day][p.id][roomId]],
+                slot: { day, periodId: p.id }
+              });
+            } else {
+              roomBookings[day][p.id][roomId] = classId;
+            }
           }
 
           // 3. Teacher unavailability
