@@ -295,9 +295,17 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
     };
     window.addEventListener('cloud-sync-complete', reloadTimetable);
     window.addEventListener('storage', reloadTimetable);
+    const refreshCloudTimetable = async () => {
+      await cloud.refreshAppDataKey('tt_timetableData');
+      reloadTimetable();
+    };
+    const unsubscribe = cloud.subscribeToAppDataChanges('tt_timetableData', refreshCloudTimetable);
+    const timer = setInterval(refreshCloudTimetable, 15000);
     return () => {
       window.removeEventListener('cloud-sync-complete', reloadTimetable);
       window.removeEventListener('storage', reloadTimetable);
+      unsubscribe();
+      clearInterval(timer);
     };
   }, []);
 
