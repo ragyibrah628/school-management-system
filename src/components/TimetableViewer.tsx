@@ -55,6 +55,7 @@ const getCellSubjectTeacherLines = (cell: any, subjects: any[], teachers: any[],
   }
   return [{ code: '', teacher: firstTeacher }];
 };
+const teacherOwnsCell = (cell: any, teacherId: string) => Boolean(cell && (cell.teacherId === teacherId || cell.secondTeacherId === teacherId));
 const getSubjectCodeTT = (name: string) => { try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(m && m[name]) return m[name]; } catch{} return name.substring(0,4).toUpperCase().replace(' ',''); }
 function findTeacherForSubjectClass(subjectName: string, className: string): { id: string, name: string } | null {
   try {
@@ -200,7 +201,7 @@ export const TimetableViewer: React.FC = () => {
               for (const cid of Object.keys((timetableData as any).schedule||{})) {
                 const c = (timetableData as any).schedule[cid]?.[day]?.[p.id];
                 if (c && c.isActivity) { cellAct = c; break; }
-                if (c && c.teacherId===targetId) { cellAct = {...c, _className: classes.find((x:any)=>x.id===cid)?.name||cid}; break; }
+                if (teacherOwnsCell(c, targetId)) { cellAct = {...c, _className: classes.find((x:any)=>x.id===cid)?.name||cid}; break; }
               }
             }
             if (!cellAct || !isActivityCell(cellAct, p)) html += `<td></td>`;
@@ -212,7 +213,7 @@ export const TimetableViewer: React.FC = () => {
           else {
             for (const cid of Object.keys((timetableData as any).schedule||{})) {
               const c = (timetableData as any).schedule[cid]?.[day]?.[p.id];
-              if (c && c.teacherId===targetId) { cell = {...c, _className: classes.find((x:any)=>x.id===cid)?.name||cid}; break; }
+              if (teacherOwnsCell(c, targetId)) { cell = {...c, _className: classes.find((x:any)=>x.id===cid)?.name||cid}; break; }
             }
           }
           if (!cell) {
@@ -260,7 +261,7 @@ export const TimetableViewer: React.FC = () => {
     if (forceType === 'teacher' || forceType === 'all_teachers') {
       for (const cId of Object.keys(schedule)) {
         const cell = schedule[cId]?.[day]?.[periodId];
-        if (cell && cell.teacherId === customId) {
+        if (teacherOwnsCell(cell, customId)) {
           return cell;
         }
       }
