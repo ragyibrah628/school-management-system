@@ -103,10 +103,10 @@ export const TimetableViewer: React.FC = () => {
 
   // Auto-select first item when view type changes
   React.useEffect(() => {
-    if (viewType === 'class' && classes.length > 0) setSelectedId(classes[0].id);
-    else if (viewType === 'teacher' && teachers.length > 0) setSelectedId(teachers[0].id);
-    else if (viewType === 'room' && rooms.length > 0) setSelectedId(rooms[0].id);
-  }, [viewType, classes, teachers, rooms]);
+    if (viewType === 'class' && classes.length > 0 && !classes.some(c => c.id === selectedId)) setSelectedId(classes[0].id);
+    else if (viewType === 'teacher' && teachers.length > 0 && !teachers.some(t => t.id === selectedId)) setSelectedId(teachers[0].id);
+    else if (viewType === 'room' && rooms.length > 0 && !rooms.some(r => r.id === selectedId)) setSelectedId(rooms[0].id);
+  }, [viewType, classes, teachers, rooms, selectedId]);
 
   if (!timetableData) {
     return (
