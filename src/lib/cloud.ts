@@ -52,6 +52,12 @@ export function subscribeToUserChanges(onChange: () => void): () => void {
 export async function refreshAppDataKey(key: string): Promise<void> {
   if (!IS_CLOUD) return;
   try {
+    for (const cacheKey of getCache.keys()) {
+      if (cacheKey.startsWith(`GET:${SUPABASE_URL}/rest/v1/app_data`)) getCache.delete(cacheKey);
+    }
+    for (const requestKey of getInFlight.keys()) {
+      if (requestKey.startsWith(`GET:${SUPABASE_URL}/rest/v1/app_data`)) getInFlight.delete(requestKey);
+    }
     const data = await supabaseRequest('app_data', 'GET', undefined, `?key=eq.${encodeURIComponent(key)}&select=key,value,updated_at`);
     const item = Array.isArray(data) ? data[0] : null;
     if (item?.value) {
