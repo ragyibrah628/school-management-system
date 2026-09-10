@@ -41,13 +41,16 @@ const getCellSubjectDisplay = (cell: any, subjects: any[]) => {
   const secondCode = cell?.secondSubjectId === 'ps' ? 'PS' : getSubjectCode(second) || getSubjectCode({ name: cell?.secondSubjectName });
   return cell?.isCombined && secondCode ? `${firstCode}/${secondCode}` : firstCode;
 };
-const getCellSubjectTeacherLines = (cell: any, subjects: any[], teachers: any[], viewType: string, classes: any[]) => {
+const getCellSubjectTeacherLines = (cell: any, subjects: any[], teachers: any[], viewType: string, classes: any[], targetTeacherId = '') => {
   const first = subjects.find(s => s.id === cell?.subjectId || s.name === cell?.subjectName);
   const second = subjects.find(s => s.id === cell?.secondSubjectId || s.name === cell?.secondSubjectName);
   const firstCode = cell?.subjectId === 'ps' ? 'PS' : getSubjectCode(first) || getSubjectCode({ name: cell?.subjectName });
   const secondCode = cell?.secondSubjectId === 'ps' ? 'PS' : getSubjectCode(second) || getSubjectCode({ name: cell?.secondSubjectName });
   const className = classes.find(c => c.id === cell?.classId)?.name || '';
-  if (viewType === 'teacher') return [{ code: firstCode, teacher: className }];
+  if (viewType === 'teacher') {
+    const teachesSecond = targetTeacherId && cell?.secondTeacherId === targetTeacherId;
+    return [{ code: teachesSecond ? secondCode : firstCode, teacher: className }];
+  }
   const firstTeacher = teachers.find(t => t.id === cell?.teacherId)?.name || '';
   const secondTeacher = teachers.find(t => t.id === cell?.secondTeacherId)?.name || '';
   if (cell?.isCombined && secondCode) {
@@ -229,7 +232,7 @@ export const TimetableViewer: React.FC = () => {
             else {
               const s = subjects.find((x:any)=>x.id===cell.subjectId);
               subj = getCellSubjectDisplay(cell, subjects) || (cell as any).subjectName || s?.name || cell.subjectId || '';
-              const teacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, isClass ? 'class' : 'teacher', classes);
+              const teacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, isClass ? 'class' : 'teacher', classes, isClass ? '' : targetId);
               sub = teacherLines.map(line => line.code ? `${line.code}: ${line.teacher}` : line.teacher).join('<br>');
             }
             if (cell.isDouble) {
@@ -538,7 +541,7 @@ export const TimetableViewer: React.FC = () => {
                           try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(displaySubRaw && m[displaySubRaw]) displaySub=m[displaySubRaw]; else if(sub && m[sub.name]) displaySub=m[sub.name]; } catch{}
                           if (!isPS && !isReligion && !isAct && displaySubRaw && displaySub===displaySubRaw) { try{ displaySub=displaySubRaw.substring(0,4).toUpperCase(); }catch{} }
                           const tchr = teachers.find((teach:any) => teach.id === cell.teacherId);
-                          const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, viewType, classes);
+                          const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, viewType, classes, viewType === 'teacher' ? selectedId : '');
                           const isDouble = (cell as any).isDouble;
                           if (isDouble) {
                             skipNext = true;
@@ -754,7 +757,7 @@ export const TimetableViewer: React.FC = () => {
                                 const cell = getCellData(d, p.id, t.id, 'all_teachers');
                                 if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
                                 const sub = subjects.find(s => s.id === cell.subjectId);
-                                const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, 'teacher', classes);
+                                const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, 'teacher', classes, t.id);
                                 return (
                                   <td key={d} className={`p-1 border-r border-slate-100 font-medium ${sub?.color.split(' ')[0] || 'bg-slate-100'}`}>
                                     {subjectTeacherLines.map((line:any) => (
