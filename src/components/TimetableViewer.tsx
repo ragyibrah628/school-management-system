@@ -53,7 +53,7 @@ const getCellSubjectTeacherLines = (cell: any, subjects: any[], teachers: any[],
   if (cell?.isCombined && secondCode) {
     return [{ code: firstCode, teacher: firstTeacher }, { code: secondCode, teacher: secondTeacher }];
   }
-  return [{ code: firstCode, teacher: firstTeacher }];
+  return [{ code: '', teacher: firstTeacher }];
 };
 const getSubjectCodeTT = (name: string) => { try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(m && m[name]) return m[name]; } catch{} return name.substring(0,4).toUpperCase().replace(' ',''); }
 function findTeacherForSubjectClass(subjectName: string, className: string): { id: string, name: string } | null {
@@ -229,7 +229,7 @@ export const TimetableViewer: React.FC = () => {
               const s = subjects.find((x:any)=>x.id===cell.subjectId);
               subj = getCellSubjectDisplay(cell, subjects) || (cell as any).subjectName || s?.name || cell.subjectId || '';
               const teacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, isClass ? 'class' : 'teacher', classes);
-              sub = teacherLines.map(line => `${line.code}: ${line.teacher}`).join('<br>');
+              sub = teacherLines.map(line => line.code ? `${line.code}: ${line.teacher}` : line.teacher).join('<br>');
             }
             if (cell.isDouble) {
               skipNextPrint = true;
@@ -551,7 +551,7 @@ export const TimetableViewer: React.FC = () => {
                                 <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center ${sub?.color || 'bg-emerald-50 border-emerald-300'} ${hasConflict ? 'ring-2 ring-red-500 animate-pulse' : 'shadow-sm'}`}>
                                   {isPS || isReligion || isAct ? <div className="font-bold text-slate-900 text-[13px] leading-tight">{displaySub}</div> : subjectTeacherLines.map((line:any) => (
                                     <div key={line.code} className="leading-tight mb-0.5">
-                                      <div className="font-bold text-slate-900 text-[13px]" style={{fontFamily:'Arial, sans-serif'}}>{line.code}</div>
+                                      {line.code && <div className="font-bold text-slate-900 text-[13px]" style={{fontFamily:'Arial, sans-serif'}}>{line.code}</div>}
                                       <div className="font-semibold text-slate-700 text-[10px] truncate" style={{fontFamily:'Arial, sans-serif'}}>{line.teacher}</div>
                                     </div>
                                   ))}
@@ -568,7 +568,7 @@ export const TimetableViewer: React.FC = () => {
                                 <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center ${sub?.color || (isPS || isReligion ? 'bg-slate-100 border-slate-300' : isAct ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200')} ${hasConflict ? 'ring-2 ring-red-500 animate-pulse' : 'shadow-sm'}`}>
                                   {isPS || isReligion || isAct ? <div className="font-bold text-slate-900 text-[13px] leading-tight">{isPS ? 'PS' : displaySub}</div> : subjectTeacherLines.map((line:any) => (
                                     <div key={line.code} className="leading-tight mb-0.5">
-                                      <div className="font-bold text-slate-900 text-[13px]" style={{fontFamily:'Arial, sans-serif'}}>{line.code}</div>
+                                      {line.code && <div className="font-bold text-slate-900 text-[13px]" style={{fontFamily:'Arial, sans-serif'}}>{line.code}</div>}
                                       <div className="font-semibold text-slate-700 text-[10px] truncate" style={{fontFamily:'Arial, sans-serif'}}>{line.teacher}</div>
                                     </div>
                                   ))}
@@ -664,13 +664,12 @@ export const TimetableViewer: React.FC = () => {
                                 const cell = schedule[cls.id]?.[d]?.[p.id];
                                 if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
                                 const sub = subjects.find(s => s.id === cell.subjectId);
-                                const displaySubject = getCellSubjectDisplay(cell, subjects);
                                 const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, 'class', classes);
                                 return (
                                   <td key={d} className={`p-1 border-r border-slate-100 font-medium ${sub?.color.split(' ')[0] || 'bg-slate-100'}`}>
                                     {subjectTeacherLines.map((line:any) => (
                                       <div key={line.code} className="leading-tight mb-0.5">
-                                        <div className="font-bold text-slate-800">{line.code}</div>
+                                        {line.code && <div className="font-bold text-slate-800">{line.code}</div>}
                                         <div className="text-[10px] text-slate-500 truncate">{line.teacher}</div>
                                       </div>
                                     ))}
@@ -759,7 +758,7 @@ export const TimetableViewer: React.FC = () => {
                                   <td key={d} className={`p-1 border-r border-slate-100 font-medium ${sub?.color.split(' ')[0] || 'bg-slate-100'}`}>
                                     {subjectTeacherLines.map((line:any) => (
                                       <div key={line.code} className="leading-tight mb-0.5">
-                                        <div className="font-bold text-slate-800">{line.code}</div>
+                                        {line.code && <div className="font-bold text-slate-800">{line.code}</div>}
                                         <div className="text-[10px] text-slate-500 truncate">{line.teacher}</div>
                                       </div>
                                     ))}
@@ -951,22 +950,9 @@ export const TimetableViewer: React.FC = () => {
                       if (periodType === 'double' && !nextId) { setCollisionMsg('Double cannot be last period. Choose Single.'); return; }
                       const isDouble = periodType === 'double';
                       const cell: any = { subjectId: specialId, subjectName: specialName, teacherId: '', roomId: '', classId: selectedId, isPS: isPS_selected, isReligion: isReligion_selected, isDouble, isDoubleSpan: false };
-                      const raw = localStorage.getItem('tt_timetableData');
-                      if (raw) {
-                        const data = JSON.parse(raw);
-                        if (!data.schedule[selectedId]) data.schedule[selectedId] = {};
-                        if (!data.schedule[selectedId][activeCell.day]) data.schedule[selectedId][activeCell.day] = {};
-                        data.schedule[selectedId][activeCell.day][activeCell.periodId] = cell;
-                        if (isDouble && nextId) {
-                          data.schedule[selectedId][activeCell.day][nextId] = { ...cell, isDoubleSpan: true };
-                        }
-                        localStorage.setItem('tt_timetableData', JSON.stringify(data));
-                        localStorage.setItem('tt_timetableData_ts', String(Date.now()));
-                      } else {
-                        (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, specialId, '', '', cell);
-                        if (isDouble && nextId) {
-                          setTimeout(() => (updateLessonSlot as any)(selectedId, activeCell.day, nextId, specialId, '', '', { ...cell, isDoubleSpan: true }), 0);
-                        }
+                      (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, specialId, '', '', cell);
+                      if (isDouble && nextId) {
+                        setTimeout(() => (updateLessonSlot as any)(selectedId, activeCell.day, nextId, specialId, '', '', { ...cell, isDoubleSpan: true }), 0);
                       }
                       setActiveCell(null);
                       setCollisionMsg('');
