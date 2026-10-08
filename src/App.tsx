@@ -2006,6 +2006,14 @@ function AppInner() {
               );
 
               const activePeriods = ttSlots.filter((s: any) => !s.isBreak);
+              const isDoubleStart = (day: string, periodId: string, cell: any) => {
+                if (!cell?.isDouble || cell.isDoubleSpan) return false;
+                const slotIndex = ttSlots.findIndex((slot: any) => slot.id === periodId);
+                const nextSlot = ttSlots[slotIndex + 1];
+                if (!nextSlot || nextSlot.isBreak || nextSlot.isActivity) return false;
+                const nextPeriod = myPeriods.find(mp => mp.day === day && mp.period?.id === nextSlot.id);
+                return Boolean(nextPeriod?.cell.isDoubleSpan && nextPeriod.cell.classId === cell.classId);
+              };
 
               const printMyTimetable = () => {
                 const pw = window.open('', '', 'width=900,height=700');
@@ -2036,13 +2044,15 @@ function AppInner() {
                   ttDays.forEach((d: string) => {
                     const found = myPeriods.find(mp => mp.day === d && mp.period?.id === p.id);
                     if (found) {
+                      if (found.cell.isDoubleSpan) return;
                       const sub = ttSubjects.find((s: any) => s.id === found.cell.subjectId);
                       const secondSub = ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId || s.name === found.cell.secondSubjectName);
                       const subjectDisplay = found.cell.isCombined && secondSub
                         ? `${sub?.code || sub?.name?.substring(0, 4) || ''}/${secondSub.code || secondSub.name?.substring(0, 4) || ''}`
                         : (sub?.code || sub?.name || '');
                       const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
-                      pw.document.write(`<td style="font-weight:bold;background:#e8f5e9"><strong>${subjectDisplay}</strong><br/><span style="font-size:9px">${cls?.name || ''}</span></td>`);
+                      const doubleSpan = isDoubleStart(d, p.id, found.cell);
+                      pw.document.write(`<td${doubleSpan ? ' rowspan="2"' : ''} style="font-weight:bold;background:#e8f5e9"><strong>${subjectDisplay}</strong><br/><span style="font-size:9px">${cls?.name || ''}</span>${doubleSpan ? '<br/><span style="font-size:9px">Double period</span>' : ''}</td>`);
                     } else {
                       pw.document.write(`<td style="color:#ccc">—</td>`);
                     }
@@ -2088,16 +2098,19 @@ function AppInner() {
                               {ttDays.map((d: string) => {
                                 const found = myPeriods.find(mp => mp.day === d && mp.period?.id === p.id);
                                 if (!found) return <td key={d} className="border border-slate-300 p-1 text-center text-slate-300">—</td>;
+                                if (found.cell.isDoubleSpan) return null;
                                 const sub = ttSubjects.find((s: any) => s.id === found.cell.subjectId);
                                 const secondSub = ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId || s.name === found.cell.secondSubjectName);
                                 const subjectDisplay = found.cell.isCombined && secondSub
                                   ? `${sub?.code || sub?.name?.substring(0, 4) || ''}/${secondSub.code || secondSub.name?.substring(0, 4) || ''}`
                                   : (sub?.code || sub?.name?.substring(0, 4) || '');
                                 const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
+                                const doubleSpan = isDoubleStart(d, p.id, found.cell);
                                 return (
-                                  <td key={d} className="border border-slate-300 p-1 text-center bg-indigo-50">
+                                  <td key={d} rowSpan={doubleSpan ? 2 : undefined} className="border border-slate-300 p-1 text-center bg-indigo-50">
                                     <div className="font-bold text-indigo-800">{subjectDisplay}</div>
                                     <div className="text-[10px] text-slate-600">{cls?.name}</div>
+                                    {doubleSpan && <div className="text-[10px] font-semibold text-indigo-600">Double period</div>}
                                   </td>
                                 );
                               })}
