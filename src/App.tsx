@@ -2058,7 +2058,16 @@ function AppInner() {
                 pw.document.write(`<table><thead><tr><th>TIME</th>`);
                 ttDays.forEach((d: string) => pw.document.write(`<th>${d}</th>`));
                 pw.document.write(`</tr></thead><tbody>`);
-                activePeriods.forEach((p: any) => {
+                ttSlots.forEach((p: any) => {
+                  if (p.isBreak) {
+                    const isLunch = p.id === 'lunch' || p.name?.toLowerCase().includes('lunch');
+                    const breakName = isLunch ? 'Lunch' : 'Morning Break';
+                    const breakTime = p.startTime && p.endTime
+                      ? `${p.startTime}-${p.endTime}`
+                      : (isLunch ? '14:30-15:30' : '10:40-11:10');
+                    pw.document.write(`<tr style="background:#fff7e6"><td style="font-weight:bold">${breakName}<br/><span style="font-size:9px">${breakTime}</span></td><td colspan="${ttDays.length}" style="font-weight:bold;color:#8a4b08">${breakName} • ${breakTime}</td></tr>`);
+                    return;
+                  }
                   pw.document.write(`<tr><td style="font-weight:bold;font-size:10px">${p.name}<br/>${p.startTime}-${p.endTime}</td>`);
                   ttDays.forEach((d: string) => {
                     if (isDoubleContinuation(d, p.id)) return;
