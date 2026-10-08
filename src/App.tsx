@@ -2071,7 +2071,7 @@ function AppInner() {
                         : (sub?.code || sub?.name || '');
                       const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
                       const doubleSpan = isDoubleStart(d, p.id, found.cell);
-                      pw.document.write(`<td${doubleSpan ? ' rowspan="2"' : ''} style="font-weight:bold;background:#e8f5e9"><strong>${subjectDisplay}</strong><br/><span style="font-size:9px">${cls?.name || ''}</span>${doubleSpan ? '<br/><span style="font-size:9px">Double period</span>' : ''}</td>`);
+                      pw.document.write(`<td${doubleSpan ? ' rowspan="2"' : ''} style="font-weight:bold;background:#e8f5e9"><strong>${subjectDisplay}</strong><br/><span style="font-size:9px">${cls?.name || ''}</span></td>`);
                     } else {
                       pw.document.write(`<td style="color:#ccc">—</td>`);
                     }
@@ -2129,7 +2129,6 @@ function AppInner() {
                                   <td key={d} rowSpan={doubleSpan ? 2 : undefined} className="border border-slate-300 p-1 text-center bg-indigo-50">
                                     <div className="font-bold text-indigo-800">{subjectDisplay}</div>
                                     <div className="text-[10px] text-slate-600">{cls?.name}</div>
-                                    {doubleSpan && <div className="text-[10px] font-semibold text-indigo-600">Double period</div>}
                                   </td>
                                 );
                               })}
