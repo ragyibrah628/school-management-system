@@ -1991,7 +1991,7 @@ function AppInner() {
                 ttDays.forEach((day: string) => {
                   Object.keys(ttData.schedule[classId][day] || {}).forEach(periodId => {
                     const cell = ttData.schedule[classId][day][periodId];
-                    if (cell && cell.teacherId === user?.id) {
+                    if (cell && (cell.teacherId === user?.id || cell.secondTeacherId === user?.id)) {
                       myPeriods.push({ day, period: ttSlots.find((s: any) => s.id === periodId), cell: { ...cell, classId } });
                     }
                   });
@@ -2006,34 +2006,33 @@ function AppInner() {
               );
 
               const activePeriods = ttSlots.filter((s: any) => !s.isBreak);
-              const sameLesson = (first: any, second: any) => Boolean(first && second &&
-                first.teacherId === second.teacherId &&
-                first.subjectId === second.subjectId &&
-                (first.roomId || '') === (second.roomId || '') &&
-                (first.secondTeacherId || '') === (second.secondTeacherId || '') &&
-                (first.secondSubjectId || '') === (second.secondSubjectId || '')
-              );
               const isDoubleStart = (day: string, periodId: string, cell: any) => {
-                if (!cell || cell.isDoubleSpan || cell.isDouble === false) return false;
+                if (!cell?.isDouble || cell.isDoubleSpan) return false;
                 const slotIndex = ttSlots.findIndex((slot: any) => slot.id === periodId);
                 const nextSlot = ttSlots[slotIndex + 1];
                 if (!nextSlot || nextSlot.isBreak || nextSlot.isActivity) return false;
-                const nextCell = ttData.schedule[cell.classId]?.[day]?.[nextSlot.id];
-                if (!sameLesson(cell, nextCell) || nextCell.isDouble === false) return false;
-                return cell.isDouble === true || nextCell.isDoubleSpan === true || nextCell.isDouble === true ||
-                  (cell.isDouble === undefined && nextCell.isDouble === undefined);
+                return true;
               };
-              const isDoubleContinuation = (day: string, periodId: string, cell: any) => {
-                if (cell?.isDoubleSpan) return true;
-                if (!cell || cell.isDouble === false) return false;
+              const isDoubleContinuation = (day: string, periodId: string) => {
                 const slotIndex = ttSlots.findIndex((slot: any) => slot.id === periodId);
                 const previousSlot = ttSlots[slotIndex - 1];
                 if (!previousSlot || previousSlot.isBreak || previousSlot.isActivity) return false;
-                const previousCell = ttData.schedule[cell.classId]?.[day]?.[previousSlot.id];
-                if (!sameLesson(previousCell, cell) || previousCell.isDouble === false) return false;
-                return previousCell.isDouble === true || cell.isDouble === true ||
-                  (previousCell.isDouble === undefined && cell.isDouble === undefined);
+                return Object.keys(ttData.schedule).some(classId => {
+                  const previousCell = ttData.schedule[classId]?.[day]?.[previousSlot.id];
+                  return previousCell?.isDouble && !previousCell.isDoubleSpan &&
+                    (previousCell.teacherId === user?.id || previousCell.secondTeacherId === user?.id);
+                });
               };
+              const timetableCounts = ttDays.reduce((totals: { periods: number; sessions: number }, day: string) => {
+                ttSlots.forEach((slot: any) => {
+                  if (slot.isBreak || slot.isActivity || slot.id === 'act' || isDoubleContinuation(day, slot.id)) return;
+                  const entry = myPeriods.find(mp => mp.day === day && mp.period?.id === slot.id);
+                  if (!entry) return;
+                  totals.sessions += 1;
+                  totals.periods += isDoubleStart(day, slot.id, entry.cell) ? 2 : 1;
+                });
+                return totals;
+              }, { periods: 0, sessions: 0 });
 
               const printMyTimetable = () => {
                 const pw = window.open('', '', 'width=900,height=700');
@@ -2062,9 +2061,9 @@ function AppInner() {
                 activePeriods.forEach((p: any) => {
                   pw.document.write(`<tr><td style="font-weight:bold;font-size:10px">${p.name}<br/>${p.startTime}-${p.endTime}</td>`);
                   ttDays.forEach((d: string) => {
+                    if (isDoubleContinuation(d, p.id)) return;
                     const found = myPeriods.find(mp => mp.day === d && mp.period?.id === p.id);
                     if (found) {
-                      if (isDoubleContinuation(d, p.id, found.cell)) return;
                       const sub = ttSubjects.find((s: any) => s.id === found.cell.subjectId);
                       const secondSub = ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId || s.name === found.cell.secondSubjectName);
                       const subjectDisplay = found.cell.isCombined && secondSub
@@ -2116,9 +2115,9 @@ function AppInner() {
                             <tr key={p.id}>
                               <td className="border border-slate-300 p-1 font-bold text-xs whitespace-nowrap">{p.name}<br/><span className="text-[10px] text-slate-400">{p.startTime}-{p.endTime}</span></td>
                               {ttDays.map((d: string) => {
+                                if (isDoubleContinuation(d, p.id)) return null;
                                 const found = myPeriods.find(mp => mp.day === d && mp.period?.id === p.id);
                                 if (!found) return <td key={d} className="border border-slate-300 p-1 text-center text-slate-300">—</td>;
-                                if (isDoubleContinuation(d, p.id, found.cell)) return null;
                                 const sub = ttSubjects.find((s: any) => s.id === found.cell.subjectId);
                                 const secondSub = ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId || s.name === found.cell.secondSubjectName);
                                 const subjectDisplay = found.cell.isCombined && secondSub
@@ -2140,7 +2139,7 @@ function AppInner() {
                       </tbody>
                     </table>
                   </div>
-                  <p className="text-xs text-slate-400 mt-2">{myPeriods.length} teaching periods per week</p>
+                  <p className="text-xs text-slate-400 mt-2">{timetableCounts.periods} teaching periods per week ({timetableCounts.sessions} sessions)</p>
                 </div>
               );
             } catch { return null; }
