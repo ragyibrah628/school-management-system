@@ -2006,19 +2006,27 @@ function AppInner() {
               );
 
               const activePeriods = ttSlots.filter((s: any) => !s.isBreak);
+              const sameLesson = (first: any, second: any) => Boolean(first && second &&
+                first.teacherId === second.teacherId &&
+                first.subjectId === second.subjectId &&
+                (first.secondTeacherId || '') === (second.secondTeacherId || '') &&
+                (first.secondSubjectId || '') === (second.secondSubjectId || '')
+              );
               const isDoubleStart = (day: string, periodId: string, cell: any) => {
                 if (!cell?.isDouble || cell.isDoubleSpan) return false;
                 const slotIndex = ttSlots.findIndex((slot: any) => slot.id === periodId);
                 const nextSlot = ttSlots[slotIndex + 1];
                 if (!nextSlot || nextSlot.isBreak || nextSlot.isActivity) return false;
                 const nextCell = ttData.schedule[cell.classId]?.[day]?.[nextSlot.id];
-                if (!nextCell) return false;
-                const sameLesson = nextCell.classId === cell.classId &&
-                  nextCell.teacherId === cell.teacherId &&
-                  nextCell.subjectId === cell.subjectId &&
-                  (nextCell.secondTeacherId || '') === (cell.secondTeacherId || '') &&
-                  (nextCell.secondSubjectId || '') === (cell.secondSubjectId || '');
-                return Boolean(sameLesson && (nextCell.isDoubleSpan || nextCell.isDouble || cell.isDouble));
+                return sameLesson(cell, nextCell);
+              };
+              const isDoubleContinuation = (day: string, periodId: string, cell: any) => {
+                if (cell?.isDoubleSpan) return true;
+                const slotIndex = ttSlots.findIndex((slot: any) => slot.id === periodId);
+                const previousSlot = ttSlots[slotIndex - 1];
+                if (!previousSlot || previousSlot.isBreak || previousSlot.isActivity) return false;
+                const previousCell = ttData.schedule[cell.classId]?.[day]?.[previousSlot.id];
+                return Boolean(previousCell?.isDouble && sameLesson(previousCell, cell));
               };
 
               const printMyTimetable = () => {
@@ -2050,7 +2058,7 @@ function AppInner() {
                   ttDays.forEach((d: string) => {
                     const found = myPeriods.find(mp => mp.day === d && mp.period?.id === p.id);
                     if (found) {
-                      if (found.cell.isDoubleSpan) return;
+                      if (isDoubleContinuation(d, p.id, found.cell)) return;
                       const sub = ttSubjects.find((s: any) => s.id === found.cell.subjectId);
                       const secondSub = ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId || s.name === found.cell.secondSubjectName);
                       const subjectDisplay = found.cell.isCombined && secondSub
@@ -2104,7 +2112,7 @@ function AppInner() {
                               {ttDays.map((d: string) => {
                                 const found = myPeriods.find(mp => mp.day === d && mp.period?.id === p.id);
                                 if (!found) return <td key={d} className="border border-slate-300 p-1 text-center text-slate-300">—</td>;
-                                if (found.cell.isDoubleSpan) return null;
+                                if (isDoubleContinuation(d, p.id, found.cell)) return null;
                                 const sub = ttSubjects.find((s: any) => s.id === found.cell.subjectId);
                                 const secondSub = ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId || s.name === found.cell.secondSubjectName);
                                 const subjectDisplay = found.cell.isCombined && secondSub
