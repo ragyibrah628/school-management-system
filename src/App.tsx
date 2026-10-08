@@ -2011,8 +2011,14 @@ function AppInner() {
                 const slotIndex = ttSlots.findIndex((slot: any) => slot.id === periodId);
                 const nextSlot = ttSlots[slotIndex + 1];
                 if (!nextSlot || nextSlot.isBreak || nextSlot.isActivity) return false;
-                const nextPeriod = myPeriods.find(mp => mp.day === day && mp.period?.id === nextSlot.id);
-                return Boolean(nextPeriod?.cell.isDoubleSpan && nextPeriod.cell.classId === cell.classId);
+                const nextCell = ttData.schedule[cell.classId]?.[day]?.[nextSlot.id];
+                if (!nextCell) return false;
+                const sameLesson = nextCell.classId === cell.classId &&
+                  nextCell.teacherId === cell.teacherId &&
+                  nextCell.subjectId === cell.subjectId &&
+                  (nextCell.secondTeacherId || '') === (cell.secondTeacherId || '') &&
+                  (nextCell.secondSubjectId || '') === (cell.secondSubjectId || '');
+                return Boolean(sameLesson && (nextCell.isDoubleSpan || nextCell.isDouble || cell.isDouble));
               };
 
               const printMyTimetable = () => {
