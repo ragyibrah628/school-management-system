@@ -1078,45 +1078,11 @@ export const TimetableViewer: React.FC = () => {
                     // If combined, store second subject info too
                     const isCombined = !!(secondSubjId && secondSubjName);
                     const cellToSave: any = { subjectId: subjId, subjectName: subjName, teacherId, roomId, classId: selectedId, isCombined, secondSubjectId: secondSubjId || undefined, secondSubjectName: secondSubjName || undefined, secondTeacherId: secondTeacherId || undefined, isDouble: periodType==='double', isPS: false, isActivity: false };
-                    // Try context update first, then patch localStorage for combined
+                    // Store both halves in timetable state so the cloud copy preserves the double period.
                     (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, subjId, teacherId, roomId, cellToSave);
-                    setTimeout(()=>{
-                      try {
-                        const raw = localStorage.getItem('tt_timetableData');
-                        if (raw) {
-                          const data = JSON.parse(raw);
-                          const cell = data?.schedule?.[selectedId]?.[activeCell.day]?.[activeCell.periodId];
-                          if (cell) {
-                            cell.subjectName = subjName;
-                            cell.isCombined = isCombined;
-                            if (isCombined) {
-                              cell.secondSubjectName = secondSubjName;
-                              cell.secondSubjectId = secondSubjId;
-                              cell.secondTeacherId = secondTeacherId;
-                            }
-                            cell.isDouble = periodType==='double';
-                            cell.isPS = false;
-                            cell.isActivity = false;
-                            if (periodType==='double') {
-                              const teachingIds = activePeriods.filter((s:any)=>!s.isBreak && !(s as any).isActivity).map((s:any)=>s.id);
-                              const idx = teachingIds.indexOf(activeCell.periodId);
-                              const nextId = teachingIds[idx+1];
-                              if (nextId) {
-                                if (!data.schedule[selectedId][activeCell.day][nextId]) {
-                                  data.schedule[selectedId][activeCell.day][nextId] = { subjectId: subjId, subjectName: subjName, teacherId, roomId, classId: selectedId, isDouble: true, isDoubleSpan: true, isCombined, secondSubjectName, secondSubjectId, secondTeacherId };
-                                } else {
-                                  // If next exists, still mark as double span for combined
-                                  data.schedule[selectedId][activeCell.day][nextId].isDoubleSpan = true;
-                                }
-                              }
-                            }
-                            localStorage.setItem('tt_timetableData', JSON.stringify(data));
-                            localStorage.setItem('tt_timetableData_ts', String(Date.now()));
-                            setRefreshKey((k:number)=>k+1);
-                          }
-                        }
-                      } catch {}
-                    }, 150);
+                    if (periodType === 'double' && targetPeriodIds[1]) {
+                      (updateLessonSlot as any)(selectedId, activeCell.day, targetPeriodIds[1], subjId, teacherId, roomId, { ...cellToSave, isDoubleSpan: true });
+                    }
                     setActiveCell(null);
                     setCollisionMsg('');
                   } catch(e:any){ setCollisionMsg('Save failed: '+(e?.message||String(e))); }

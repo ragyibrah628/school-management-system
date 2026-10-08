@@ -362,11 +362,9 @@ function AppInner() {
   const [, setTick] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => setTick(t => t + 1), 60000);
-    // Poll cloud for cross-device changes without repeatedly rewriting all app_data keys.
-    const pollTimer = setInterval(async () => {
-      if (cloud.isCloudMode()) {
-        await cloud.syncFromCloud();
-        await refreshRoleAssignments();
+    const poll = async (forceMetadata = false) => {
+      if (user && cloud.isCloudMode() && !document.hidden) {
+        await cloud.syncFromCloud(forceMetadata);
         try {
           const freshExams = JSON.parse(localStorage.getItem('sms_exams') || '[]');
           setExams(prev => {
@@ -404,45 +402,24 @@ function AppInner() {
         } catch {}
         await loadData();
       }
-    }, 60000);
-    const onFocus = async () => {
-      if (cloud.isCloudMode()) {
-        await cloud.syncFromCloud();
-        await refreshRoleAssignments();
-        try {
-          const fe = JSON.parse(localStorage.getItem('sms_exams') || '[]');
-          setExams((prev:any) => (Array.isArray(fe) && fe.length===0 && Array.isArray(prev) && prev.length>0) ? prev : fe);
-        } catch {}
-        try { setClassTeachers(JSON.parse(localStorage.getItem('sms_class_teachers') || '{}')); } catch {}
-        try { setStudents(JSON.parse(localStorage.getItem('sms_students') || '{}')); } catch {}
-        try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
-        try {
-          const fc = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
-          const ts = localStorage.getItem('sms_school_classes_ts');
-          const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
-          if (isRecent) {
-            // keep local recent edit
-          } else if (Array.isArray(fc) && fc.length) setSchoolClasses((prev:any) => JSON.stringify(prev) !== JSON.stringify(fc) ? fc : prev);
-          else if (Array.isArray(fc) && fc.length === 0) setSchoolClasses([]);
-        } catch {}
-        await loadData();
-      }
     };
-    window.addEventListener('focus', onFocus);
-    return () => { clearInterval(timer); clearInterval(pollTimer); window.removeEventListener('focus', onFocus); };
-  }, []);
+    const stopPolling = user ? cloud.startVisiblePolling(() => poll(), 60000, () => poll(true)) : () => {};
+    if (user) void poll(true);
+    return () => { clearInterval(timer); stopPolling(); };
+  }, [user?.id]);
 
   // Scores are the only cross-device data that must appear promptly for admins.
   useEffect(() => {
     if (!cloud.isCloudMode() || (user?.role !== 'admin' && user?.role !== 'teacher')) return;
     let active = true;
     const refreshScores = async () => {
-      if (user?.role === 'admin') {
+      if (!document.hidden && user?.role === 'admin') {
         const freshScores = await cloud.getScores().catch(() => null);
         if (active && Array.isArray(freshScores)) setScores(freshScores);
       }
     };
     const refreshExams = async () => {
+      if (document.hidden) return;
       await cloud.refreshAppDataKey('sms_exams');
       if (!active) return;
       try {
@@ -451,11 +428,10 @@ function AppInner() {
       } catch {}
     };
     refreshScores();
-    refreshExams();
-    const timer = setInterval(() => { refreshScores(); refreshExams(); }, 30000);
+    const stopScorePolling = cloud.startVisiblePolling(refreshScores, 30000, refreshScores);
     const unsubscribeScores = user?.role === 'admin' ? cloud.subscribeToScoreChanges(refreshScores) : () => {};
     const unsubscribeExams = cloud.subscribeToAppDataChanges('sms_exams', refreshExams);
-    return () => { active = false; clearInterval(timer); unsubscribeScores(); unsubscribeExams(); };
+    return () => { active = false; stopScorePolling(); unsubscribeScores(); unsubscribeExams(); };
   }, [user?.role]);
 
   // Score entry state for exam mode
@@ -653,8 +629,6 @@ function AppInner() {
     } catch { /* silent */ }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
-
   // restore session on refresh - don't logout on reload
   useEffect(() => {
     try {
@@ -711,26 +685,7 @@ function AppInner() {
         setLoading(false);
         // background sync - don't block login
         (async () => {
-          try { await cloud.syncFromCloud(); } catch {}
-          try { await refreshRoleAssignments(); } catch {}
           try { if ((cloud as any).syncScoresToCloud) await (cloud as any).syncScoresToCloud(); } catch {}
-          try {
-            const fe = JSON.parse(localStorage.getItem('sms_exams') || '[]');
-            setExams((prev:any) => (Array.isArray(fe) && fe.length===0 && Array.isArray(prev) && prev.length>0) ? prev : fe);
-          } catch {}
-          try { setClassTeachers(JSON.parse(localStorage.getItem('sms_class_teachers') || '{}')); } catch {}
-          try { setStudents(JSON.parse(localStorage.getItem('sms_students') || '{}')); } catch {}
-          try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
-          try {
-            const fc = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
-            const ts = localStorage.getItem('sms_school_classes_ts');
-            const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
-            if (isRecent) {
-              // keep local recent edit
-            } else if (Array.isArray(fc) && fc.length) setSchoolClasses((prev:any) => JSON.stringify(prev) !== JSON.stringify(fc) ? fc : prev);
-            else if (Array.isArray(fc) && fc.length === 0) setSchoolClasses([]);
-          } catch {}
-          await loadData();
         })();
         return;
       } else {
@@ -742,7 +697,6 @@ function AppInner() {
           setScreen('admin');
           setActiveMenu('dashboard');
           setLoading(false);
-          (async () => { try { await cloud.syncFromCloud(); } catch {}; try { await refreshRoleAssignments(); } catch {}; await loadData(); })();
           return;
         } else {
           setError('Wrong credentials. Admin: admin / admin123');
@@ -833,14 +787,8 @@ function AppInner() {
     return ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
   });
   useEffect(() => {
-    if (!cloud.isCloudMode()) return;
-    cloud.getSchoolClassesFromCloud()
-      .then(classes => {
-        if (Array.isArray(classes)) setSchoolClasses(classes);
-      })
-      .catch(() => {})
-      .finally(() => setSchoolClassesReady(true));
-  }, []);
+    if (user) setSchoolClassesReady(true);
+  }, [user?.id]);
   useEffect(() => {
     const value = JSON.stringify(schoolClasses);
     const previous = localStorage.getItem('sms_school_classes');
@@ -924,20 +872,27 @@ function AppInner() {
   useEffect(() => {
     if (!cloud.isCloudMode() || (user?.role !== 'admin' && user?.role !== 'teacher')) return;
     const refreshBehavior = async () => {
+      if (document.hidden) return;
       await cloud.refreshAppDataKey('sms_behavior');
       try {
         const fresh = JSON.parse(localStorage.getItem('sms_behavior') || '{}');
         setBehaviorData(prev => JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh);
       } catch {}
     };
-    refreshBehavior();
     const unsubscribe = cloud.subscribeToAppDataChanges('sms_behavior', refreshBehavior);
-    const timer = setInterval(refreshBehavior, 15000);
-    return () => { unsubscribe(); clearInterval(timer); };
+    const refreshBehaviorFromLocal = () => {
+      try {
+        const fresh = JSON.parse(localStorage.getItem('sms_behavior') || '{}');
+        setBehaviorData(prev => JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh);
+      } catch {}
+    };
+    window.addEventListener('cloud-sync-complete', refreshBehaviorFromLocal);
+    return () => { unsubscribe(); window.removeEventListener('cloud-sync-complete', refreshBehaviorFromLocal); };
   }, [user?.role]);
   useEffect(() => {
     if (!cloud.isCloudMode() || (user?.role !== 'admin' && user?.role !== 'teacher')) return;
     const refreshUsers = async () => {
+      if (document.hidden) return;
       const fresh = await cloud.getUsers().catch(() => null);
       if (!Array.isArray(fresh)) return;
       setUsers(fresh);
@@ -948,9 +903,31 @@ function AppInner() {
       }
     };
     const unsubscribe = cloud.subscribeToUserChanges(refreshUsers);
-    const timer = setInterval(refreshUsers, 15000);
-    return () => { unsubscribe(); clearInterval(timer); };
+    const stopPolling = cloud.startVisiblePolling(refreshUsers, 60000, refreshUsers);
+    return () => { unsubscribe(); stopPolling(); };
   }, [user?.id, user?.role]);
+  useEffect(() => {
+    if (!cloud.isCloudMode() || (user?.role !== 'admin' && user?.role !== 'teacher')) return;
+    const refreshRoles = async () => {
+      if (document.hidden) return;
+      const roles = await cloud.getRoleAssignmentsFromCloud();
+      if (!roles) return;
+      setClassTeachers(prev => JSON.stringify(prev) === JSON.stringify(roles.classTeachers) ? prev : roles.classTeachers);
+      setTeachingAssignments(prev => JSON.stringify(prev) === JSON.stringify(roles.teachingAssignments) ? prev : roles.teachingAssignments);
+    };
+    const unsubscribeClassTeachers = cloud.subscribeToAppDataChanges('sms_class_teachers', refreshRoles);
+    const unsubscribeTeachingAssignments = cloud.subscribeToAppDataChanges('sms_teaching_assignments', refreshRoles);
+    const refreshRolesFromLocal = () => {
+      try { setClassTeachers(JSON.parse(localStorage.getItem('sms_class_teachers') || '{}')); } catch {}
+      try { setTeachingAssignments(JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}')); } catch {}
+    };
+    window.addEventListener('cloud-sync-complete', refreshRolesFromLocal);
+    return () => {
+      unsubscribeClassTeachers();
+      unsubscribeTeachingAssignments();
+      window.removeEventListener('cloud-sync-complete', refreshRolesFromLocal);
+    };
+  }, [user?.role]);
   const setBehavior = (student: string, category: string, rating: string) => {
     setBehaviorData(prev => ({ ...prev, [student]: { ...(prev[student] || {}), [category]: rating } }));
   };

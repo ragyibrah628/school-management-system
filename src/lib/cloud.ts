@@ -13,6 +13,38 @@ const GET_CACHE_TTL_MS = 30000;
 const getCache = new Map<string, { expiresAt: number; data: any }>();
 const getInFlight = new Map<string, Promise<any>>();
 
+export function startVisiblePolling(
+  callback: () => void | Promise<void>,
+  intervalMs: number,
+  onResume: () => void | Promise<void> = callback
+): () => void {
+  let timer: ReturnType<typeof setInterval> | null = null;
+  let inFlight = false;
+  const run = async (task: () => void | Promise<void>) => {
+    if (document.hidden || inFlight) return;
+    inFlight = true;
+    try { await task(); } finally { inFlight = false; }
+  };
+  const start = () => {
+    if (!document.hidden && timer === null) timer = setInterval(() => { void run(callback); }, intervalMs);
+  };
+  const onVisibilityChange = () => {
+    if (document.hidden) {
+      if (timer !== null) clearInterval(timer);
+      timer = null;
+    } else {
+      void run(onResume);
+      start();
+    }
+  };
+  start();
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  return () => {
+    if (timer !== null) clearInterval(timer);
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+  };
+}
+
 export function isCloudMode() {
   return IS_CLOUD;
 }
@@ -52,12 +84,8 @@ export function subscribeToUserChanges(onChange: () => void): () => void {
 export async function refreshAppDataKey(key: string): Promise<void> {
   if (!IS_CLOUD) return;
   try {
-    const data = await supabaseRequest('app_data', 'GET', undefined, `?key=eq.${encodeURIComponent(key)}&select=key,value,updated_at`);
-    const item = Array.isArray(data) ? data[0] : null;
-    if (item?.value) {
-      localStorage.setItem(key, item.value);
-      localStorage.setItem(`${key}_ts`, String(Date.parse(item.updated_at || '') || Date.now()));
-    }
+    invalidateAppDataKeyCache(key);
+    await syncAppDataKeys([key], true);
   } catch (error) {
     console.error(`Cloud refresh failed for ${key}:`, error);
   }
@@ -69,14 +97,41 @@ export function isOperaMini(): boolean {
   } catch { return false; }
 }
 
-async function supabaseRequest(table: string, method: string, body?: any, query?: string, upsert = false) {
+function appDataQueryContainsKey(requestKey: string, appDataKey: string): boolean {
+  try {
+    const url = new URL(requestKey.slice(requestKey.indexOf(':') + 1));
+    const filter = url.searchParams.get('key') || '';
+    if (filter.startsWith('eq.')) return filter.slice(3) === appDataKey;
+    if (filter.startsWith('in.(') && filter.endsWith(')')) {
+      return filter.slice(4, -1).split(',').includes(appDataKey);
+    }
+  } catch {}
+  return false;
+}
+
+function invalidateAppDataKeyCache(appDataKey: string) {
+  const prefix = `GET:${SUPABASE_URL}/rest/v1/app_data`;
+  for (const cacheKey of getCache.keys()) {
+    if (cacheKey.startsWith(prefix) && appDataQueryContainsKey(cacheKey, appDataKey)) getCache.delete(cacheKey);
+  }
+  for (const requestKey of getInFlight.keys()) {
+    if (requestKey.startsWith(prefix) && appDataQueryContainsKey(requestKey, appDataKey)) getInFlight.delete(requestKey);
+  }
+}
+
+async function supabaseRequest(table: string, method: string, body?: any, query?: string, upsert = false, bypassCache = false) {
   const url = `${SUPABASE_URL}/rest/v1/${table}${query || ''}`;
   const cacheKey = `${method}:${url}`;
   if (method === 'GET') {
-    const cached = getCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) return cached.data;
-    const pending = getInFlight.get(cacheKey);
-    if (pending) return pending;
+    if (bypassCache) {
+      getCache.delete(cacheKey);
+      getInFlight.delete(cacheKey);
+    } else {
+      const cached = getCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) return cached.data;
+      const pending = getInFlight.get(cacheKey);
+      if (pending) return pending;
+    }
   }
   const headers: any = {
     'apikey': SUPABASE_KEY,
@@ -122,8 +177,20 @@ async function supabaseRequest(table: string, method: string, body?: any, query?
       .finally(() => getInFlight.delete(cacheKey));
   } else {
     request.then(() => {
-      for (const key of getCache.keys()) {
-        if (key.startsWith(`GET:${SUPABASE_URL}/rest/v1/${table}`)) getCache.delete(key);
+      if (table === 'app_data') {
+        let appDataKey = body?.key;
+        if (!appDataKey && query) {
+          try {
+            const urlWithQuery = new URL(`${SUPABASE_URL}/rest/v1/${table}${query}`);
+            const filter = urlWithQuery.searchParams.get('key') || '';
+            if (filter.startsWith('eq.')) appDataKey = filter.slice(3);
+          } catch {}
+        }
+        if (appDataKey) invalidateAppDataKeyCache(appDataKey);
+      } else {
+        for (const key of getCache.keys()) {
+          if (key.startsWith(`GET:${SUPABASE_URL}/rest/v1/${table}`)) getCache.delete(key);
+        }
       }
     }, () => undefined);
   }
@@ -229,13 +296,7 @@ export async function deleteUser(id: string) {
 export async function getScores(): Promise<any[]> {
   if (IS_CLOUD) {
     try {
-      let data: any[];
-      try {
-        data = await supabaseRequest('scores', 'GET', undefined, '?select=id,teacher_name,teacher_id,student_name,class_name,subject,term,score,max_score,exam_name,exam_id,created_at&order=created_at.desc&limit=5000');
-      } catch (error: any) {
-        if (!String(error?.message || error).includes('teacher_id')) throw error;
-        data = await supabaseRequest('scores', 'GET', undefined, '?select=id,teacher_name,student_name,class_name,subject,term,score,max_score,exam_name,exam_id,created_at&order=created_at.desc&limit=5000');
-      }
+      const data: any[] = await supabaseRequest('scores', 'GET', undefined, '?select=id,teacher_name,student_name,class_name,subject,term,score,max_score,exam_name,exam_id,created_at&order=created_at.desc&limit=5000');
       if (Array.isArray(data)) {
         const saved = localStorage.getItem('sms_scores');
         let localScores: any[] = [];
@@ -471,6 +532,76 @@ const SYNC_KEYS = [
 ];
 
 const ROLE_SYNC_KEYS = ['sms_class_teachers', 'sms_teaching_assignments'];
+const APP_DATA_SYNC_KEYS = [...new Set([...SYNC_KEYS, ...ROLE_SYNC_KEYS])];
+
+function appDataKeysFilter(keys: string[]): string {
+  return `key=in.(${keys.map(key => encodeURIComponent(key)).join(',')})`;
+}
+
+function applyCloudAppDataItem(item: any, isAdmin: boolean): boolean {
+  if (!item?.key || item.value === undefined) return false;
+  const localValue = localStorage.getItem(item.key);
+  const cloudTimestamp = Date.parse(item.updated_at || '') || 0;
+  const isSharedRoleKey = item.key === 'sms_class_teachers' || item.key === 'sms_teaching_assignments';
+  let applyValue = true;
+
+  if (item.key === 'sms_school_classes' || item.key === 'tt_shared_classes') {
+    try {
+      const savedClasses = JSON.parse(localStorage.getItem('sms_school_classes') || 'null');
+      const incomingClasses = JSON.parse(item.value);
+      const localTimestamp = parseInt(localStorage.getItem('sms_school_classes_ts') || '0', 10);
+      if (Array.isArray(savedClasses) && Array.isArray(incomingClasses)) {
+        const localIsCustom = JSON.stringify(savedClasses) !== JSON.stringify(LEGACY_DEFAULT_CLASSES);
+        const incomingIsLegacyDefault = JSON.stringify(incomingClasses) === JSON.stringify(LEGACY_DEFAULT_CLASSES);
+        if ((localIsCustom && incomingIsLegacyDefault) || (localTimestamp > 0 && localTimestamp >= cloudTimestamp)) applyValue = false;
+      }
+    } catch {}
+  }
+
+  const isCloudEmpty = item.value === '[]' || item.value === '{}' || item.value === '' || item.value === '""';
+  const isLocalNonEmpty = !!localValue && localValue !== '[]' && localValue !== '{}' && localValue !== '' && localValue !== '""';
+  if (isCloudEmpty && isLocalNonEmpty && !isSharedRoleKey) applyValue = false;
+  try {
+    const localTimestamp = parseInt(localStorage.getItem(`${item.key}_ts`) || '0', 10);
+    if (localTimestamp > 0 && localTimestamp >= cloudTimestamp && (!isSharedRoleKey || isAdmin)) applyValue = false;
+  } catch {}
+
+  const changed = applyValue && localValue !== item.value;
+  if (applyValue) localStorage.setItem(item.key, item.value);
+  localStorage.setItem(`${item.key}_cloud_updated_at`, item.updated_at || '');
+  return changed;
+}
+
+async function syncAppDataKeys(keys: string[] = APP_DATA_SYNC_KEYS, bypassCache = false): Promise<void> {
+  if (!IS_CLOUD || keys.length === 0) return;
+  let isAdmin = false;
+  try { isAdmin = JSON.parse(localStorage.getItem('sms_current_user') || 'null')?.role === 'admin'; } catch {}
+
+  const metadata = await supabaseRequest(
+    'app_data', 'GET', undefined,
+    `?${appDataKeysFilter(keys)}&select=key,updated_at&limit=100`,
+    false,
+    bypassCache
+  );
+  const changed = (Array.isArray(metadata) ? metadata : []).filter((item: any) => {
+    return item.key && localStorage.getItem(`${item.key}_cloud_updated_at`) !== (item.updated_at || '');
+  });
+  if (changed.length === 0) return;
+
+  const values = await supabaseRequest(
+    'app_data', 'GET', undefined,
+    `?${appDataKeysFilter(changed.map((item: any) => item.key))}&select=key,value,updated_at&limit=100`,
+    false,
+    bypassCache
+  );
+  const valuesByKey = new Map((Array.isArray(values) ? values : []).map((item: any) => [item.key, item]));
+  let appliedChange = false;
+  for (const metadataItem of changed) {
+    const item = valuesByKey.get(metadataItem.key);
+    if (item) appliedChange = applyCloudAppDataItem(item, isAdmin) || appliedChange;
+  }
+  if (appliedChange) window.dispatchEvent(new Event('cloud-sync-complete'));
+}
 
 export async function getRoleAssignmentsFromCloud(): Promise<{
   classTeachers: Record<string, string>;
@@ -478,18 +609,13 @@ export async function getRoleAssignmentsFromCloud(): Promise<{
 } | null> {
   if (!IS_CLOUD) return null;
   try {
-    const data = await supabaseRequest('app_data', 'GET', undefined, '?key=in.(sms_class_teachers,sms_teaching_assignments)&select=key,value');
     const result = {
       classTeachers: {} as Record<string, string>,
       teachingAssignments: {} as Record<string, { cls: string; sub: string }[]>
     };
-    for (const item of Array.isArray(data) ? data : []) {
-      const parsed = JSON.parse(item.value || '{}');
-      if (item.key === 'sms_class_teachers' && parsed && typeof parsed === 'object') result.classTeachers = parsed;
-      if (item.key === 'sms_teaching_assignments' && parsed && typeof parsed === 'object') result.teachingAssignments = parsed;
-    }
-    localStorage.setItem('sms_class_teachers', JSON.stringify(result.classTeachers));
-    localStorage.setItem('sms_teaching_assignments', JSON.stringify(result.teachingAssignments));
+    await syncAppDataKeys(ROLE_SYNC_KEYS);
+    result.classTeachers = JSON.parse(localStorage.getItem('sms_class_teachers') || '{}');
+    result.teachingAssignments = JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}');
     return result;
   } catch (e) {
     console.error('Cloud role assignments fetch failed:', e);
@@ -545,54 +671,10 @@ export function syncToCloud(): Promise<void> {
 }
 
 // ✅ FIXED — handles classes deletion + addition without reverting
-export async function syncFromCloud() {
+export async function syncFromCloud(bypassCache = false) {
   if (!IS_CLOUD) return;
   try {
-    let isAdmin = false;
-    try {
-      const currentUser = JSON.parse(localStorage.getItem('sms_current_user') || 'null');
-      isAdmin = currentUser?.role === 'admin';
-    } catch {}
-    const data = await supabaseRequest('app_data', 'GET', undefined, '?select=key,value,updated_at&limit=100');
-    if (Array.isArray(data)) {
-      data.forEach((item: any) => {
-        if (item.key && item.value) {
-          const localValue = localStorage.getItem(item.key);
-          if (item.key === 'sms_school_classes' || item.key === 'tt_shared_classes') {
-            try {
-              const savedClasses = JSON.parse(localStorage.getItem('sms_school_classes') || 'null');
-              const incomingClasses = JSON.parse(item.value);
-              const localTimestamp = parseInt(localStorage.getItem('sms_school_classes_ts') || '0', 10);
-              const cloudTimestamp = Date.parse(item.updated_at || '') || 0;
-              if (Array.isArray(savedClasses) && Array.isArray(incomingClasses)) {
-                const localIsCustom = JSON.stringify(savedClasses) !== JSON.stringify(LEGACY_DEFAULT_CLASSES);
-                const incomingIsLegacyDefault = JSON.stringify(incomingClasses) === JSON.stringify(LEGACY_DEFAULT_CLASSES);
-                if ((localIsCustom && incomingIsLegacyDefault) || (localTimestamp > 0 && localTimestamp >= cloudTimestamp)) return;
-              }
-            } catch {}
-          }
-          const isCloudEmpty = item.value === '[]' || item.value === '{}' || item.value === '' || item.value === '""';
-          const isLocalNonEmpty = !!localValue && localValue !== '[]' && localValue !== '{}' && localValue !== '' && localValue !== '""';
-          // FIX exams bug: if cloud is empty but local has data (admin just created, cloud not yet synced), don't delete local
-          const isSharedRoleKey = item.key === 'sms_class_teachers' || item.key === 'sms_teaching_assignments';
-          if (isCloudEmpty && isLocalNonEmpty && !isSharedRoleKey) {
-            return;
-          }
-          // Keep a local edit only while it is newer than the cloud copy.
-          try {
-            const ts = localStorage.getItem(item.key + '_ts');
-            const localTimestamp = ts ? parseInt(ts, 10) : 0;
-            const cloudTimestamp = Date.parse(item.updated_at || '') || 0;
-            const isSharedRoleKey = item.key === 'sms_class_teachers' || item.key === 'sms_teaching_assignments';
-            if (localTimestamp > 0 && localTimestamp >= cloudTimestamp && (!isSharedRoleKey || isAdmin)) {
-              return;
-            }
-          } catch {}
-          localStorage.setItem(item.key, item.value);
-        }
-      });
-      window.dispatchEvent(new Event('cloud-sync-complete'));
-    }
+    await syncAppDataKeys(APP_DATA_SYNC_KEYS, bypassCache);
   } catch (e) { console.error('Sync from cloud failed:', e); }
 }
 

@@ -175,7 +175,7 @@ export function AdminRegisteredStudents() {
     let requestInFlight = false;
     // Load classes + registered from Supabase
     const load = async () => {
-      if (requestInFlight) return;
+      if (requestInFlight || document.hidden) return;
       requestInFlight = true;
       try {
         const [cls, reg] = await Promise.all([
@@ -192,11 +192,9 @@ export function AdminRegisteredStudents() {
       } catch {} finally { requestInFlight = false; }
     };
     load();
-    // Poll classes + registered every 60s + on focus so new class appears without refresh
-    const id = setInterval(load, 60000);
-    const onSync = () => load();
+    const stopPolling = cloud.startVisiblePolling(load, 60000, load);
+    const onSync = () => { if (!document.hidden) void load(); };
     window.addEventListener('cloud-sync-complete', onSync);
-    window.addEventListener('focus', onSync);
     // Also listen to storage event (when App.tsx adds a class in same browser)
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'sms_school_classes' && e.newValue) {
@@ -204,7 +202,7 @@ export function AdminRegisteredStudents() {
       }
     };
     window.addEventListener('storage', onStorage);
-    return () => { mounted=false; clearInterval(id); window.removeEventListener('cloud-sync-complete', onSync); window.removeEventListener('focus', onSync); window.removeEventListener('storage', onStorage); };
+    return () => { mounted=false; stopPolling(); window.removeEventListener('cloud-sync-complete', onSync); window.removeEventListener('storage', onStorage); };
   }, []);
 
   const update = async (cls: string, field: 'regB' | 'regG', val: number) => {
@@ -294,7 +292,7 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
     let mounted = true;
     let requestInFlight = false;
     const fetchAll = async () => {
-      if (requestInFlight) return;
+      if (requestInFlight || document.hidden) return;
       requestInFlight = true;
       try {
         const [cls, reg] = await Promise.all([
@@ -310,10 +308,9 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
       } catch {} finally { requestInFlight = false; }
     };
     fetchAll();
-    const interval = setInterval(fetchAll, 60000);
-    const onSync = () => fetchAll();
+    const stopPolling = cloud.startVisiblePolling(fetchAll, 60000, fetchAll);
+    const onSync = () => { if (!document.hidden) void fetchAll(); };
     window.addEventListener('cloud-sync-complete', onSync);
-    window.addEventListener('focus', onSync);
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'sms_school_classes' && e.newValue) {
         try { const v = JSON.parse(e.newValue); if (Array.isArray(v) && v.length) setSchoolClasses(v); } catch {}
@@ -322,9 +319,8 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
     window.addEventListener('storage', onStorage);
     return () => {
       mounted = false;
-      clearInterval(interval);
+      stopPolling();
       window.removeEventListener('cloud-sync-complete', onSync);
-      window.removeEventListener('focus', onSync);
       window.removeEventListener('storage', onStorage);
     };
   }, []);
