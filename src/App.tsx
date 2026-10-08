@@ -2009,24 +2009,30 @@ function AppInner() {
               const sameLesson = (first: any, second: any) => Boolean(first && second &&
                 first.teacherId === second.teacherId &&
                 first.subjectId === second.subjectId &&
+                (first.roomId || '') === (second.roomId || '') &&
                 (first.secondTeacherId || '') === (second.secondTeacherId || '') &&
                 (first.secondSubjectId || '') === (second.secondSubjectId || '')
               );
               const isDoubleStart = (day: string, periodId: string, cell: any) => {
-                if (!cell?.isDouble || cell.isDoubleSpan) return false;
+                if (!cell || cell.isDoubleSpan || cell.isDouble === false) return false;
                 const slotIndex = ttSlots.findIndex((slot: any) => slot.id === periodId);
                 const nextSlot = ttSlots[slotIndex + 1];
                 if (!nextSlot || nextSlot.isBreak || nextSlot.isActivity) return false;
                 const nextCell = ttData.schedule[cell.classId]?.[day]?.[nextSlot.id];
-                return sameLesson(cell, nextCell);
+                if (!sameLesson(cell, nextCell) || nextCell.isDouble === false) return false;
+                return cell.isDouble === true || nextCell.isDoubleSpan === true || nextCell.isDouble === true ||
+                  (cell.isDouble === undefined && nextCell.isDouble === undefined);
               };
               const isDoubleContinuation = (day: string, periodId: string, cell: any) => {
                 if (cell?.isDoubleSpan) return true;
+                if (!cell || cell.isDouble === false) return false;
                 const slotIndex = ttSlots.findIndex((slot: any) => slot.id === periodId);
                 const previousSlot = ttSlots[slotIndex - 1];
                 if (!previousSlot || previousSlot.isBreak || previousSlot.isActivity) return false;
                 const previousCell = ttData.schedule[cell.classId]?.[day]?.[previousSlot.id];
-                return Boolean(previousCell?.isDouble && sameLesson(previousCell, cell));
+                if (!sameLesson(previousCell, cell) || previousCell.isDouble === false) return false;
+                return previousCell.isDouble === true || cell.isDouble === true ||
+                  (previousCell.isDouble === undefined && cell.isDouble === undefined);
               };
 
               const printMyTimetable = () => {
