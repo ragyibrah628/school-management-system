@@ -321,7 +321,7 @@ export const TimetableViewer: React.FC = () => {
       if (periodIndex > 0) {
         const previousPeriod = activePeriods[periodIndex - 1];
         const previousCell: any = schedule[classId]?.[day]?.[previousPeriod.id];
-        if (previousCell?.isDouble && (previousCell.teacherId === teacherId || previousCell.secondTeacherId === teacherId)) {
+        if (previousCell?.isDouble && !previousCell.isDoubleSpan && (previousCell.teacherId === teacherId || previousCell.secondTeacherId === teacherId)) {
           return classes.find((item: any) => item.id === classId)?.name || classId;
         }
       }
