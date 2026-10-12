@@ -81,11 +81,23 @@ export function subscribeToUserChanges(onChange: () => void): () => void {
   return () => { realtimeClient.removeChannel(channel); };
 }
 
-export async function refreshAppDataKey(key: string): Promise<void> {
+export async function refreshAppDataKey(key: string, forceApply = false): Promise<void> {
   if (!IS_CLOUD) return;
   try {
     invalidateAppDataKeyCache(key);
-    await syncAppDataKeys([key], true);
+    const data = await supabaseRequest(
+      'app_data', 'GET', undefined,
+      `?key=eq.${encodeURIComponent(key)}&select=key,value,updated_at&limit=1`,
+      false,
+      true
+    );
+    const item = Array.isArray(data) ? data[0] : null;
+    if (!item) return;
+    let isAdmin = false;
+    try { isAdmin = JSON.parse(localStorage.getItem('sms_current_user') || 'null')?.role === 'admin'; } catch {}
+    if (applyCloudAppDataItem(item, isAdmin, forceApply)) {
+      window.dispatchEvent(new Event('cloud-sync-complete'));
+    }
   } catch (error) {
     console.error(`Cloud refresh failed for ${key}:`, error);
   }
@@ -538,14 +550,14 @@ function appDataKeysFilter(keys: string[]): string {
   return `key=in.(${keys.map(key => encodeURIComponent(key)).join(',')})`;
 }
 
-function applyCloudAppDataItem(item: any, isAdmin: boolean): boolean {
+function applyCloudAppDataItem(item: any, isAdmin: boolean, forceApply = false): boolean {
   if (!item?.key || item.value === undefined) return false;
   const localValue = localStorage.getItem(item.key);
   const cloudTimestamp = Date.parse(item.updated_at || '') || 0;
   const isSharedRoleKey = item.key === 'sms_class_teachers' || item.key === 'sms_teaching_assignments';
   let applyValue = true;
 
-  if (item.key === 'sms_school_classes' || item.key === 'tt_shared_classes') {
+  if (!forceApply && (item.key === 'sms_school_classes' || item.key === 'tt_shared_classes')) {
     try {
       const savedClasses = JSON.parse(localStorage.getItem('sms_school_classes') || 'null');
       const incomingClasses = JSON.parse(item.value);
@@ -558,13 +570,17 @@ function applyCloudAppDataItem(item: any, isAdmin: boolean): boolean {
     } catch {}
   }
 
-  const isCloudEmpty = item.value === '[]' || item.value === '{}' || item.value === '' || item.value === '""';
-  const isLocalNonEmpty = !!localValue && localValue !== '[]' && localValue !== '{}' && localValue !== '' && localValue !== '""';
-  if (isCloudEmpty && isLocalNonEmpty && !isSharedRoleKey) applyValue = false;
-  try {
-    const localTimestamp = parseInt(localStorage.getItem(`${item.key}_ts`) || '0', 10);
-    if (localTimestamp > 0 && localTimestamp >= cloudTimestamp && (!isSharedRoleKey || isAdmin)) applyValue = false;
-  } catch {}
+  if (!forceApply) {
+    const isCloudEmpty = item.value === '[]' || item.value === '{}' || item.value === '' || item.value === '""';
+    const isLocalNonEmpty = !!localValue && localValue !== '[]' && localValue !== '{}' && localValue !== '' && localValue !== '""';
+    if (isCloudEmpty && isLocalNonEmpty && !isSharedRoleKey) applyValue = false;
+    try {
+      const localTimestamp = parseInt(localStorage.getItem(`${item.key}_ts`) || '0', 10);
+      if (localTimestamp > 0 && localTimestamp >= cloudTimestamp && (!isSharedRoleKey || isAdmin)) applyValue = false;
+    } catch {}
+  } else if (cloudTimestamp > 0) {
+    localStorage.setItem(`${item.key}_ts`, String(cloudTimestamp));
+  }
 
   const changed = applyValue && localValue !== item.value;
   if (applyValue) localStorage.setItem(item.key, item.value);
@@ -647,6 +663,24 @@ export async function syncRoleAssignmentsToCloud(classTeachers: unknown, teachin
 
 let syncToCloudPromise: Promise<void> | null = null;
 const lastSyncedAppDataValues = new Map<string, string>();
+
+export async function syncAppDataKeyToCloud(key: string, value: string): Promise<void> {
+  if (!IS_CLOUD) return;
+  if (syncToCloudPromise) await syncToCloudPromise.catch(() => {});
+  const updatedAt = new Date().toISOString();
+  localStorage.setItem(`${key}_ts`, String(Date.parse(updatedAt)));
+  try {
+    await supabaseRequest('app_data', 'POST', { key, value, updated_at: updatedAt }, undefined, true);
+  } catch {
+    await supabaseRequest(
+      'app_data', 'PATCH',
+      { value, updated_at: updatedAt },
+      `?key=eq.${encodeURIComponent(key)}`
+    );
+  }
+  lastSyncedAppDataValues.set(key, value);
+  localStorage.setItem(`${key}_cloud_updated_at`, updatedAt);
+}
 
 export function syncToCloud(): Promise<void> {
   if (!IS_CLOUD) return Promise.resolve();

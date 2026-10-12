@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTimetable } from '../context/TimetableContext';
 import { DayOfWeek, TimetableCell } from '../types';
+import { getTeacherOccupiedSlots } from '../utils/scheduler';
 import { 
   Printer, Grid, 
   AlertTriangle, X, Trash2, Plus, Play, RefreshCw
@@ -311,17 +312,12 @@ export const TimetableViewer: React.FC = () => {
 
   const getTeacherConflictClass = (day: string, periodId: string, teacherId: string): string => {
     if (!teacherId) return '';
-    const periodIndex = activePeriods.findIndex((period: any) => period.id === periodId);
     for (const classId of Object.keys(schedule)) {
       if (classId === selectedId) continue;
-      const cell: any = schedule[classId]?.[day]?.[periodId];
-      if (cell && (cell.teacherId === teacherId || cell.secondTeacherId === teacherId)) {
-        return classes.find((item: any) => item.id === classId)?.name || classId;
-      }
-      if (periodIndex > 0) {
-        const previousPeriod = activePeriods[periodIndex - 1];
-        const previousCell: any = schedule[classId]?.[day]?.[previousPeriod.id];
-        if (previousCell?.isDouble && !previousCell.isDoubleSpan && (previousCell.teacherId === teacherId || previousCell.secondTeacherId === teacherId)) {
+      const daySchedule = schedule[classId]?.[day] || {};
+      for (const [cellPeriodId, cell] of Object.entries(daySchedule) as [string, any][]) {
+        if (cell.teacherId !== teacherId && cell.secondTeacherId !== teacherId) continue;
+        if (getTeacherOccupiedSlots(cell, cellPeriodId, timeSlots).includes(periodId)) {
           return classes.find((item: any) => item.id === classId)?.name || classId;
         }
       }
@@ -961,15 +957,13 @@ export const TimetableViewer: React.FC = () => {
                     if (isPS_selected || isReligion_selected) {
                       const specialId = isReligion_selected ? 'religion' : 'ps';
                       const specialName = isReligion_selected ? 'Religion' : 'PS';
-                      const teachingIds = activePeriods.filter((s:any)=>!s.isBreak && !(s as any).isActivity).map((s:any)=>s.id);
-                      const activeIndex = teachingIds.indexOf(activeCell.periodId);
-                      const nextId = teachingIds[activeIndex + 1];
-                      if (periodType === 'double' && !nextId) { setCollisionMsg('Double cannot be last period. Choose Single.'); return; }
                       const isDouble = periodType === 'double';
                       const cell: any = { subjectId: specialId, subjectName: specialName, teacherId: '', roomId: '', classId: selectedId, isPS: isPS_selected, isReligion: isReligion_selected, isDouble, isDoubleSpan: false };
+                      const targetPeriodIds = getTeacherOccupiedSlots(cell, activeCell.periodId, timeSlots);
+                      if (isDouble && targetPeriodIds.length !== 2) { setCollisionMsg('Double cannot cross a break, lunch, or activity.'); return; }
                       (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, specialId, '', '', cell);
-                      if (isDouble && nextId) {
-                        setTimeout(() => (updateLessonSlot as any)(selectedId, activeCell.day, nextId, specialId, '', '', { ...cell, isDoubleSpan: true }), 0);
+                      if (isDouble) {
+                        setTimeout(() => (updateLessonSlot as any)(selectedId, activeCell.day, targetPeriodIds[1], specialId, '', '', { ...cell, isDoubleSpan: true }), 0);
                       }
                       setActiveCell(null);
                       setCollisionMsg('');
@@ -1029,37 +1023,28 @@ export const TimetableViewer: React.FC = () => {
                       setCollisionMsg('No teacher assigned to teach ' + subjName + ' in ' + (classes.find((c:any)=>c.id===selectedId)?.name || selectedId) + '. Go to Assign Teaching Classes & Subjects first.');
                       return;
                     }
-                    const teachingIds = activePeriods.filter((s:any)=>!s.isBreak && !(s as any).isActivity).map((s:any)=>s.id);
-                    const activeIndex = teachingIds.indexOf(activeCell.periodId);
-                    const nextId = teachingIds[activeIndex + 1];
-                    if (periodType==='double') {
-                      if (!nextId) { setCollisionMsg('Double cannot be last period. Choose Single.'); return; }
-                      const existingNext = (timetableData as any).schedule[selectedId]?.[activeCell.day]?.[nextId];
+                    const isDouble = periodType === 'double';
+                    const targetPeriodIds = getTeacherOccupiedSlots({ isDouble }, activeCell.periodId, timeSlots);
+                    if (isDouble && targetPeriodIds.length !== 2) { setCollisionMsg('Double cannot cross a break, lunch, or activity.'); return; }
+                    if (isDouble) {
+                      const existingNext = (timetableData as any).schedule[selectedId]?.[activeCell.day]?.[targetPeriodIds[1]];
                       if (existingNext) { setCollisionMsg('Next period already has a lesson. Remove it first.'); return; }
                     }
-                    const targetPeriodIds = periodType === 'double' ? [activeCell.periodId, nextId] : [activeCell.periodId];
-                    const teacherMatches = (cell: any, id: string) => Boolean(cell && (cell.teacherId === id || cell.secondTeacherId === id));
-                    const getOccupiedCell = (classId: string, periodId: string) => {
-                      const classSchedule = (timetableData as any).schedule[classId]?.[activeCell.day] || {};
-                      const directCell = classSchedule[periodId];
-                      if (directCell) return directCell;
-                      const periodIndex = teachingIds.indexOf(periodId);
-                      if (periodIndex > 0) {
-                        const previousCell = classSchedule[teachingIds[periodIndex - 1]];
-                        if (previousCell?.isDouble) return previousCell;
-                      }
-                      return null;
-                    };
+                    const targetTeacherIds = [teacherId, secondTeacherId].filter(Boolean) as string[];
                     for (const cid of Object.keys(((timetableData as any)?.schedule||{}))) {
-                      if (cid === selectedId) continue;
-                      for (const periodId of targetPeriodIds) {
-                        const cell = getOccupiedCell(cid, periodId);
-                        const matchedTeacher = teacherMatches(cell, teacherId) ? teacherId : (secondTeacherId && teacherMatches(cell, secondTeacherId) ? secondTeacherId : '');
-                        if (matchedTeacher) {
-                          const clsName = classes.find((c:any)=>c.id===cid)?.name || cid;
-                          const teacherName = teachers.find((t:any)=>t.id===matchedTeacher)?.name || matchedTeacher;
-                          setCollisionMsg('Teacher ' + teacherName + ' is already assigned to ' + clsName + ' on ' + activeCell.day + ' ' + periodId + '.');
-                          return;
+                      const classSchedule = (timetableData as any).schedule[cid]?.[activeCell.day] || {};
+                      for (const [cellPeriodId, cell] of Object.entries(classSchedule) as [string, any][]) {
+                        if (cid === selectedId && targetPeriodIds.includes(cellPeriodId)) continue;
+                        for (const targetTeacherId of targetTeacherIds) {
+                          if (cell.teacherId !== targetTeacherId && cell.secondTeacherId !== targetTeacherId) continue;
+                          const occupiedPeriodId = getTeacherOccupiedSlots(cell, cellPeriodId, timeSlots)
+                            .find(slotId => targetPeriodIds.includes(slotId));
+                          if (occupiedPeriodId) {
+                            const clsName = classes.find((c:any)=>c.id===cid)?.name || cid;
+                            const teacherName = teachers.find((t:any)=>t.id===targetTeacherId)?.name || targetTeacherId;
+                            setCollisionMsg('Teacher ' + teacherName + ' is already assigned to ' + clsName + ' on ' + activeCell.day + ' ' + occupiedPeriodId + '.');
+                            return;
+                          }
                         }
                       }
                     }
@@ -1068,19 +1053,19 @@ export const TimetableViewer: React.FC = () => {
                     const schoolClass = classes.find((c:any)=>c.id===selectedId);
                     let roomId = '';
                     if (roomType === 'regular' && (schoolClass as any)?.assignedRoomId) {
-                      const occupied = targetPeriodIds.some(periodId => Object.keys((timetableData as any).schedule||{}).some(cid => getOccupiedCell(cid, periodId)?.roomId === (schoolClass as any).assignedRoomId));
+                      const occupied = targetPeriodIds.some(periodId => Object.keys((timetableData as any).schedule||{}).some(cid => (timetableData as any).schedule[cid]?.[activeCell.day]?.[periodId]?.roomId === (schoolClass as any).assignedRoomId));
                       if (!occupied) roomId = (schoolClass as any).assignedRoomId;
                     }
                     if (!roomId) {
-                      const avail = rooms.filter((r:any)=> r.type===roomType && !targetPeriodIds.some(periodId => Object.keys((timetableData as any).schedule||{}).some(cid => getOccupiedCell(cid, periodId)?.roomId === r.id)));
+                      const avail = rooms.filter((r:any)=> r.type===roomType && !targetPeriodIds.some(periodId => Object.keys((timetableData as any).schedule||{}).some(cid => (timetableData as any).schedule[cid]?.[activeCell.day]?.[periodId]?.roomId === r.id)));
                       roomId = avail[0]?.id || rooms.find((r:any)=>r.type===roomType)?.id || rooms[0]?.id || '';
                     }
                     // If combined, store second subject info too
                     const isCombined = !!(secondSubjId && secondSubjName);
-                    const cellToSave: any = { subjectId: subjId, subjectName: subjName, teacherId, roomId, classId: selectedId, isCombined, secondSubjectId: secondSubjId || undefined, secondSubjectName: secondSubjName || undefined, secondTeacherId: secondTeacherId || undefined, isDouble: periodType==='double', isPS: false, isActivity: false };
+                    const cellToSave: any = { subjectId: subjId, subjectName: subjName, teacherId, roomId, classId: selectedId, isCombined, secondSubjectId: secondSubjId || undefined, secondSubjectName: secondSubjName || undefined, secondTeacherId: secondTeacherId || undefined, isDouble, isPS: false, isActivity: false };
                     // Store both halves in timetable state so the cloud copy preserves the double period.
                     (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, subjId, teacherId, roomId, cellToSave);
-                    if (periodType === 'double' && targetPeriodIds[1]) {
+                    if (isDouble && targetPeriodIds[1]) {
                       (updateLessonSlot as any)(selectedId, activeCell.day, targetPeriodIds[1], subjId, teacherId, roomId, { ...cellToSave, isDoubleSpan: true });
                     }
                     setActiveCell(null);

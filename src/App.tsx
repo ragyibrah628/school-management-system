@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect, useCallback, ErrorInfo, Component, ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, ErrorInfo, Component, ReactNode } from 'react';
 import { TimetableSubsystem } from './components/TimetableSubsystem';
 import { TeacherDutyForm, DutyReportPrint, AdminRegisteredStudents } from './components/DutyReport';
 import * as cloud from './lib/cloud';
@@ -290,15 +290,17 @@ function AppInner() {
     try { return JSON.parse(localStorage.getItem('sms_exams') || '[]'); } catch { return []; }
   });
   useEffect(() => {
-    const value = JSON.stringify(exams);
-    const previous = localStorage.getItem('sms_exams');
-    localStorage.setItem('sms_exams', value);
-    localStorage.setItem('sms_exams_ts', String(Date.now()));
-    if (cloud.isCloudMode() && previous !== null && previous !== value) {
-      const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
-      return () => clearTimeout(t);
-    }
+    localStorage.setItem('sms_exams', JSON.stringify(exams));
   }, [exams]);
+
+  const saveExams = (updatedExams: any[]) => {
+    const value = JSON.stringify(updatedExams);
+    localStorage.setItem('sms_exams', value);
+    setExams(updatedExams);
+    if (cloud.isCloudMode()) {
+      void cloud.syncAppDataKeyToCloud('sms_exams', value).catch(error => console.error('Exam sync failed:', error));
+    }
+  };
 
   const [newExam, setNewExam] = useState({ name: '', term: 'Term I', deadline: '' });
 
@@ -312,24 +314,32 @@ function AppInner() {
       extensions: {},
       createdAt: new Date().toISOString()
     };
-    setExams(prev => [...prev, newEx]);
+    saveExams([...exams, newEx]);
     setNewExam({ name: '', term: 'Term I', deadline: '' });
-    // instant push to Supabase so teacher sees without waiting 15s
-    if (cloud.isCloudMode()) {
-      // push via syncToCloud quickly + also direct
-      setTimeout(() => { cloud.syncToCloud().catch(()=>{}); }, 200);
-    }
-    alert('Exam created! Teachers will see it in ~5 seconds (or on refresh)');
+    alert('Exam created!');
   };
 
   const deleteExam = (id: string) => {
-    setExams(prev => prev.filter(e => e.id !== id));
+    saveExams(exams.filter(e => e.id !== id));
   };
 
   const extendDeadline = (examId: string, teacherId: string, newDeadline: string) => {
-    setExams(prev => prev.map(e => e.id === examId ? { ...e, extensions: { ...e.extensions, [teacherId]: newDeadline } } : e));
+    saveExams(exams.map(e => e.id === examId ? { ...e, extensions: { ...e.extensions, [teacherId]: newDeadline } } : e));
     alert('Deadline extended!');
   };
+
+  const parseExamDeadline = (deadline: string): Date => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
+      return new Date(`${deadline}T23:59:59.999+03:00`);
+    }
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(deadline)) {
+      return new Date(`${deadline}+03:00`);
+    }
+    return new Date(deadline);
+  };
+
+  const formatExamDeadline = (deadline: string): string =>
+    parseExamDeadline(deadline).toLocaleString('sw-TZ', { timeZone: 'Africa/Dar_es_Salaam' });
 
   // Get teacher's deadline for an exam (personal extension or global)
   const getTeacherDeadline = (exam: any, teacherId: string): string => {
@@ -339,16 +349,26 @@ function AppInner() {
   // Check if exam is still open for a teacher
   const isExamOpen = (exam: any, teacherId: string): boolean => {
     const deadline = getTeacherDeadline(exam, teacherId);
-    return new Date(deadline) > new Date();
+    return parseExamDeadline(deadline) > new Date();
   };
 
   const teacherHasExamAssignment = (_exam: any, teacherId: string): boolean => {
     return (teachingAssignments[teacherId] || []).length > 0;
   };
 
+  const activeTeacherExams = exams.filter(ex =>
+    teacherHasExamAssignment(ex, user?.id) && isExamOpen(ex, user?.id)
+  );
+  const noActiveExamMessage = (): string => {
+    if (exams.length === 0) return 'Hakuna mtihani.';
+    const assignedExams = exams.filter(ex => teacherHasExamAssignment(ex, user?.id));
+    if (assignedExams.length === 0) return 'Huna somo/darasa ulilopangiwa.';
+    return `Mtihani umeisha (deadline ${assignedExams.map(ex => `${ex.name}: ${formatExamDeadline(getTeacherDeadline(ex, user?.id))}`).join('; ')}).`;
+  };
+
   // Get remaining time string
   const getTimeRemaining = (deadline: string): string => {
-    const diff = new Date(deadline).getTime() - Date.now();
+    const diff = parseExamDeadline(deadline).getTime() - Date.now();
     if (diff <= 0) return 'Expired';
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -364,6 +384,7 @@ function AppInner() {
     const timer = setInterval(() => setTick(t => t + 1), 60000);
     const poll = async (forceMetadata = false) => {
       if (user && cloud.isCloudMode() && !document.hidden) {
+        if (user.role === 'teacher' && activeMenuRef.current === 'exams') return;
         await cloud.syncFromCloud(forceMetadata);
         try {
           const freshExams = JSON.parse(localStorage.getItem('sms_exams') || '[]');
@@ -420,7 +441,7 @@ function AppInner() {
     };
     const refreshExams = async () => {
       if (document.hidden) return;
-      await cloud.refreshAppDataKey('sms_exams');
+      await cloud.refreshAppDataKey('sms_exams', true);
       if (!active) return;
       try {
         const freshExams = JSON.parse(localStorage.getItem('sms_exams') || '[]');
@@ -816,6 +837,35 @@ function AppInner() {
   const [recoveryCode, setRecoveryCode] = useState('');
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const activeMenuRef = useRef(activeMenu);
+  useEffect(() => { activeMenuRef.current = activeMenu; }, [activeMenu]);
+
+  useEffect(() => {
+    if (!cloud.isCloudMode() || user?.role !== 'teacher' || activeMenu !== 'exams') return;
+    let active = true;
+    let inFlight = false;
+    const refreshExams = async () => {
+      if (!active || document.hidden || inFlight) return;
+      inFlight = true;
+      try {
+        await cloud.refreshAppDataKey('sms_exams', true);
+        if (!active) return;
+        const freshExams = JSON.parse(localStorage.getItem('sms_exams') || '[]');
+        setExams(prev => JSON.stringify(prev) !== JSON.stringify(freshExams) ? freshExams : prev);
+      } catch (error) {
+        console.error('Exam refresh failed:', error);
+      } finally {
+        inFlight = false;
+      }
+    };
+    const onVisibilityChange = () => { if (!document.hidden) void refreshExams(); };
+    void refreshExams();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      active = false;
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [activeMenu, user?.id, user?.role]);
 
   const resetAdminPassword = async () => {
     if (recoveryCode !== 'RAJABU2026') {
@@ -1373,7 +1423,7 @@ function AppInner() {
             {exams.length === 0 ? <p className="text-sm text-slate-500">No exams created yet.</p> :
               exams.map((ex: any) => {
                 const timeLeft = getTimeRemaining(ex.deadline);
-                const isOpen = new Date(ex.deadline) > new Date();
+                const isOpen = parseExamDeadline(ex.deadline) > new Date();
                 // Find teachers who submitted scores for this exam
                 const submittedTeachers = [...new Set(scores.filter((s: any) => s.exam_id === ex.id).map((s: any) => s.teacher_name))];
                 const notSubmitted = teachers.filter((t: any) => !submittedTeachers.includes(t.name));
@@ -1383,7 +1433,7 @@ function AppInner() {
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="font-bold text-slate-900">{ex.name}</p>
-                        <p className="text-xs text-slate-500">{ex.term} | Deadline: {new Date(ex.deadline).toLocaleString()}</p>
+                        <p className="text-xs text-slate-500">{ex.term} | Deadline: {formatExamDeadline(ex.deadline)}</p>
                         <p className={`text-xs font-semibold mt-1 ${isOpen ? 'text-emerald-600' : 'text-red-600'}`}>
                           {isOpen ? `⏰ ${timeLeft}` : '❌ Expired'}
                         </p>
@@ -1648,14 +1698,12 @@ function AppInner() {
                 setTimeout(() => { pw.focus(); pw.print(); }, 500);
               };
 
-              const printReportCard = (row: typeof allStudentRows[0]) => {
-                const pw = window.open('', '', 'width=800,height=1000');
-                if (!pw) return;
-                const logo = localStorage.getItem('sms_school_logo') || '';
+              const buildReportCardHtml = (row: typeof allStudentRows[0], imageUrls: { logo: string; acSig: string; hmSig: string }, pageBreakAfter: boolean) => {
+                let reportHtml = '';
+                const pw: any = { document: { write: (html: string) => { reportHtml += html; } } };
+                const { logo, acSig, hmSig } = imageUrls;
                 const acName = localStorage.getItem('sms_academic_name') || '';
                 const hmName = localStorage.getItem('sms_headmaster_name') || 'Saidi Mpambika';
-                const acSig = localStorage.getItem('sms_academic_sig') || '';
-                const hmSig = localStorage.getItem('sms_headmaster_sig') || '';
                 const rr = row as any;
                 const grade = (score: number) => score >= 75 ? 'A' : score >= 65 ? 'B' : score >= 45 ? 'C' : score >= 30 ? 'D' : 'F';
                 const point = (score: number) => score >= 75 ? 1 : score >= 65 ? 2 : score >= 45 ? 3 : score >= 30 ? 4 : 5;
@@ -1735,28 +1783,7 @@ function AppInner() {
                 let acComment = getAcademicCommentSw(firstName, div, avgFix);
                 let hmComment = getHeadmasterCommentSw(firstName, div, avgFix);
 
-                pw.document.write(`<!DOCTYPE html><html><head><title>\u00A0</title><style>
-                  @page { size: A4 portrait; margin: 10mm 12mm 8mm 12mm; }
-                  @page { @top-left { content: ''; } @top-right { content: ''; } @bottom-left { content: ''; } @bottom-right { content: ''; } }
-                  * { margin:0; padding:0; box-sizing:border-box; }
-                  body { font-family: 'Arial', 'Helvetica', sans-serif; font-size: 13px; color: #000; }
-                  table { width:100%; border-collapse:collapse; margin: 8px 0; }
-                  th,td { border:1px solid #000; padding:6px 8px; font-size: 13px; }
-                  th { background: #d4edda; font-size: 13px; font-weight:bold; }
-                  .header { text-align:center; margin-bottom:10px; border-bottom:3px double #000; padding-bottom:8px; }
-                  .header img { height:60px; margin-bottom:4px; }
-                  .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; border:2px solid #000; margin-bottom:10px; font-size:13px; }
-                  .info-cell { padding:7px 12px; border:1px solid #000; font-size:13px; }
-                  .grade-box { border:3px solid #000; padding:10px; text-align:center; margin:10px 0; background:#d4edda; border-radius:6px; }
-                  .comment-box { border:1px solid #000; padding:10px; border-radius:6px; margin-bottom:8px; }
-                  .comment-title { font-size:12px; font-weight:bold; margin-bottom:4px; text-decoration:underline; }
-                  .comment-text { font-size:12px; line-height:1.5; min-height:28px; }
-                  .sig-row { display:flex; justify-content:space-between; margin-top:10px; font-size:12px; align-items:flex-end; min-height:60px; }
-                  .sig-img { height:55px; max-width:180px; width:auto; object-fit:contain; display:block; }
-                  .comment-box .sig-row span:last-child { min-width:180px; text-align:right; }
-                  @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
-                </style></head><body>
-                <div class="header">`);
+                pw.document.write(`<section class="report-card${pageBreakAfter ? ' page-break' : ''}"><div class="header">`);
                 if (logo) pw.document.write(`<img src="${logo}" />`);
                 pw.document.write(`<div style="font-size:14px;font-weight:bold;letter-spacing:1.5px">${districtName}</div>
                   <div style="font-size:22px;font-weight:bold;letter-spacing:2px;margin:3px 0">${schoolNameSetting}</div>
@@ -1823,9 +1850,106 @@ function AppInner() {
 
                 // Footer
                 pw.document.write(`<div style="text-align:center;margin-top:12px;font-size:11px;color:#555;font-style:italic;border-top:2px solid #ccc;padding-top:6px"><strong>${schoolNameSetting}</strong>: ${schoolMotto}</div>`);
-                pw.document.write(`</body></html>`);
-                pw.document.close();
-                setTimeout(() => { pw.focus(); pw.print(); }, 500);
+                pw.document.write(`</section>`);
+                return reportHtml;
+              };
+
+              const printReportCards = (rows: typeof allStudentRows, skippedNames: string[] = []) => {
+                const printWindow = window.open('', '', 'width=800,height=1000');
+                if (!printWindow) {
+                  alert('Print window imezuiwa na browser. Ruhusu pop-ups kisha ujaribu tena.');
+                  return;
+                }
+
+                const objectUrls: string[] = [];
+                const toObjectUrl = (dataUrl: string): string => {
+                  const match = dataUrl.match(/^data:([^;,]+);base64,(.+)$/);
+                  if (!match || typeof URL.createObjectURL !== 'function') return '';
+                  try {
+                    const binary = atob(match[2]);
+                    const bytes = new Uint8Array(binary.length);
+                    for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+                    const url = URL.createObjectURL(new Blob([bytes], { type: match[1] }));
+                    objectUrls.push(url);
+                    return url;
+                  } catch { return ''; }
+                };
+                const imageUrls = {
+                  logo: toObjectUrl(localStorage.getItem('sms_school_logo') || ''),
+                  acSig: toObjectUrl(localStorage.getItem('sms_academic_sig') || ''),
+                  hmSig: toObjectUrl(localStorage.getItem('sms_headmaster_sig') || '')
+                };
+                let cleaned = false;
+                const cleanup = () => {
+                  if (cleaned) return;
+                  cleaned = true;
+                  objectUrls.forEach(url => URL.revokeObjectURL(url));
+                };
+                printWindow.addEventListener('beforeunload', cleanup);
+                printWindow.addEventListener('afterprint', () => {
+                  cleanup();
+                  if (skippedNames.length > 0) {
+                    window.alert(`Print imekamilika. Wanafunzi hawa hawakuwa na alama: ${skippedNames.join(', ')}`);
+                  }
+                }, { once: true });
+
+                const cardsHtml = rows.map((row, index) =>
+                  buildReportCardHtml(row, imageUrls, index < rows.length - 1)
+                ).join('');
+                printWindow.document.write(`<!DOCTYPE html><html><head><title>Report Cards</title><style>
+                  @page { size: A4 portrait; margin: 10mm 12mm 8mm 12mm; }
+                  @page { @top-left { content: ''; } @top-right { content: ''; } @bottom-left { content: ''; } @bottom-right { content: ''; } }
+                  * { margin:0; padding:0; box-sizing:border-box; }
+                  body { font-family: 'Arial', 'Helvetica', sans-serif; font-size: 13px; color: #000; }
+                  table { width:100%; border-collapse:collapse; margin: 8px 0; }
+                  th,td { border:1px solid #000; padding:6px 8px; font-size: 13px; }
+                  th { background: #d4edda; font-size: 13px; font-weight:bold; }
+                  .header { text-align:center; margin-bottom:10px; border-bottom:3px double #000; padding-bottom:8px; }
+                  .header img { height:60px; margin-bottom:4px; }
+                  .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; border:2px solid #000; margin-bottom:10px; font-size:13px; }
+                  .info-cell { padding:7px 12px; border:1px solid #000; font-size:13px; }
+                  .grade-box { border:3px solid #000; padding:10px; text-align:center; margin:10px 0; background:#d4edda; border-radius:6px; }
+                  .comment-box { border:1px solid #000; padding:10px; border-radius:6px; margin-bottom:8px; }
+                  .comment-title { font-size:12px; font-weight:bold; margin-bottom:4px; text-decoration:underline; }
+                  .comment-text { font-size:12px; line-height:1.5; min-height:28px; }
+                  .sig-row { display:flex; justify-content:space-between; margin-top:10px; font-size:12px; align-items:flex-end; min-height:60px; }
+                  .sig-img { height:55px; max-width:180px; width:auto; object-fit:contain; display:block; }
+                  .comment-box .sig-row span:last-child { min-width:180px; text-align:right; }
+                  .page-break { page-break-after:always; break-after:page; }
+                  @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
+                </style></head><body>${cardsHtml}</body></html>`);
+                printWindow.document.close();
+                const imageLoads = Array.from(printWindow.document.images).map((image: any) =>
+                  image.complete ? Promise.resolve() : new Promise(resolve => {
+                    image.onload = resolve;
+                    image.onerror = resolve;
+                  })
+                );
+                void Promise.all(imageLoads).then(() => {
+                  setTimeout(() => { printWindow.focus(); printWindow.print(); }, 100);
+                });
+              };
+
+              const printReportCard = (row: typeof allStudentRows[0]) => printReportCards([row]);
+
+              const printClassReportCards = () => {
+                if (!viewExamId || !CLASSES.includes(viewClass)) return;
+                const selectedExamData = exams.find((exam: any) => exam.id === viewExamId);
+                if (!selectedExamData) return;
+                if (!released.includes(selectedExamData.term) && !confirm(`${selectedExamData.term} haijaidhinishwa. Uendelee kuchapisha report cards?`)) return;
+
+                const classRows = allStudentRows
+                  .filter(row => row.cls === viewClass)
+                  .sort((first, second) => first.student.localeCompare(second.student));
+                const skippedNames = classRows
+                  .filter(row => !Object.values(row.scores).some(score => score !== null))
+                  .map(row => row.student);
+                const printableRows = classRows.filter(row => Object.values(row.scores).some(score => score !== null));
+                if (printableRows.length === 0) {
+                  alert(`Hakuna mwanafunzi mwenye alama za ${selectedExamData.name}. Waliokosa alama: ${skippedNames.join(', ') || 'hakuna wanafunzi'}`);
+                  return;
+                }
+                printReportCards(printableRows, skippedNames);
               };
 
               return (
@@ -1835,6 +1959,7 @@ function AppInner() {
                     <div className="flex gap-2">
                       <button onClick={() => printResults('landscape')} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-semibold">🖨️ Landscape</button>
                       <button onClick={() => printResults('portrait')} className="px-3 py-1.5 bg-slate-700 text-white rounded-lg text-xs font-semibold">🖨️ Portrait</button>
+                      <button onClick={printClassReportCards} disabled={!CLASSES.includes(viewClass)} title={!CLASSES.includes(viewClass) ? 'Chagua darasa moja kwanza' : 'Print report cards za darasa hili'} className="px-3 py-1.5 bg-emerald-700 text-white rounded-lg text-xs font-semibold disabled:opacity-40">Print Class Report Cards</button>
                     </div>
                   </div>
                   <div className="overflow-x-auto">
@@ -2236,11 +2361,11 @@ function AppInner() {
             <h2 className="font-bold text-lg mb-4">📝 Exams & Score Entry</h2>
 
             {/* List of open exams */}
-            {exams.filter(ex => isExamOpen(ex, user?.id) && teacherHasExamAssignment(ex, user?.id)).length === 0 ? (
-              <p className="text-sm text-slate-500 italic">No active exams assigned to you.</p>
+            {activeTeacherExams.length === 0 ? (
+              <p className="text-sm text-slate-500 italic">{noActiveExamMessage()}</p>
             ) : (
               <div className="space-y-3 mb-4">
-                {exams.filter(ex => isExamOpen(ex, user?.id) && teacherHasExamAssignment(ex, user?.id)).map((ex: any) => {
+                {activeTeacherExams.map((ex: any) => {
                   const deadline = getTeacherDeadline(ex, user?.id);
                   const timeLeft = getTimeRemaining(deadline);
                   const isSelected = selectedExam?.id === ex.id;
@@ -2254,7 +2379,7 @@ function AppInner() {
                         </div>
                         <div className="text-right">
                           <p className="text-xs font-semibold text-amber-600">⏰ {timeLeft}</p>
-                          <p className="text-[10px] text-slate-400">Deadline: {new Date(deadline).toLocaleString()}</p>
+                          <p className="text-[10px] text-slate-400">Deadline: {formatExamDeadline(deadline)}</p>
                         </div>
                       </div>
                     </div>

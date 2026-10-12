@@ -102,7 +102,7 @@ export interface TimetableData {
 
 export interface Conflict {
   id: string;
-  type: 'teacher_double_booking' | 'room_double_booking' | 'teacher_unavailable' | 'max_hours_exceeded' | 'class_double_booking';
+  type: 'teacher_double_booking' | 'room_double_booking' | 'teacher_unavailable' | 'max_hours_exceeded' | 'class_double_booking' | 'invalid_double_period';
   description: string;
   severity: 'error' | 'warning';
   entityIds: string[]; // IDs of teachers, rooms, classes involved

@@ -1,5 +1,19 @@
 import { Subject, Teacher, Room, SchoolClass, ClassSubject, TimeSlot, TimetableData, DayOfWeek } from '../types';
 
+export function getTeacherOccupiedSlots(cell: any, periodId: string, timeSlots: TimeSlot[]): string[] {
+  const slotIndex = timeSlots.findIndex(slot => slot.id === periodId);
+  const currentSlot = timeSlots[slotIndex];
+  const isActivitySlot = (slot: TimeSlot | undefined) => Boolean(
+    slot?.isActivity || slot?.id === 'act' || slot?.name?.trim().toLowerCase() === 'activity'
+  );
+  if (!currentSlot || currentSlot.isBreak || isActivitySlot(currentSlot)) return [];
+  if (!cell?.isDouble || cell.isDoubleSpan) return [periodId];
+
+  const nextSlot = timeSlots[slotIndex + 1];
+  if (!nextSlot || nextSlot.isBreak || isActivitySlot(nextSlot)) return [periodId];
+  return [periodId, nextSlot.id];
+}
+
 export interface SchedulerOptions {
   days: DayOfWeek[];
   timeSlots: TimeSlot[];
@@ -99,14 +113,12 @@ export function generateSchoolTimetable({
     teacherIdealPerDay[t.id] = totalPeriods / days.length;
   });
 
-  // 3. Define valid consecutive periods (for double periods)
-  // Two periods are consecutive if they are adjacent in the timeSlots array and NEITHER is a break
+  // 3. Define valid consecutive periods using the same occupied-slot rule as validation.
   const consecutivePeriods: { period1: string; period2: string }[] = [];
-  for (let i = 0; i < timeSlots.length - 1; i++) {
-    const current = timeSlots[i];
-    const next = timeSlots[i + 1];
-    if (!current.isBreak && !next.isBreak && !(current as any).isActivity && !(next as any).isActivity) {
-      consecutivePeriods.push({ period1: current.id, period2: next.id });
+  for (const slot of timeSlots) {
+    const occupiedSlots = getTeacherOccupiedSlots({ isDouble: true }, slot.id, timeSlots);
+    if (occupiedSlots.length === 2) {
+      consecutivePeriods.push({ period1: occupiedSlots[0], period2: occupiedSlots[1] });
     }
   }
 
@@ -296,7 +308,8 @@ export function generateSchoolTimetable({
 
       // Mark occupied
       occupiedClasses[lesson.classId][day][periodId] = true;
-      occupiedTeachers[lesson.teacherId][day][periodId] = true;
+      getTeacherOccupiedSlots(schedule[lesson.classId][day][periodId], periodId, timeSlots)
+        .forEach(occupiedPeriodId => { occupiedTeachers[lesson.teacherId][day][occupiedPeriodId] = true; });
       occupiedRooms[roomId][day][periodId] = true;
 
       // Update counters
@@ -317,8 +330,9 @@ export function generateSchoolTimetable({
 
     for (const d of days) {
       for (const pair of consecutivePeriods) {
-        const p1 = pair.period1;
-        const p2 = pair.period2;
+        const occupiedSlots = getTeacherOccupiedSlots({ isDouble: true }, pair.period1, timeSlots);
+        if (occupiedSlots.length !== 2 || occupiedSlots[1] !== pair.period2) continue;
+        const [p1, p2] = occupiedSlots;
 
         // Check availability for BOTH periods
         if (occupiedClasses[lesson.classId][d][p1] || occupiedClasses[lesson.classId][d][p2]) continue;
@@ -371,7 +385,6 @@ export function generateSchoolTimetable({
         isDouble: true
       };
       occupiedClasses[lesson.classId][day][p1] = true;
-      occupiedTeachers[lesson.teacherId][day][p1] = true;
       occupiedRooms[roomId][day][p1] = true;
 
       // Schedule Period 2
@@ -384,8 +397,9 @@ export function generateSchoolTimetable({
         isDoubleSpan: true
       };
       occupiedClasses[lesson.classId][day][p2] = true;
-      occupiedTeachers[lesson.teacherId][day][p2] = true;
       occupiedRooms[roomId][day][p2] = true;
+      getTeacherOccupiedSlots(schedule[lesson.classId][day][p1], p1, timeSlots)
+        .forEach(occupiedPeriodId => { occupiedTeachers[lesson.teacherId][day][occupiedPeriodId] = true; });
 
       // Update counters
       teacherLoad[lesson.teacherId] += 2;
@@ -484,32 +498,77 @@ export function validateSchedule(
   // Track teacher hours
   const teacherHours: { [teacherId: string]: number } = {};
   teachers.forEach(t => { teacherHours[t.id] = 0; });
+  const recordedTeacherConflicts = new Set<string>();
+  const recordedUnavailableSlots = new Set<string>();
 
   let scheduledCount = 0;
 
   Object.keys(schedule).forEach(classId => {
     days.forEach(day => {
       activePeriods.forEach(p => {
-        const cell = schedule[classId][day][p.id];
+        const cell: any = schedule[classId]?.[day]?.[p.id];
         if (cell && cell.subjectId) {
           scheduledCount++;
           const { teacherId, roomId } = cell;
+          const occupiedSlots = getTeacherOccupiedSlots(cell, p.id, timeSlots);
+
+          if (cell.isDouble && !cell.isDoubleSpan && occupiedSlots.length !== 2) {
+            conflicts.push({
+              id: `c_d_${classId}_${day}_${p.id}`,
+              type: 'invalid_double_period',
+              description: `Double period in Class ${classId} cannot cross a break, lunch, activity, or the end of the day.`,
+              severity: 'error',
+              entityIds: [classId, ...(teacherId ? [teacherId] : [])],
+              slot: { day, periodId: p.id }
+            });
+          }
 
           // 1. Teacher double booking; teacherless subjects (PS/Religion) are valid.
-          if (teacherId) {
-            if (teacherBookings[day][p.id][teacherId]) {
-              conflicts.push({
-                id: `c_t_${classId}_${day}_${p.id}`,
-                type: 'teacher_double_booking',
-                description: `Teacher is double booked for Class ${classId} and Class ${teacherBookings[day][p.id][teacherId]} at the same time.`,
-                severity: 'error',
-                entityIds: [teacherId, classId, teacherBookings[day][p.id][teacherId]],
-                slot: { day, periodId: p.id }
+          const cellTeacherIds = [...new Set([teacherId, cell.secondTeacherId].filter(Boolean))] as string[];
+          cellTeacherIds.forEach(cellTeacherId => {
+            teacherHours[cellTeacherId] = teacherHours[cellTeacherId] || 0;
+            if (!cell.isDoubleSpan) teacherHours[cellTeacherId] += occupiedSlots.length || 1;
+            occupiedSlots.forEach(occupiedPeriodId => {
+              if (!teacherBookings[day][occupiedPeriodId]) return;
+              const existingClassId = teacherBookings[day][occupiedPeriodId][cellTeacherId];
+              if (existingClassId && existingClassId !== classId) {
+                const conflictKey = `${cellTeacherId}_${day}_${occupiedPeriodId}_${classId}`;
+                if (!recordedTeacherConflicts.has(conflictKey)) {
+                  recordedTeacherConflicts.add(conflictKey);
+                  conflicts.push({
+                    id: `c_t_${classId}_${day}_${occupiedPeriodId}`,
+                    type: 'teacher_double_booking',
+                    description: `Teacher is double booked for Class ${classId} and Class ${existingClassId} at the same time.`,
+                    severity: 'error',
+                    entityIds: [cellTeacherId, classId, existingClassId],
+                    slot: { day, periodId: occupiedPeriodId }
+                  });
+                }
+              } else {
+                teacherBookings[day][occupiedPeriodId][cellTeacherId] = classId;
+              }
+            });
+
+            const teacher = teachers.find(t => t.id === cellTeacherId);
+            if (teacher) {
+              const unavailableSlots = occupiedSlots.length > 0 ? occupiedSlots : [p.id];
+              unavailableSlots.forEach(occupiedPeriodId => {
+                const isUnavailable = teacher.unavailableSlots.some(us => us.day === day && us.periodId === occupiedPeriodId);
+                const warningKey = `${cellTeacherId}_${day}_${occupiedPeriodId}`;
+                if (isUnavailable && !recordedUnavailableSlots.has(warningKey)) {
+                  recordedUnavailableSlots.add(warningKey);
+                  conflicts.push({
+                    id: `c_u_${cellTeacherId}_${day}_${occupiedPeriodId}`,
+                    type: 'teacher_unavailable',
+                    description: `Teacher ${teacher.name} is scheduled during their specified unavailable time.`,
+                    severity: 'warning',
+                    entityIds: [cellTeacherId],
+                    slot: { day, periodId: occupiedPeriodId }
+                  });
+                }
               });
-            } else {
-              teacherBookings[day][p.id][teacherId] = classId;
             }
-          }
+          });
 
           // 2. Room double booking; teacherless subjects do not require a room.
           if (roomId) {
@@ -527,22 +586,6 @@ export function validateSchedule(
             }
           }
 
-          // 3. Teacher unavailability
-          const teacher = teachers.find(t => t.id === teacherId);
-          if (teacher) {
-            teacherHours[teacherId]++;
-            const isUnavailable = teacher.unavailableSlots.some(us => us.day === day && us.periodId === p.id);
-            if (isUnavailable) {
-              conflicts.push({
-                id: `c_u_${teacherId}_${day}_${p.id}`,
-                type: 'teacher_unavailable',
-                description: `Teacher ${teacher.name} is scheduled during their specified unavailable time.`,
-                severity: 'warning',
-                entityIds: [teacherId],
-                slot: { day, periodId: p.id }
-              });
-            }
-          }
         }
       });
     });
