@@ -1,4 +1,14 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   buildRemarkOptions,
   COMMON_RESOURCES,
@@ -34,6 +44,40 @@ interface RegisteredCounts {
 }
 
 type PeriodType = '' | 'single' | 'double';
+
+function useFitToPage(
+  sheetRef: RefObject<HTMLElement | null>,
+  dependencies: readonly unknown[],
+) {
+  const fitToPage = useCallback(() => {
+    const sheet = sheetRef.current;
+    if (!sheet) return;
+
+    const minimumFontSize = 8.5;
+    for (let fontSize = 13; fontSize >= minimumFontSize; fontSize -= 0.25) {
+      sheet.style.setProperty('--fs', `${fontSize}pt`);
+      if (
+        sheet.scrollHeight <= sheet.clientHeight + 1 &&
+        sheet.scrollWidth <= sheet.clientWidth + 1
+      ) {
+        return;
+      }
+    }
+    sheet.style.setProperty('--fs', `${minimumFontSize}pt`);
+  }, [sheetRef]);
+
+  useLayoutEffect(() => {
+    fitToPage();
+    window.addEventListener('beforeprint', fitToPage);
+    window.addEventListener('afterprint', fitToPage);
+    return () => {
+      window.removeEventListener('beforeprint', fitToPage);
+      window.removeEventListener('afterprint', fitToPage);
+    };
+  }, [fitToPage, ...dependencies]);
+
+  return fitToPage;
+}
 
 const readStoredJson = <T,>(key: string, fallback: T): T => {
   try {
@@ -100,14 +144,16 @@ export function LessonPlan({
   const [topic, setTopic] = useState('');
   const [subtopic, setSubtopic] = useState('');
   const [partId, setPartId] = useState('');
+  const [registeredGirlsValue, setRegisteredGirlsValue] = useState('');
+  const [registeredBoysValue, setRegisteredBoysValue] = useState('');
+  const [registeredGirlsError, setRegisteredGirlsError] = useState('');
+  const [registeredBoysError, setRegisteredBoysError] = useState('');
   const [presentGirls, setPresentGirls] = useState('');
   const [presentBoys, setPresentBoys] = useState('');
   const [previewScale, setPreviewScale] = useState(1);
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [selectedRemark, setSelectedRemark] = useState('');
-  const [printDensity, setPrintDensity] = useState(0);
   const printSheetRef = useRef<HTMLElement>(null);
-  const densityPartId = useRef(partId);
 
   useEffect(() => {
     const printStyle = document.createElement('style');
@@ -166,8 +212,14 @@ export function LessonPlan({
   const remarkOptions = selectedPart ? buildRemarkOptions(selectedPart) : [];
 
   const registered = registeredStudents[className];
-  const registeredGirls = readCount(registered?.regG);
-  const registeredBoys = readCount(registered?.regB);
+  const adminRegisteredGirls = readCount(registered?.regG);
+  const adminRegisteredBoys = readCount(registered?.regB);
+  const registeredGirlsValid = /^\d+$/.test(registeredGirlsValue) &&
+    Number(registeredGirlsValue) <= adminRegisteredGirls;
+  const registeredBoysValid = /^\d+$/.test(registeredBoysValue) &&
+    Number(registeredBoysValue) <= adminRegisteredBoys;
+  const registeredGirls = registeredGirlsValid ? Number(registeredGirlsValue) : 0;
+  const registeredBoys = registeredBoysValid ? Number(registeredBoysValue) : 0;
   const girlsValueValid = presentGirls !== '' && /^\d+$/.test(presentGirls) &&
     Number.isInteger(Number(presentGirls)) && Number(presentGirls) >= 0 &&
     Number(presentGirls) <= registeredGirls;
@@ -199,7 +251,8 @@ export function LessonPlan({
     : '';
   const attendanceIsValid = girlsValueValid && boysValueValid;
   const complete = !!subject && !!className && !!date && !!periodType &&
-    !!topic && !!subtopic && !!selectedPart && attendanceIsValid &&
+    !!topic && !!subtopic && !!selectedPart && registeredGirlsValid && registeredBoysValid &&
+    registeredGirlsValue !== '' && registeredBoysValue !== '' && attendanceIsValid &&
     selectedResources.length > 0 &&
     (timeSlots.length === 0 || !!selectedSlot);
 
@@ -228,36 +281,11 @@ export function LessonPlan({
       ]
     : [];
   const replacePart = (text: string) => text.split('{part}').join(selectedPart?.part ?? '');
-  const densityClass = ['', 'lesson-plan-print--compact', 'lesson-plan-print--dense', 'lesson-plan-print--extra-dense'][printDensity];
-
-  useLayoutEffect(() => {
-    if (densityPartId.current !== partId) {
-      densityPartId.current = partId;
-      if (printDensity !== 0) {
-        setPrintDensity(0);
-        return;
-      }
-    }
-
-    const sheet = printSheetRef.current;
-    if (!sheet || printDensity >= 3) return;
-
-    const overflowingCell = Array.from(
-      sheet.querySelectorAll<HTMLElement>(
-        '.lesson-plan-process th, .lesson-plan-process td, .lesson-plan-remarks-lines > div',
-      ),
-    ).some(element => element.scrollHeight > element.clientHeight + 1);
-
-    if (sheet.scrollHeight > sheet.clientHeight + 1 || overflowingCell) {
-      setPrintDensity(printDensity + 1);
-    }
-  }, [
+  const fitToPage = useFitToPage(printSheetRef, [
     className,
     date,
     districtName,
-    partId,
     periodType,
-    printDensity,
     printedTime,
     processRows,
     schoolName,
@@ -266,6 +294,10 @@ export function LessonPlan({
     selectedResources,
     subject,
     teacherName,
+    registeredGirls,
+    registeredBoys,
+    presentGirls,
+    presentBoys,
   ]);
 
   const resetTopicAndBelow = () => {
@@ -274,7 +306,48 @@ export function LessonPlan({
     setPartId('');
     setSelectedResources([]);
     setSelectedRemark('');
-    setPrintDensity(0);
+  };
+
+  const handleClassChange = (nextClassName: string) => {
+    const nextRegistered = registeredStudents[nextClassName];
+    setClassName(nextClassName);
+    setRegisteredGirlsValue(String(readCount(nextRegistered?.regG)));
+    setRegisteredBoysValue(String(readCount(nextRegistered?.regB)));
+    setRegisteredGirlsError('');
+    setRegisteredBoysError('');
+    setPresentGirls('');
+    setPresentBoys('');
+    resetTopicAndBelow();
+  };
+
+  const updateRegisteredCount = (
+    value: string,
+    adminMaximum: number,
+    setValue: (next: string) => void,
+    setError: (next: string) => void,
+    setPresentValue: Dispatch<SetStateAction<string>>,
+  ) => {
+    if (value === '') {
+      setValue('');
+      setError('');
+      setPresentValue('');
+      return;
+    }
+    if (!/^\d+$/.test(value)) {
+      setError('Enter a whole number greater than or equal to 0.');
+      return;
+    }
+
+    const requestedCount = Number(value);
+    const count = Math.min(requestedCount, adminMaximum);
+    setValue(String(count));
+    setError(requestedCount > adminMaximum
+      ? `Cannot be more than the registered number set by admin (${adminMaximum})`
+      : '');
+    setPresentValue(current => {
+      if (!/^\d+$/.test(current)) return current;
+      return Number(current) > count ? String(count) : current;
+    });
   };
 
   const numberInput = (
@@ -318,6 +391,10 @@ export function LessonPlan({
               onChange={event => {
                 setSubject(event.target.value);
                 setClassName('');
+                setRegisteredGirlsValue('');
+                setRegisteredBoysValue('');
+                setRegisteredGirlsError('');
+                setRegisteredBoysError('');
                 setDate('');
                 setSelectedSlotId('');
                 setPeriodType('');
@@ -336,12 +413,7 @@ export function LessonPlan({
               Class
               <select
                 value={className}
-                onChange={event => {
-                  setClassName(event.target.value);
-                  setPresentGirls('');
-                  setPresentBoys('');
-                  resetTopicAndBelow();
-                }}
+                onChange={event => handleClassChange(event.target.value)}
                 className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
               >
                 <option value="">Select class</option>
@@ -436,7 +508,6 @@ export function LessonPlan({
                     const nextPart = matchingParts.find(value => value.id === nextPartId);
                     setSelectedResources(nextPart ? [...UNITS[nextPart.unit].resources] : []);
                     setSelectedRemark('');
-                    setPrintDensity(0);
                   }}
                   className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm disabled:bg-slate-100"
                 >
@@ -503,15 +574,55 @@ export function LessonPlan({
               <caption className="p-2 text-center font-semibold">Number of students</caption>
               <thead>
                 <tr>
-                  <th className="border border-slate-300 p-2" />
+                  <th className="border border-slate-300 p-2">Registration</th>
                   {['Girls', 'Boys', 'Total'].map(label => <th key={label} className="border border-slate-300 p-2">{label}</th>)}
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <th className="border border-slate-300 p-2 text-left">Registered</th>
-                  <td className="border border-slate-300 p-2 text-center">{registeredGirls}</td>
-                  <td className="border border-slate-300 p-2 text-center">{registeredBoys}</td>
+                  <td className="border border-slate-300 p-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max={adminRegisteredGirls}
+                      step="1"
+                      inputMode="numeric"
+                      aria-label="Registered girls"
+                      value={registeredGirlsValue}
+                      onChange={event => updateRegisteredCount(
+                        event.target.value,
+                        adminRegisteredGirls,
+                        setRegisteredGirlsValue,
+                        setRegisteredGirlsError,
+                        setPresentGirls,
+                      )}
+                      className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500">max {adminRegisteredGirls}</p>
+                    {registeredGirlsError && <p className="mt-1 text-[11px] text-red-600">{registeredGirlsError}</p>}
+                  </td>
+                  <td className="border border-slate-300 p-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max={adminRegisteredBoys}
+                      step="1"
+                      inputMode="numeric"
+                      aria-label="Registered boys"
+                      value={registeredBoysValue}
+                      onChange={event => updateRegisteredCount(
+                        event.target.value,
+                        adminRegisteredBoys,
+                        setRegisteredBoysValue,
+                        setRegisteredBoysError,
+                        setPresentBoys,
+                      )}
+                      className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500">max {adminRegisteredBoys}</p>
+                    {registeredBoysError && <p className="mt-1 text-[11px] text-red-600">{registeredBoysError}</p>}
+                  </td>
                   <td className="border border-slate-300 p-2 text-center">{registeredTotal}</td>
                 </tr>
                 <tr>
@@ -538,7 +649,10 @@ export function LessonPlan({
           <button
             type="button"
             disabled={!complete}
-            onClick={() => window.print()}
+            onClick={() => {
+              fitToPage();
+              window.print();
+            }}
             className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             Print Lesson Plan
@@ -560,7 +674,7 @@ export function LessonPlan({
             className="lesson-plan-preview-scaled"
             style={{ transform: `scale(${previewScale})` }}
           >
-          <article ref={printSheetRef} className={`lesson-plan-print ${densityClass}`}>
+          <article ref={printSheetRef} className="lesson-plan-print">
             <header className="lesson-plan-header">
               <div className="lesson-plan-header-logo">
                 {schoolLogo && <img src={schoolLogo} alt="School logo" />}
@@ -590,34 +704,39 @@ export function LessonPlan({
               </tbody>
             </table>
 
-            <table className="lesson-plan-students">
-              <thead>
-                <tr><th colSpan={4}>NUMBER OF STUDENTS</th></tr>
-                <tr><th /><th>GIRLS</th><th>BOYS</th><th>TOTAL</th></tr>
-              </thead>
-              <tbody>
-                <tr><th>REGISTERED</th><td>{registeredGirls}</td><td>{registeredBoys}</td><td>{registeredTotal}</td></tr>
-                <tr><th>PRESENT</th><td>{presentGirlsCount}</td><td>{presentBoysCount}</td><td>{presentTotal}</td></tr>
-                <tr><th>ABSENT</th><td>{absentGirls}</td><td>{absentBoys}</td><td>{absentTotal}</td></tr>
-              </tbody>
-            </table>
+            <section className="lesson-plan-block lesson-plan-students-block">
+              <h2 className="lesson-plan-block-title">NUMBER OF STUDENTS</h2>
+              <table className="lesson-plan-students">
+                <thead>
+                  <tr><th>REGISTRATION</th><th>GIRLS</th><th>BOYS</th><th>TOTAL</th></tr>
+                </thead>
+                <tbody>
+                  <tr><th>REGISTERED</th><td>{registeredGirls}</td><td>{registeredBoys}</td><td>{registeredTotal}</td></tr>
+                  <tr><th>PRESENT</th><td>{presentGirlsCount}</td><td>{presentBoysCount}</td><td>{presentTotal}</td></tr>
+                  <tr><th>ABSENT</th><td>{absentGirls}</td><td>{absentBoys}</td><td>{absentTotal}</td></tr>
+                </tbody>
+              </table>
+            </section>
 
-            <table className="lesson-plan-details">
-              <tbody>
-                <tr><th>MAIN COMPETENCE</th><td>{unit?.mainCompetence}</td></tr>
-                <tr><th>SPECIFIC COMPETENCE</th><td>{unit?.specificCompetence}</td></tr>
-                <tr><th>MAIN ACTIVITY</th><td>{unit?.mainActivity}</td></tr>
-                <tr>
-                  <th>SPECIFIC ACTIVITIES</th>
-                  <td>{selectedPart && <ol>{selectedPart.specificActivities.map(activity => <li key={activity}>{activity}</li>)}</ol>}</td>
-                </tr>
-                <tr><th>TEACHING &amp; LEARNING RESOURCES</th><td>{selectedResources.join(', ')}</td></tr>
-                <tr><th>REFERENCES</th><td>{selectedForm ? REFERENCES[selectedForm as 1 | 2] : ''}</td></tr>
-              </tbody>
-            </table>
+            <section className="lesson-plan-block lesson-plan-details-block">
+              <h2 className="lesson-plan-block-title">LESSON DETAILS</h2>
+              <table className="lesson-plan-details">
+                <tbody>
+                  <tr><th>MAIN COMPETENCE</th><td>{unit?.mainCompetence}</td></tr>
+                  <tr><th>SPECIFIC COMPETENCE</th><td>{unit?.specificCompetence}</td></tr>
+                  <tr><th>MAIN ACTIVITY</th><td>{unit?.mainActivity}</td></tr>
+                  <tr>
+                    <th>SPECIFIC ACTIVITIES</th>
+                    <td>{selectedPart && <ol>{selectedPart.specificActivities.map(activity => <li key={activity}>{activity}</li>)}</ol>}</td>
+                  </tr>
+                  <tr><th>TEACHING &amp; LEARNING RESOURCES</th><td>{selectedResources.join(', ')}</td></tr>
+                  <tr><th>REFERENCES</th><td>{selectedForm ? REFERENCES[selectedForm as 1 | 2] : ''}</td></tr>
+                </tbody>
+              </table>
+            </section>
 
-            <section className="lesson-plan-process-section">
-              <h2 className="lesson-plan-process-title">TEACHING AND LEARNING PROCESS</h2>
+            <section className="lesson-plan-block lesson-plan-process-section">
+              <h2 className="lesson-plan-block-title">TEACHING AND LEARNING PROCESS</h2>
               <table className="lesson-plan-process">
                 <thead>
                   <tr><th>STAGE</th><th>TIME (MIN)</th><th>TEACHING ACTIVITIES</th><th>LEARNING ACTIVITIES</th></tr>
@@ -635,8 +754,8 @@ export function LessonPlan({
               </table>
             </section>
 
-            <section className="lesson-plan-remarks">
-              <h2>REMARKS</h2>
+            <section className="lesson-plan-block lesson-plan-remarks">
+              <h2 className="lesson-plan-block-title">REMARKS</h2>
               <div className="lesson-plan-remarks-lines">
                 <div>{selectedRemark && selectedRemark !== 'No remark (leave blank lines)' ? selectedRemark : ''}</div>
                 <div />
