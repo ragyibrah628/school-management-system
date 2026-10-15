@@ -6,12 +6,10 @@
     margin: 12mm 15mm;
   }
 
-  /* Hide everything by default when printing */
   body > div > *:not(.print-container) {
     display: none !important;
   }
 
-  /* Only show print container */
   .print-container {
     position: static !important;
     overflow: visible !important;
@@ -31,13 +29,11 @@
     page-break-after: avoid;
   }
 
-  /* Remove all backgrounds and shadows for clean print */
   * {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  /* Remove URL/date/title from browser print headers */
   @page {
     margin-top: 10mm;
     margin-bottom: 10mm;
@@ -45,136 +41,219 @@
 
   @page lessonPlanPage {
     size: A4 portrait;
-    margin: 10mm;
+    margin: 0;
   }
 
-  body:has(.lesson-plan-print) .lesson-plan-print {
-    page: lessonPlanPage;
-  }
-
-  body:has(.lesson-plan-print) > div > *:not(.print-container) {
+  body:has(.lesson-plan-print) #root {
     display: block !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
   }
 
-  body:has(.lesson-plan-print) * {
-    visibility: hidden !important;
+  body:has(.lesson-plan-print) #root > * {
+    display: block !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+    zoom: 1 !important;
   }
 
-  body:has(.lesson-plan-print) .lesson-plan-print,
-  body:has(.lesson-plan-print) .lesson-plan-print * {
-    visibility: visible !important;
+  body:has(.lesson-plan-print) #root *:not(.lesson-plan-print):not(.lesson-plan-print *):not(:has(.lesson-plan-print)) {
+    display: none !important;
+  }
+
+  body:has(.lesson-plan-print) #root * {
+    max-width: none !important;
+    overflow: visible !important;
+    transform: none !important;
+    zoom: 1 !important;
+  }
+
+  body:has(.lesson-plan-print) .lesson-plan-page,
+  body:has(.lesson-plan-print) .lesson-plan-preview-scroll,
+  body:has(.lesson-plan-print) .lesson-plan-preview-frame,
+  body:has(.lesson-plan-print) .lesson-plan-preview-scaled {
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+    zoom: 1 !important;
   }
 
   body:has(.lesson-plan-print) .lesson-plan-print {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
-    width: 190mm !important;
-    height: 277mm !important;
+    page: lessonPlanPage;
+    width: 210mm !important;
+    height: 297mm !important;
     min-height: 0 !important;
+    max-width: none !important;
     margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
+    padding: 12mm !important;
+    overflow: visible !important;
+    transform: none !important;
+    zoom: 1 !important;
     box-shadow: none !important;
   }
 
-  body:has(.lesson-plan-print) .lesson-plan-page {
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  body:has(.lesson-plan-print) .lesson-plan-preview-scroll {
-    overflow: visible !important;
-    padding: 0 !important;
+  body:has(.lesson-plan-print) .lesson-plan-print,
+  body:has(.lesson-plan-print) .lesson-plan-print * {
+    visibility: visible !important;
   }
 }
 
 .lesson-plan-print {
+  --lesson-border: #374151;
+  --lesson-label: #f0f0f0;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
   width: 210mm;
-  min-height: 297mm;
-  padding: 8mm 10mm;
+  height: 297mm;
+  min-width: 0;
+  max-width: none;
+  padding: 12mm;
+  border: 1px solid #555;
   box-shadow: 0 4px 20px rgb(15 23 42 / 0.12);
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 10px;
-  line-height: 1.2;
+  color: #111;
+  background: #fff;
+  font-family: Arial, Helvetica, Calibri, "Segoe UI", sans-serif;
+  font-size: 12pt;
+  line-height: 1.23;
+  overflow: visible;
 }
 
 .lesson-plan-header {
   position: relative;
-  margin-bottom: 5px;
+  display: grid;
+  grid-template-columns: 28mm minmax(0, 1fr) 28mm;
+  align-items: center;
+  min-width: 0;
+  margin-bottom: 3mm;
+  padding-bottom: 2.5mm;
+  border-bottom: 2px solid #111;
+}
+
+.lesson-plan-header::after {
+  position: absolute;
+  right: 0;
+  bottom: -3.2mm;
+  left: 0;
+  border-bottom: 1px solid #555;
+  content: "";
+}
+
+.lesson-plan-header-logo {
+  display: flex;
+  width: 28mm;
+  height: 28mm;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.lesson-plan-header-logo img {
+  width: 26mm;
+  height: 26mm;
+  object-fit: contain;
+}
+
+.lesson-plan-header-copy {
+  min-width: 0;
   text-align: center;
 }
 
 .lesson-plan-header h1 {
   margin: 0;
-  font-size: 18px;
+  font-size: 25pt;
   font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1.08;
 }
 
 .lesson-plan-council {
-  margin: 2px 0;
-  font-size: 10px;
+  margin: 2mm 0 1mm;
+  font-size: 11pt;
   font-weight: 700;
 }
 
-.lesson-plan-school-row {
-  display: flex;
-  min-height: 20px;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
+.lesson-plan-school-name {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 12pt;
   font-weight: 800;
-}
-
-.lesson-plan-school-row img {
-  position: absolute;
-  right: 0;
-  width: 19mm;
-  height: 16mm;
-  object-fit: contain;
 }
 
 .lesson-plan-print table {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
 }
 
+.lesson-plan-print td,
+.lesson-plan-print th {
+  min-width: 0;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
 .lesson-plan-meta {
-  margin: 4px 0 7px;
+  flex: 0 0 auto;
+  margin: 1mm 0;
+}
+
+.lesson-plan-meta th {
+  width: 13%;
+}
+
+.lesson-plan-meta td {
+  width: 37%;
+  font-weight: 400;
+}
+
+.lesson-plan-meta th,
+.lesson-plan-meta td {
+  border: 1px solid var(--lesson-border);
+  padding: 0.8mm 1.5mm;
 }
 
 .lesson-plan-meta th,
 .lesson-plan-details th {
-  width: 18%;
+  background: var(--lesson-label);
   text-align: left;
-  font-size: 8px;
+  font-size: 11pt;
   font-weight: 800;
 }
 
-.lesson-plan-meta td {
-  width: 32%;
-  min-height: 15px;
-  border-bottom: 1px solid #111;
-  text-align: center;
-  font-weight: 700;
-}
-
 .lesson-plan-students {
-  margin: 4px 0 8px;
+  flex: 0 0 auto;
+  margin: 1mm 0;
 }
 
 .lesson-plan-students th,
-.lesson-plan-students td,
-.lesson-plan-process th,
-.lesson-plan-process td {
-  border: 1px solid #111;
-  padding: 3px 4px;
+.lesson-plan-students td {
+  border: 1px solid var(--lesson-border);
+  padding: 0.8mm 1.5mm;
 }
 
 .lesson-plan-students th {
-  font-size: 8px;
+  background: var(--lesson-label);
+  font-size: 11pt;
   font-weight: 800;
   text-align: center;
 }
@@ -184,112 +263,220 @@
 }
 
 .lesson-plan-students tbody th {
-  width: 16%;
   text-align: left;
 }
 
+.lesson-plan-students tbody td:last-child {
+  font-weight: 800;
+}
+
 .lesson-plan-details {
-  margin: 0 0 7px;
+  flex: 0 0 auto;
+  margin: 0 0 1mm;
 }
 
 .lesson-plan-details th {
-  width: 23%;
+  width: 30%;
   vertical-align: top;
-  padding: 2px 4px 2px 0;
+  border: 1px solid var(--lesson-border);
+  padding: 0.6mm 2mm;
 }
 
 .lesson-plan-details td {
-  border-bottom: 1px solid #111;
-  padding: 2px 4px;
+  border: 1px solid var(--lesson-border);
+  padding: 0.6mm 2mm;
   vertical-align: top;
-  overflow-wrap: anywhere;
+  font-size: 11.5pt;
 }
 
 .lesson-plan-details ol {
   margin: 0;
-  padding-left: 15px;
+  padding-left: 5mm;
+}
+
+.lesson-plan-process-section {
+  display: flex;
+  flex: 1 1 60mm;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
 }
 
 .lesson-plan-process-title {
-  margin: 6px 0 4px;
+  flex: 0 0 auto;
+  margin: 1mm 0 1.5mm;
   text-align: center;
-  font-size: 11px;
+  font-size: 14pt;
   font-weight: 800;
 }
 
-.lesson-plan-process th {
-  font-size: 8px;
-  font-weight: 800;
-  text-align: center;
+.lesson-plan-process {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  height: 0;
+  min-height: 0;
+  border-top: 1px solid var(--lesson-border);
+  border-left: 1px solid var(--lesson-border);
 }
 
+.lesson-plan-process thead {
+  display: block;
+  flex: 0 0 auto;
+  background: var(--lesson-label);
+}
+
+.lesson-plan-process tbody {
+  display: grid;
+  flex: 1 1 0;
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  min-height: 0;
+}
+
+.lesson-plan-process tr {
+  display: grid;
+  grid-template-columns: 21% 11% 34% 34%;
+  width: 100%;
+  min-height: 0;
+}
+
+.lesson-plan-process th,
 .lesson-plan-process td {
-  vertical-align: top;
+  display: block;
+  min-width: 0;
+  border: 0;
+  border-right: 1px solid var(--lesson-border);
+  border-bottom: 1px solid var(--lesson-border);
+  padding: 1.5mm 1.2mm;
   overflow-wrap: anywhere;
 }
 
-.lesson-plan-process th:first-child {
-  width: 17%;
-}
-
-.lesson-plan-process th:nth-child(2) {
-  width: 9%;
-}
-
-.lesson-plan-process th:nth-child(3),
-.lesson-plan-process th:nth-child(4) {
-  width: 37%;
+.lesson-plan-process thead th {
+  display: flex;
+  min-height: 11mm;
+  align-items: center;
+  justify-content: center;
+  background: var(--lesson-label);
+  font-size: 11pt;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
 }
 
 .lesson-plan-process tbody th {
-  vertical-align: middle;
+  display: flex;
+  align-items: center;
+  font-size: 10.5pt;
+  font-weight: 800;
+  line-height: 1.1;
   text-align: left;
-  font-size: 7px;
+}
+
+.lesson-plan-process tbody td {
+  align-content: center;
+  font-size: 11pt;
+  line-height: 1.18;
+  vertical-align: middle;
 }
 
 .lesson-plan-process tbody td:nth-child(2) {
-  text-align: center;
-  vertical-align: middle;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-weight: 700;
+  text-align: center;
 }
 
 .lesson-plan-remarks {
-  margin-top: 5px;
+  display: flex;
+  flex: 0 0 32mm;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: 2mm;
   break-inside: avoid;
 }
 
 .lesson-plan-remarks h2 {
-  margin: 0;
-  font-size: 8px;
+  flex: 0 0 auto;
+  margin: 0 0 1mm;
+  font-size: 11pt;
   font-weight: 800;
 }
 
 .lesson-plan-remarks div {
-  height: 12px;
-  border-bottom: 1px solid #111;
+  flex: 1 1 0;
+  min-height: 0;
+  border-bottom: 1px solid var(--lesson-border);
+}
+
+.lesson-plan-references {
+  flex: 0 0 auto;
+  margin: 2mm 0 0;
+  padding: 2mm;
+  border: 1px solid var(--lesson-border);
+  font-size: 11pt;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.lesson-plan-references strong {
+  font-size: 12pt;
+}
+
+.lesson-plan-preview-scroll {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.lesson-plan-preview-frame {
+  position: relative;
+  margin: 0 auto;
+}
+
+.lesson-plan-preview-scaled {
+  width: 210mm;
+  height: 297mm;
+  transform-origin: top left;
+}
+
+.lesson-plan-print--dense {
+  font-size: 10.5pt;
+}
+
+.lesson-plan-print--dense .lesson-plan-process tbody td {
+  padding: 1.2mm 1mm;
+  font-size: 9.5pt;
+}
+
+.lesson-plan-print--dense .lesson-plan-process tbody th {
+  font-size: 9.5pt;
+}
+
+.lesson-plan-print--dense .lesson-plan-process-title {
+  font-size: 13pt;
+}
+
+.lesson-plan-print--dense .lesson-plan-remarks {
+  flex-basis: 29mm;
 }
 
 @media print {
-  .lesson-plan-print {
-    font-size: 9pt;
+  html,
+  body {
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
   }
 
-  .lesson-plan-print,
-  .lesson-plan-print table,
-  .lesson-plan-print tr,
-  .lesson-plan-print td,
-  .lesson-plan-print th,
-  .lesson-plan-remarks {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-
-  .lesson-plan-print * {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  .lesson-plan-print table {
-    font-size: 9pt;
+  .lesson-plan-preview-frame,
+  .lesson-plan-preview-scaled {
+    width: 210mm !important;
+    height: 297mm !important;
+    transform: none !important;
   }
 }

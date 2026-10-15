@@ -202,8 +202,8 @@ export const LESSON_PARTS: LessonPart[] = [
 
 // References: fill from the copyright page of each book.
 export const REFERENCES: Record<1 | 2, string> = {
-  1: "Tanzania Institute of Education (YEAR). Computer Science for Secondary Schools Student's Book Form One. PUBLISHER, Dar es Salaam.",
-  2: "Tanzania Institute of Education (YEAR). Computer Science for Secondary Schools Student's Book Form Two. PUBLISHER, Dar es Salaam.",
+  1: "Tanzania Institute of Education. (2023). Computer Science for secondary schools student's book, form one. Tanzania Institute of Education.",
+  2: "Tanzania Institute of Education. (2023). Computer Science for secondary schools student's book, form two. Tanzania Institute of Education.",
 };
 
 // Stage text templates per method. {part} is replaced with LessonPart.part.

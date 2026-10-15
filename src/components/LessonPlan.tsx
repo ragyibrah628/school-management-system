@@ -1,14 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   INTRODUCTION,
   LESSON_PARTS,
-  METHOD_LABELS,
   METHOD_TEMPLATES,
   REFERENCES,
   STAGE_MINUTES_DOUBLE,
   STAGE_MINUTES_SINGLE,
   UNITS,
-  type MethodKey,
 } from '../data/LessonPlanData';
 
 interface LessonPlanProps {
@@ -100,9 +98,19 @@ export function LessonPlan({
   const [topic, setTopic] = useState('');
   const [subtopic, setSubtopic] = useState('');
   const [partId, setPartId] = useState('');
-  const [method, setMethod] = useState<MethodKey | ''>('');
   const [presentGirls, setPresentGirls] = useState('');
   const [presentBoys, setPresentBoys] = useState('');
+  const [previewScale, setPreviewScale] = useState(1);
+
+  useEffect(() => {
+    const updatePreviewScale = () => {
+      const printableWidth = 210 * 96 / 25.4;
+      setPreviewScale(Math.min(1, Math.max(0.3, (window.innerWidth - 24) / printableWidth)));
+    };
+    updatePreviewScale();
+    window.addEventListener('resize', updatePreviewScale);
+    return () => window.removeEventListener('resize', updatePreviewScale);
+  }, []);
 
   const classes = [...new Set(
     assignments.filter(assignment => assignment.sub === subject).map(assignment => assignment.cls),
@@ -129,7 +137,7 @@ export function LessonPlan({
   const selectedPart = matchingParts.find(lessonPart => lessonPart.id === partId);
   const unit = selectedPart ? UNITS[selectedPart.unit] : undefined;
   const availableMethods = unit?.methods ?? [];
-  const selectedMethod = method && availableMethods.includes(method) ? method : availableMethods[0];
+  const selectedMethod = availableMethods[0];
 
   const registered = registeredStudents[className];
   const registeredGirls = readCount(registered?.regG);
@@ -193,12 +201,15 @@ export function LessonPlan({
       ]
     : [];
   const replacePart = (text: string) => text.split('{part}').join(selectedPart?.part ?? '');
+  const densePrint = (
+    (selectedPart?.specificActivities.join(' ').length ?? 0) > 125 ||
+    processRows.reduce((length, row) => length + row.text.teacher.length + row.text.learners.length, 0) > 350
+  );
 
   const resetTopicAndBelow = () => {
     setTopic('');
     setSubtopic('');
     setPartId('');
-    setMethod('');
   };
 
   const numberInput = (
@@ -327,7 +338,6 @@ export function LessonPlan({
                     setTopic(event.target.value);
                     setSubtopic('');
                     setPartId('');
-                    setMethod('');
                   }}
                   className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
                 >
@@ -343,7 +353,6 @@ export function LessonPlan({
                   onChange={event => {
                     setSubtopic(event.target.value);
                     setPartId('');
-                    setMethod('');
                   }}
                   className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm disabled:bg-slate-100"
                 >
@@ -358,9 +367,7 @@ export function LessonPlan({
                   disabled={!subtopic}
                   onChange={event => {
                     const nextPartId = event.target.value;
-                    const nextPart = matchingParts.find(lessonPart => lessonPart.id === nextPartId);
                     setPartId(nextPartId);
-                    setMethod(nextPart ? UNITS[nextPart.unit].methods[0] : '');
                   }}
                   className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm disabled:bg-slate-100"
                 >
@@ -368,18 +375,6 @@ export function LessonPlan({
                   {matchingParts.map(value => <option key={value.id} value={value.id}>{value.part}</option>)}
                 </select>
               </label>
-              {availableMethods.length > 0 && (
-                <label className="text-xs font-semibold text-slate-600">
-                  Teaching method
-                  <select
-                    value={selectedMethod}
-                    onChange={event => setMethod(event.target.value as MethodKey)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
-                  >
-                    {availableMethods.map(value => <option key={value} value={value}>{METHOD_LABELS[value]}</option>)}
-                  </select>
-                </label>
-              )}
             </>
           )}
         </div>
@@ -439,30 +434,44 @@ export function LessonPlan({
       </div>
 
       {isSupportedClass && (
-        <div className="lesson-plan-preview-scroll overflow-x-auto pb-4">
-          <article className="lesson-plan-print mx-auto bg-white text-black">
+        <div className="lesson-plan-preview-scroll">
+          <div
+            className="lesson-plan-preview-frame"
+            style={{
+              width: `calc(210mm * ${previewScale})`,
+              height: `calc(297mm * ${previewScale})`,
+            }}
+          >
+          <div
+            className="lesson-plan-preview-scaled"
+            style={{ transform: `scale(${previewScale})` }}
+          >
+          <article className={`lesson-plan-print${densePrint ? ' lesson-plan-print--dense' : ''}`}>
             <header className="lesson-plan-header">
-              <h1>LESSON PLAN</h1>
-              <p className="lesson-plan-council">{districtName}</p>
-              <div className="lesson-plan-school-row">
-                <p>{schoolName}</p>
+              <div className="lesson-plan-header-logo">
                 {schoolLogo && <img src={schoolLogo} alt="School logo" />}
               </div>
+              <div className="lesson-plan-header-copy">
+                <h1>LESSON PLAN</h1>
+                <p className="lesson-plan-council">{districtName}</p>
+                <p className="lesson-plan-school-name">{schoolName}</p>
+              </div>
+              <div className="lesson-plan-header-spacer" aria-hidden="true" />
             </header>
 
             <table className="lesson-plan-meta">
               <tbody>
                 <tr>
-                  <th>TEACHER:</th><td>{teacherName}</td>
-                  <th>SUBJECT:</th><td>{subject}</td>
+                  <th>TEACHER</th><td>{teacherName}</td>
+                  <th>SUBJECT</th><td>{subject}</td>
                 </tr>
                 <tr>
-                  <th>CLASS:</th><td>{className}</td>
-                  <th>DATE:</th><td>{date ? formatDate(date) : ''}</td>
+                  <th>CLASS</th><td>{className}</td>
+                  <th>DATE</th><td>{date ? formatDate(date) : ''}</td>
                 </tr>
                 <tr>
-                  <th>TIME:</th><td>{printedTime || (periodType === 'double' ? 'Double (80 min)' : periodType === 'single' ? 'Single (40 min)' : '')}</td>
-                  <th>PERIOD TYPE:</th><td>{periodType === 'double' ? 'Double (80 min)' : periodType === 'single' ? 'Single (40 min)' : ''}</td>
+                  <th>TIME</th><td>{printedTime}</td>
+                  <th>PERIOD TYPE</th><td>{periodType === 'double' ? 'Double (80 min)' : periodType === 'single' ? 'Single (40 min)' : ''}</td>
                 </tr>
               </tbody>
             </table>
@@ -481,35 +490,35 @@ export function LessonPlan({
 
             <table className="lesson-plan-details">
               <tbody>
-                <tr><th>MAIN COMPETENCE:</th><td>{unit?.mainCompetence}</td></tr>
-                <tr><th>SPECIFIC COMPETENCE:</th><td>{unit?.specificCompetence}</td></tr>
-                <tr><th>MAIN ACTIVITY:</th><td>{unit?.mainActivity}</td></tr>
+                <tr><th>MAIN COMPETENCE</th><td>{unit?.mainCompetence}</td></tr>
+                <tr><th>SPECIFIC COMPETENCE</th><td>{unit?.specificCompetence}</td></tr>
+                <tr><th>MAIN ACTIVITY</th><td>{unit?.mainActivity}</td></tr>
                 <tr>
-                  <th>SPECIFIC ACTIVITIES:</th>
+                  <th>SPECIFIC ACTIVITIES</th>
                   <td>{selectedPart && <ol>{selectedPart.specificActivities.map(activity => <li key={activity}>{activity}</li>)}</ol>}</td>
                 </tr>
-                <tr><th>TEACHING &amp; LEARNING RESOURCES:</th><td>{unit?.resources.join(', ')}</td></tr>
-                <tr><th>REFERENCES:</th><td>{selectedForm ? REFERENCES[selectedForm as 1 | 2] : ''}</td></tr>
-                <tr><th>TEACHING METHOD:</th><td>{selectedMethod ? METHOD_LABELS[selectedMethod] : ''}</td></tr>
+                <tr><th>TEACHING &amp; LEARNING RESOURCES</th><td>{unit?.resources.join(', ')}</td></tr>
               </tbody>
             </table>
 
-            <h2 className="lesson-plan-process-title">TEACHING AND LEARNING PROCESS</h2>
-            <table className="lesson-plan-process">
-              <thead>
-                <tr><th>STAGE</th><th>TIME<br />(MIN)</th><th>TEACHING ACTIVITIES</th><th>LEARNING ACTIVITIES</th></tr>
-              </thead>
-              <tbody>
-                {processRows.map(row => (
-                  <tr key={row.stage}>
-                    <th>{row.stage.toUpperCase()}</th>
-                    <td>{row.minutes}</td>
-                    <td>{replacePart(row.text.teacher)}</td>
-                    <td>{replacePart(row.text.learners)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <section className="lesson-plan-process-section">
+              <h2 className="lesson-plan-process-title">TEACHING AND LEARNING PROCESS</h2>
+              <table className="lesson-plan-process">
+                <thead>
+                  <tr><th>STAGE</th><th>TIME (MIN)</th><th>TEACHING ACTIVITIES</th><th>LEARNING ACTIVITIES</th></tr>
+                </thead>
+                <tbody>
+                  {processRows.map(row => (
+                    <tr key={row.stage}>
+                      <th>{row.stage.toUpperCase()}</th>
+                      <td>{row.minutes}</td>
+                      <td>{replacePart(row.text.teacher)}</td>
+                      <td>{replacePart(row.text.learners)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
 
             <section className="lesson-plan-remarks">
               <h2>REMARKS:</h2>
@@ -517,7 +526,12 @@ export function LessonPlan({
               <div />
               <div />
             </section>
+            <p className="lesson-plan-references">
+              <strong>REFERENCES:</strong> {selectedForm ? REFERENCES[selectedForm as 1 | 2] : ''}
+            </p>
           </article>
+          </div>
+          </div>
         </div>
       )}
     </section>
