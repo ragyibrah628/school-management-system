@@ -53,24 +53,29 @@ function useFitToPage(
     const sheet = sheetRef.current;
     if (!sheet) return;
 
+    const printMedia = window.matchMedia('print');
+    if (!printMedia.matches) {
+      sheet.style.setProperty('--fs', '13pt');
+      return;
+    }
+
+    const letterInnerHeight = 255 * 96 / 25.4;
     const minimumFontSize = 8.5;
     for (let fontSize = 13; fontSize >= minimumFontSize; fontSize -= 0.25) {
       sheet.style.setProperty('--fs', `${fontSize}pt`);
-      if (
-        sheet.scrollHeight <= sheet.clientHeight + 1 &&
-        sheet.scrollWidth <= sheet.clientWidth + 1
-      ) {
-        return;
-      }
+      if (sheet.getBoundingClientRect().height <= letterInnerHeight) return;
     }
     sheet.style.setProperty('--fs', `${minimumFontSize}pt`);
   }, [sheetRef]);
 
   useLayoutEffect(() => {
     fitToPage();
+    const printMedia = window.matchMedia('print');
+    printMedia.addEventListener('change', fitToPage);
     window.addEventListener('beforeprint', fitToPage);
     window.addEventListener('afterprint', fitToPage);
     return () => {
+      printMedia.removeEventListener('change', fitToPage);
       window.removeEventListener('beforeprint', fitToPage);
       window.removeEventListener('afterprint', fitToPage);
     };
@@ -650,7 +655,6 @@ export function LessonPlan({
             type="button"
             disabled={!complete}
             onClick={() => {
-              fitToPage();
               window.print();
             }}
             className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
@@ -719,7 +723,6 @@ export function LessonPlan({
             </section>
 
             <section className="lesson-plan-block lesson-plan-details-block">
-              <h2 className="lesson-plan-block-title">LESSON DETAILS</h2>
               <table className="lesson-plan-details">
                 <tbody>
                   <tr><th>MAIN COMPETENCE</th><td>{unit?.mainCompetence}</td></tr>
@@ -754,14 +757,11 @@ export function LessonPlan({
               </table>
             </section>
 
-            <section className="lesson-plan-block lesson-plan-remarks">
-              <h2 className="lesson-plan-block-title">REMARKS</h2>
-              <div className="lesson-plan-remarks-lines">
-                <div>{selectedRemark && selectedRemark !== 'No remark (leave blank lines)' ? selectedRemark : ''}</div>
-                <div />
-                <div />
-              </div>
-            </section>
+            {selectedRemark && selectedRemark !== 'No remark (leave blank lines)' && (
+              <p className="lesson-plan-remarks">
+                <strong>REMARKS:</strong> {selectedRemark}
+              </p>
+            )}
           </article>
           </div>
           </div>

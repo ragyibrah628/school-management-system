@@ -37,23 +37,23 @@
   html.lesson-plan-print-mode,
   body.lesson-plan-print-mode {
     width: 100% !important;
-    height: 100vh !important;
-    min-height: 0 !important;
+    height: auto !important;
+    min-height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
-    overflow: hidden !important;
+    overflow: visible !important;
   }
 
   body.lesson-plan-print-mode #root,
   body.lesson-plan-print-mode #root > * {
     display: block !important;
     width: 100% !important;
-    height: 100vh !important;
-    min-height: 0 !important;
+    height: auto !important;
+    min-height: auto !important;
     max-width: none !important;
     margin: 0 !important;
     padding: 0 !important;
-    overflow: hidden !important;
+    overflow: visible !important;
     transform: none !important;
     zoom: 1 !important;
   }
@@ -64,9 +64,12 @@
 
   html.lesson-plan-print-mode .lesson-plan-page {
     display: block !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
     width: 100% !important;
-    height: 100vh !important;
-    min-height: 0 !important;
+    height: auto !important;
+    min-height: auto !important;
     max-width: none !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -79,13 +82,13 @@
   }
 
   html.lesson-plan-print-mode .lesson-plan-print {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
+    position: static !important;
+    display: block !important;
     width: 100% !important;
-    height: 100vh !important;
-    min-height: 0 !important;
+    height: auto !important;
+    min-height: auto !important;
     max-width: none !important;
+    max-height: none !important;
     margin: 0 !important;
     padding: 10mm !important;
     overflow: visible !important;
@@ -97,15 +100,34 @@
   html.lesson-plan-print-mode .lesson-plan-preview-scroll,
   html.lesson-plan-print-mode .lesson-plan-preview-frame,
   html.lesson-plan-print-mode .lesson-plan-preview-scaled {
+    position: static !important;
     width: 100% !important;
-    height: 100vh !important;
-    min-height: 0 !important;
+    height: auto !important;
+    min-height: auto !important;
     max-width: none !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
     transform: none !important;
     zoom: 1 !important;
+  }
+
+  html.lesson-plan-print-mode .lesson-plan-process-section,
+  html.lesson-plan-print-mode .lesson-plan-process {
+    display: block !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    flex: none !important;
+  }
+
+  html.lesson-plan-print-mode .lesson-plan-remarks {
+    display: block !important;
+    min-height: 0 !important;
+    margin: 4mm 0 0 !important;
+    border: 0 !important;
+    padding: 0 !important;
   }
 
   html.lesson-plan-print-mode *,
@@ -233,7 +255,7 @@
 .lesson-plan-block {
   flex: 0 0 auto;
   min-width: 0;
-  margin: 0 0 5mm;
+  margin: 0 0 4.5mm;
   border: 0.5px solid var(--lesson-border);
   break-inside: avoid;
   page-break-inside: avoid;
@@ -291,20 +313,11 @@
 }
 
 .lesson-plan-process-section {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
   min-width: 0;
-  min-height: min-content;
-}
-
-.lesson-plan-process-section .lesson-plan-block-title {
-  flex: 0 0 auto;
 }
 
 .lesson-plan-process {
-  flex: 1 1 auto;
-  min-height: min-content;
+  height: auto;
 }
 
 .lesson-plan-process th,
@@ -354,28 +367,8 @@
 }
 
 .lesson-plan-remarks {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 28mm;
-  margin-top: auto;
-  margin-bottom: 0;
-}
-
-.lesson-plan-remarks-lines {
-  display: grid;
-  flex: 1 1 auto;
-  grid-template-rows: repeat(3, minmax(min-content, 1fr));
-  min-height: 18mm;
-  padding: 0 2mm;
-}
-
-.lesson-plan-remarks-lines > div {
-  min-width: 0;
-  min-height: 7mm;
-  border-bottom: 0.5px solid var(--lesson-border);
-  padding: 1mm 0.5mm;
-  font-size: calc(var(--fs) * 0.9);
+  margin: 4mm 0 0;
+  font-size: var(--fs);
   line-height: 1.15;
   overflow-wrap: anywhere;
 }
