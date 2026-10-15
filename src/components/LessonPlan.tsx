@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
+  buildRemarkOptions,
+  COMMON_RESOURCES,
   INTRODUCTION,
   LESSON_PARTS,
   METHOD_TEMPLATES,
@@ -101,6 +103,26 @@ export function LessonPlan({
   const [presentGirls, setPresentGirls] = useState('');
   const [presentBoys, setPresentBoys] = useState('');
   const [previewScale, setPreviewScale] = useState(1);
+  const [selectedResources, setSelectedResources] = useState<string[]>([]);
+  const [selectedRemark, setSelectedRemark] = useState('');
+  const [printDensity, setPrintDensity] = useState(0);
+  const printSheetRef = useRef<HTMLElement>(null);
+  const densityPartId = useRef(partId);
+
+  useEffect(() => {
+    const printStyle = document.createElement('style');
+    printStyle.dataset.lessonPlanPrint = 'true';
+    printStyle.textContent = '@page { size: A4 portrait; margin: 0; }';
+    document.head.appendChild(printStyle);
+    document.documentElement.classList.add('lesson-plan-print-mode');
+    document.body.classList.add('lesson-plan-print-mode');
+
+    return () => {
+      document.documentElement.classList.remove('lesson-plan-print-mode');
+      document.body.classList.remove('lesson-plan-print-mode');
+      printStyle.remove();
+    };
+  }, []);
 
   useEffect(() => {
     const updatePreviewScale = () => {
@@ -136,8 +158,12 @@ export function LessonPlan({
   );
   const selectedPart = matchingParts.find(lessonPart => lessonPart.id === partId);
   const unit = selectedPart ? UNITS[selectedPart.unit] : undefined;
+  const availableResources = selectedPart
+    ? [...new Set([...(unit?.resources ?? []), ...COMMON_RESOURCES])]
+    : [];
   const availableMethods = unit?.methods ?? [];
   const selectedMethod = availableMethods[0];
+  const remarkOptions = selectedPart ? buildRemarkOptions(selectedPart) : [];
 
   const registered = registeredStudents[className];
   const registeredGirls = readCount(registered?.regG);
@@ -174,6 +200,7 @@ export function LessonPlan({
   const attendanceIsValid = girlsValueValid && boysValueValid;
   const complete = !!subject && !!className && !!date && !!periodType &&
     !!topic && !!subtopic && !!selectedPart && attendanceIsValid &&
+    selectedResources.length > 0 &&
     (timeSlots.length === 0 || !!selectedSlot);
 
   const processRows = selectedPart && selectedMethod
@@ -201,15 +228,53 @@ export function LessonPlan({
       ]
     : [];
   const replacePart = (text: string) => text.split('{part}').join(selectedPart?.part ?? '');
-  const densePrint = (
-    (selectedPart?.specificActivities.join(' ').length ?? 0) > 125 ||
-    processRows.reduce((length, row) => length + row.text.teacher.length + row.text.learners.length, 0) > 350
-  );
+  const densityClass = ['', 'lesson-plan-print--compact', 'lesson-plan-print--dense', 'lesson-plan-print--extra-dense'][printDensity];
+
+  useLayoutEffect(() => {
+    if (densityPartId.current !== partId) {
+      densityPartId.current = partId;
+      if (printDensity !== 0) {
+        setPrintDensity(0);
+        return;
+      }
+    }
+
+    const sheet = printSheetRef.current;
+    if (!sheet || printDensity >= 3) return;
+
+    const overflowingCell = Array.from(
+      sheet.querySelectorAll<HTMLElement>(
+        '.lesson-plan-process th, .lesson-plan-process td, .lesson-plan-remarks-lines > div',
+      ),
+    ).some(element => element.scrollHeight > element.clientHeight + 1);
+
+    if (sheet.scrollHeight > sheet.clientHeight + 1 || overflowingCell) {
+      setPrintDensity(printDensity + 1);
+    }
+  }, [
+    className,
+    date,
+    districtName,
+    partId,
+    periodType,
+    printDensity,
+    printedTime,
+    processRows,
+    schoolName,
+    selectedPart,
+    selectedRemark,
+    selectedResources,
+    subject,
+    teacherName,
+  ]);
 
   const resetTopicAndBelow = () => {
     setTopic('');
     setSubtopic('');
     setPartId('');
+    setSelectedResources([]);
+    setSelectedRemark('');
+    setPrintDensity(0);
   };
 
   const numberInput = (
@@ -368,6 +433,10 @@ export function LessonPlan({
                   onChange={event => {
                     const nextPartId = event.target.value;
                     setPartId(nextPartId);
+                    const nextPart = matchingParts.find(value => value.id === nextPartId);
+                    setSelectedResources(nextPart ? [...UNITS[nextPart.unit].resources] : []);
+                    setSelectedRemark('');
+                    setPrintDensity(0);
                   }}
                   className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm disabled:bg-slate-100"
                 >
@@ -382,6 +451,51 @@ export function LessonPlan({
           <p className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-sm font-medium text-indigo-900">
             Lesson plan for "{unsupportedSubject}" is coming soon. Mr. Kijida is working on it.
           </p>
+        )}
+        {selectedPart && (
+          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <fieldset className="min-w-0">
+              <legend className="text-xs font-semibold text-slate-600">Teaching and learning resources</legend>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {availableResources.map(resource => (
+                  <label
+                    key={resource}
+                    className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${
+                      selectedResources.includes(resource)
+                        ? 'border-indigo-300 bg-indigo-50 text-indigo-900'
+                        : 'border-slate-300 bg-white text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedResources.includes(resource)}
+                      onChange={() => setSelectedResources(current =>
+                        current.includes(resource)
+                          ? current.filter(value => value !== resource)
+                          : [...current, resource],
+                      )}
+                      className="accent-indigo-600"
+                    />
+                    {resource}
+                  </label>
+                ))}
+              </div>
+              {selectedResources.length === 0 && (
+                <p className="mt-2 text-xs text-red-600">Select at least one resource to print.</p>
+              )}
+            </fieldset>
+            <label className="text-xs font-semibold text-slate-600">
+              Remarks
+              <select
+                value={selectedRemark}
+                onChange={event => setSelectedRemark(event.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
+              >
+                <option value="">Optional — choose a suggested remark</option>
+                {remarkOptions.map(remark => <option key={remark} value={remark}>{remark}</option>)}
+              </select>
+            </label>
+          </div>
         )}
         {isSupportedClass && (
           <div className="mt-5 overflow-x-auto">
@@ -429,7 +543,7 @@ export function LessonPlan({
           >
             Print Lesson Plan
           </button>
-          {!complete && isSupportedClass && <span className="text-xs text-slate-500">Complete the required fields and valid present counts to print.</span>}
+          {!complete && isSupportedClass && <span className="text-xs text-slate-500">Complete the required fields, select at least one resource, and enter valid present counts to print.</span>}
         </div>
       </div>
 
@@ -446,7 +560,7 @@ export function LessonPlan({
             className="lesson-plan-preview-scaled"
             style={{ transform: `scale(${previewScale})` }}
           >
-          <article className={`lesson-plan-print${densePrint ? ' lesson-plan-print--dense' : ''}`}>
+          <article ref={printSheetRef} className={`lesson-plan-print ${densityClass}`}>
             <header className="lesson-plan-header">
               <div className="lesson-plan-header-logo">
                 {schoolLogo && <img src={schoolLogo} alt="School logo" />}
@@ -497,7 +611,8 @@ export function LessonPlan({
                   <th>SPECIFIC ACTIVITIES</th>
                   <td>{selectedPart && <ol>{selectedPart.specificActivities.map(activity => <li key={activity}>{activity}</li>)}</ol>}</td>
                 </tr>
-                <tr><th>TEACHING &amp; LEARNING RESOURCES</th><td>{unit?.resources.join(', ')}</td></tr>
+                <tr><th>TEACHING &amp; LEARNING RESOURCES</th><td>{selectedResources.join(', ')}</td></tr>
+                <tr><th>REFERENCES</th><td>{selectedForm ? REFERENCES[selectedForm as 1 | 2] : ''}</td></tr>
               </tbody>
             </table>
 
@@ -521,14 +636,13 @@ export function LessonPlan({
             </section>
 
             <section className="lesson-plan-remarks">
-              <h2>REMARKS:</h2>
-              <div />
-              <div />
-              <div />
+              <h2>REMARKS</h2>
+              <div className="lesson-plan-remarks-lines">
+                <div>{selectedRemark && selectedRemark !== 'No remark (leave blank lines)' ? selectedRemark : ''}</div>
+                <div />
+                <div />
+              </div>
             </section>
-            <p className="lesson-plan-references">
-              <strong>REFERENCES:</strong> {selectedForm ? REFERENCES[selectedForm as 1 | 2] : ''}
-            </p>
           </article>
           </div>
           </div>

@@ -32,6 +32,26 @@ export interface SyllabusUnit {
   resources: string[];
 }
 
+export const COMMON_RESOURCES = [
+  'Computer',
+  'Projector',
+  'Smart board',
+  'Chalkboard / whiteboard',
+  'Markers and chalk',
+  'Handouts',
+  "Student's book (Computer Science, Form One/Two as applicable)",
+  'Flip chart',
+  'Charts and pictures',
+  'Smart phone',
+  'Tablet',
+  'Internet connectivity',
+  'Printer',
+  'Scanner',
+  'Flash disk',
+  'Syllabus',
+  'Simulated steps videos',
+];
+
 const MC1 = 'Demonstrate mastery of the basic concepts of Computer Science';
 const MC2 = 'Demonstrate mastery of the basic principles of Computer Science';
 
@@ -76,6 +96,18 @@ export interface LessonPart {
   unit: keyof typeof UNITS;
   specificActivities: string[]; // 2 short learner-outcome statements
 }
+
+export const buildRemarkOptions = (part: LessonPart): string[] => {
+  const skill = part.specificActivities[0] ?? '';
+  const lowercaseSkill = skill ? `${skill[0].toLowerCase()}${skill.slice(1)}` : '';
+
+  return [
+    `The lesson was successful. Most learners were able to ${lowercaseSkill}.`,
+    `The lesson was partially successful. Some learners need more practice on "${part.part}"; a short revision will be done in the next lesson.`,
+    `The lesson was not completed as planned because of limited time or resources. "${part.part}" will be continued in the next lesson.`,
+    'No remark (leave blank lines)',
+  ];
+};
 
 let _n = 0;
 const P = (form: 1 | 2, topic: string, subtopic: string, part: string, unit: string, ...specificActivities: string[]): LessonPart =>
@@ -261,4 +293,4 @@ export const INTRODUCTION: StageText = {
 
 // Stage minutes
 export const STAGE_MINUTES_SINGLE = { introduction: 5, development: 15, design: 10, realization: 10 }; // 40 min
-export const STAGE_MINUTES_DOUBLE = { introduction: 10, development: 30, design: 20, realization: 20 }; // 80 min
+export const STAGE_MINUTES_DOUBLE = { introduction: 10, development: 40, design: 15, realization: 15 }; // 80 min
