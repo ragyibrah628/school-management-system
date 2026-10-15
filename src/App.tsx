@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef, ErrorInfo, Component, ReactNode } from 'react';
 import { TimetableSubsystem } from './components/TimetableSubsystem';
 import { TeacherDutyForm, DutyReportPrint, AdminRegisteredStudents } from './components/DutyReport';
+import { LessonPlan } from './components/LessonPlan';
 import * as cloud from './lib/cloud';
 
 // Safe image component that won't crash
@@ -1044,6 +1045,7 @@ function AppInner() {
 
   const teacherMenus = [
     { id: 'my_timetable', label: 'My Timetable', icon: '🗓️' },
+    { id: 'lesson_plan', label: 'Lesson Plan', icon: '📝' },
     ...(myClass ? [{ id: 'students', label: `Register Students (${myClass})`, icon: '📝' }] : []),
     ...(myClass ? [{ id: 'behavior', label: 'Behavior Assessment', icon: '📋' }] : []),
     { id: 'exams', label: 'Exams & Scores', icon: '📊' },
@@ -2097,6 +2099,16 @@ function AppInner() {
           </div>
         )}
         <div className="p-6 max-w-4xl mx-auto space-y-6">
+
+          {activeMenu === 'lesson_plan' && user?.role === 'teacher' && (
+            <LessonPlan
+              teacherName={user?.name || ''}
+              assignments={teachingAssignments[user?.id] || []}
+              schoolName={schoolNameSetting}
+              districtName={districtName}
+              schoolLogo={schoolLogo}
+            />
+          )}
 
           {/* Teacher Dashboard */}
           {activeMenu === 'my_timetable' && (<>
