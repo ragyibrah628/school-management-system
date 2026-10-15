@@ -6,12 +6,10 @@
     margin: 12mm 15mm;
   }
 
-  /* Hide everything by default when printing */
   body > div > *:not(.print-container) {
     display: none !important;
   }
 
-  /* Only show print container */
   .print-container {
     position: static !important;
     overflow: visible !important;
@@ -31,15 +29,364 @@
     page-break-after: avoid;
   }
 
-  /* Remove all backgrounds and shadows for clean print */
   * {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  /* Remove URL/date/title from browser print headers */
-  @page {
-    margin-top: 10mm;
-    margin-bottom: 10mm;
+  html.lesson-plan-print-mode,
+  body.lesson-plan-print-mode {
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
   }
+
+  body.lesson-plan-print-mode #root,
+  body.lesson-plan-print-mode #root > * {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+    zoom: 1 !important;
+  }
+
+  html.lesson-plan-print-mode body * {
+    visibility: hidden !important;
+  }
+
+  html.lesson-plan-print-mode .lesson-plan-page {
+    display: block !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  html.lesson-plan-print-mode .lesson-plan-print,
+  html.lesson-plan-print-mode .lesson-plan-print * {
+    visibility: visible !important;
+  }
+
+  html.lesson-plan-print-mode .lesson-plan-print {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 10mm !important;
+    overflow: visible !important;
+    transform: none !important;
+    zoom: 1 !important;
+    box-shadow: none !important;
+  }
+
+  html.lesson-plan-print-mode .lesson-plan-preview-scroll,
+  html.lesson-plan-print-mode .lesson-plan-preview-frame,
+  html.lesson-plan-print-mode .lesson-plan-preview-scaled {
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+    zoom: 1 !important;
+  }
+
+  html.lesson-plan-print-mode .lesson-plan-process-section,
+  html.lesson-plan-print-mode .lesson-plan-process {
+    display: block !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    flex: none !important;
+  }
+
+  html.lesson-plan-print-mode .lesson-plan-remarks {
+    display: block !important;
+    min-height: 0 !important;
+    margin: 4mm 0 0 !important;
+    border: 0 !important;
+    padding: 0 !important;
+  }
+
+  html.lesson-plan-print-mode *,
+  body.lesson-plan-print-mode * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+.lesson-plan-print {
+  --fs: 13pt;
+  --lesson-border: #9aa0a6;
+  --lesson-label: #f3f4f6;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 210mm;
+  height: 297mm;
+  min-width: 0;
+  max-width: none;
+  padding: 12mm;
+  border: 0.5px solid #bbb;
+  box-shadow: 0 4px 20px rgb(15 23 42 / 0.12);
+  color: #111;
+  background: #fff;
+  font-family: Arial, Helvetica, Calibri, "Segoe UI", sans-serif;
+  font-size: var(--fs);
+  line-height: 1.18;
+}
+
+.lesson-plan-header {
+  position: relative;
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: 28mm minmax(0, 1fr) 28mm;
+  align-items: center;
+  min-width: 0;
+  margin-bottom: 3mm;
+  padding-bottom: 2.5mm;
+  border-bottom: 1px solid #333;
+}
+
+.lesson-plan-header-logo {
+  display: flex;
+  width: 28mm;
+  height: 25mm;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.lesson-plan-header-logo img {
+  width: 24mm;
+  height: 24mm;
+  object-fit: contain;
+}
+
+.lesson-plan-header-copy {
+  min-width: 0;
+  text-align: center;
+}
+
+.lesson-plan-header h1 {
+  margin: 0;
+  font-size: calc(var(--fs) * 1.85);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1.08;
+}
+
+.lesson-plan-council {
+  margin: 2mm 0 1mm;
+  font-size: calc(var(--fs) * 0.85);
+  font-weight: 700;
+}
+
+.lesson-plan-school-name {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--fs);
+  font-weight: 800;
+}
+
+.lesson-plan-print table {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.lesson-plan-print td,
+.lesson-plan-print th {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lesson-plan-meta {
+  flex: 0 0 auto;
+  margin: 1mm 0 3mm;
+}
+
+.lesson-plan-meta th {
+  width: 14%;
+}
+
+.lesson-plan-meta td {
+  width: 36%;
+  font-weight: 400;
+}
+
+.lesson-plan-meta th,
+.lesson-plan-meta td {
+  border: 0.5px solid var(--lesson-border);
+  padding: 1mm 1.5mm;
+}
+
+.lesson-plan-meta th,
+.lesson-plan-details th {
+  background: var(--lesson-label);
+  text-align: left;
+  font-size: calc(var(--fs) * 0.85);
+  font-weight: 800;
+}
+
+.lesson-plan-block {
+  flex: 0 0 auto;
+  min-width: 0;
+  margin: 0 0 4.5mm;
+  border: 0.5px solid var(--lesson-border);
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.lesson-plan-block-title {
+  margin: 0;
+  border-bottom: 0.5px solid var(--lesson-border);
+  padding: 1.25mm 2mm;
+  background: var(--lesson-label);
+  font-size: calc(var(--fs) * 0.95);
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.lesson-plan-students th,
+.lesson-plan-students td {
+  border: 0.5px solid var(--lesson-border);
+  padding: 1mm 1.5mm;
+  text-align: center;
+}
+
+.lesson-plan-students th {
+  background: var(--lesson-label);
+  font-size: calc(var(--fs) * 0.85);
+  font-weight: 800;
+}
+
+.lesson-plan-students tbody th {
+  text-align: left;
+}
+
+.lesson-plan-students tbody td:last-child {
+  font-weight: 800;
+}
+
+.lesson-plan-details th {
+  width: 30%;
+  vertical-align: top;
+  border: 0.5px solid var(--lesson-border);
+  padding: 1mm 1.5mm;
+}
+
+.lesson-plan-details td {
+  border: 0.5px solid var(--lesson-border);
+  padding: 1mm 1.5mm;
+  vertical-align: top;
+  font-size: var(--fs);
+}
+
+.lesson-plan-details ol {
+  margin: 0;
+  padding-left: 5mm;
+}
+
+.lesson-plan-process-section {
+  min-width: 0;
+}
+
+.lesson-plan-process {
+  height: auto;
+}
+
+.lesson-plan-process th,
+.lesson-plan-process td {
+  border: 0.5px solid var(--lesson-border);
+  padding: 1.2mm 1.1mm;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.lesson-plan-process thead th {
+  background: var(--lesson-label);
+  font-size: calc(var(--fs) * 0.85);
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.lesson-plan-process th:first-child,
+.lesson-plan-process td:first-child {
+  width: 20%;
+}
+
+.lesson-plan-process th:nth-child(2),
+.lesson-plan-process td:nth-child(2) {
+  width: 10%;
+  text-align: center;
+}
+
+.lesson-plan-process th:nth-child(3),
+.lesson-plan-process td:nth-child(3),
+.lesson-plan-process th:nth-child(4),
+.lesson-plan-process td:nth-child(4) {
+  width: 35%;
+}
+
+.lesson-plan-process tbody th {
+  font-size: calc(var(--fs) * 0.85);
+  font-weight: 800;
+  text-align: left;
+}
+
+.lesson-plan-process tbody td {
+  font-size: var(--fs);
+}
+
+.lesson-plan-remarks {
+  margin: 4mm 0 0;
+  font-size: var(--fs);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.lesson-plan-preview-scroll {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.lesson-plan-preview-frame {
+  position: relative;
+  margin: 0 auto;
+}
+
+.lesson-plan-preview-scaled {
+  width: 210mm;
+  height: 297mm;
+  transform-origin: top left;
 }
