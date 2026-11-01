@@ -12,6 +12,7 @@ const LEGACY_DEFAULT_CLASSES = ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Fo
 const GET_CACHE_TTL_MS = 30000;
 const getCache = new Map<string, { expiresAt: number; data: any }>();
 const getInFlight = new Map<string, Promise<any>>();
+const getCacheVersions = new Map<string, number>();
 
 export function startVisiblePolling(
   callback: () => void | Promise<void>,
@@ -37,11 +38,14 @@ export function startVisiblePolling(
       start();
     }
   };
+  const onFocus = () => { void run(onResume); };
   start();
   document.addEventListener('visibilitychange', onVisibilityChange);
+  window.addEventListener('focus', onFocus);
   return () => {
     if (timer !== null) clearInterval(timer);
     document.removeEventListener('visibilitychange', onVisibilityChange);
+    window.removeEventListener('focus', onFocus);
   };
 }
 
@@ -123,21 +127,32 @@ function appDataQueryContainsKey(requestKey: string, appDataKey: string): boolea
 
 function invalidateAppDataKeyCache(appDataKey: string) {
   const prefix = `GET:${SUPABASE_URL}/rest/v1/app_data`;
-  for (const cacheKey of getCache.keys()) {
-    if (cacheKey.startsWith(prefix) && appDataQueryContainsKey(cacheKey, appDataKey)) getCache.delete(cacheKey);
-  }
-  for (const requestKey of getInFlight.keys()) {
-    if (requestKey.startsWith(prefix) && appDataQueryContainsKey(requestKey, appDataKey)) getInFlight.delete(requestKey);
+  const requestKeys = new Set([...getCache.keys(), ...getInFlight.keys()]);
+  for (const requestKey of requestKeys) {
+    if (requestKey.startsWith(prefix) && appDataQueryContainsKey(requestKey, appDataKey)) {
+      getCache.delete(requestKey);
+      getInFlight.delete(requestKey);
+      getCacheVersions.set(requestKey, (getCacheVersions.get(requestKey) || 0) + 1);
+    }
   }
 }
 
-async function supabaseRequest(table: string, method: string, body?: any, query?: string, upsert = false, bypassCache = false) {
+async function supabaseRequest(
+  table: string,
+  method: string,
+  body?: any,
+  query?: string,
+  upsert = false,
+  bypassCache = false,
+  returnRepresentation = false
+) {
   const url = `${SUPABASE_URL}/rest/v1/${table}${query || ''}`;
   const cacheKey = `${method}:${url}`;
   if (method === 'GET') {
     if (bypassCache) {
       getCache.delete(cacheKey);
       getInFlight.delete(cacheKey);
+      getCacheVersions.set(cacheKey, (getCacheVersions.get(cacheKey) || 0) + 1);
     } else {
       const cached = getCache.get(cacheKey);
       if (cached && cached.expiresAt > Date.now()) return cached.data;
@@ -149,9 +164,11 @@ async function supabaseRequest(table: string, method: string, body?: any, query?
     'apikey': SUPABASE_KEY,
     'Authorization': `Bearer ${SUPABASE_KEY}`,
     'Content-Type': 'application/json',
-    'Prefer': method === 'POST'
-      ? (upsert ? 'resolution=merge-duplicates,return=minimal' : 'return=representation')
-      : 'return=minimal'
+    'Prefer': returnRepresentation
+      ? 'return=representation'
+      : method === 'POST'
+        ? (upsert ? 'resolution=merge-duplicates,return=minimal' : 'return=representation')
+        : 'return=minimal'
   };
 
   // Opera Mini + low-end browser fix: timeout + no-cache, skip cloud if fetch hangs
@@ -177,16 +194,25 @@ async function supabaseRequest(table: string, method: string, body?: any, query?
     if (!res.ok) {
       const text = await res.text();
       console.error(`Supabase ${method} ${table} failed:`, text);
-      throw new Error(text);
+      const error: any = new Error(text);
+      error.status = res.status;
+      throw error;
     }
 
-    if (method === 'GET') return res.json();
+    if (method === 'GET' || returnRepresentation) return res.json();
     return null;
   })();
   if (method === 'GET') {
+    const cacheVersion = getCacheVersions.get(cacheKey) || 0;
     getInFlight.set(cacheKey, request);
-    request.then(data => getCache.set(cacheKey, { expiresAt: Date.now() + GET_CACHE_TTL_MS, data }), () => undefined)
-      .finally(() => getInFlight.delete(cacheKey));
+    request.then(data => {
+      if ((getCacheVersions.get(cacheKey) || 0) === cacheVersion) {
+        getCache.set(cacheKey, { expiresAt: Date.now() + GET_CACHE_TTL_MS, data });
+      }
+    }, () => undefined)
+      .finally(() => {
+        if (getInFlight.get(cacheKey) === request) getInFlight.delete(cacheKey);
+      });
   } else {
     request.then(() => {
       if (table === 'app_data') {
@@ -338,6 +364,40 @@ export async function getScores(): Promise<any[]> {
   }
   const saved = localStorage.getItem('sms_scores');
   return saved ? JSON.parse(saved) : [];
+}
+
+export async function renameStudentScoreReferences(
+  className: string,
+  oldName: string,
+  newName: string
+): Promise<any[]> {
+  const saved = localStorage.getItem('sms_scores');
+  let localScores: any[] = [];
+  try { localScores = saved ? JSON.parse(saved) : []; } catch {}
+  const renamedScores = localScores.map(score =>
+    score.class_name === className && score.student_name === oldName
+      ? { ...score, student_name: newName }
+      : score
+  );
+  if (IS_CLOUD && oldName !== newName) {
+    await supabaseRequest(
+      'scores',
+      'PATCH',
+      { student_name: newName },
+      studentRenameScoreFilter(className, oldName)
+    );
+  }
+  localStorage.setItem('sms_scores', JSON.stringify(renamedScores));
+  return renamedScores;
+}
+
+function postgrestQuotedEq(value: string): string {
+  const quoted = `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  return `eq.${encodeURIComponent(quoted)}`;
+}
+
+function studentRenameScoreFilter(className: string, oldName: string): string {
+  return `?class_name=${postgrestQuotedEq(className)}&student_name=${postgrestQuotedEq(oldName)}`;
 }
 
 export async function addScore(score: any) {
@@ -545,6 +605,135 @@ const SYNC_KEYS = [
 
 const ROLE_SYNC_KEYS = ['sms_class_teachers', 'sms_teaching_assignments'];
 const APP_DATA_SYNC_KEYS = [...new Set([...SYNC_KEYS, ...ROLE_SYNC_KEYS])];
+const PENDING_SUFFIX = '_cloud_pending';
+
+type PendingAppDataWrite = { version: string; deletedStudentIds?: string[] };
+
+function readPendingWrite(key: string): PendingAppDataWrite | null {
+  try {
+    const raw = localStorage.getItem(`${key}${PENDING_SUFFIX}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function publishAppDataSyncStatus(key: string, status: 'pending' | 'saved' | 'error') {
+  window.dispatchEvent(new CustomEvent('app-data-sync-status', { detail: { key, status } }));
+}
+
+function nextCloudUpdatedAt(previous?: string): string {
+  const previousTime = Date.parse(previous || '') || 0;
+  const nextTime = Math.max(Date.now(), previousTime + 1) + Math.floor(Math.random() * 1000);
+  return new Date(nextTime).toISOString();
+}
+
+export function markAppDataKeyDirty(key: string, value?: string): void {
+  const pending = readPendingWrite(key);
+  localStorage.setItem(`${key}${PENDING_SUFFIX}`, JSON.stringify({
+    version: `${Date.now()}-${Math.random()}`,
+    deletedStudentIds: pending?.deletedStudentIds || []
+  }));
+  if (value !== undefined) localStorage.setItem(key, value);
+  publishAppDataSyncStatus(key, 'pending');
+}
+
+export function saveAppDataKeyLocally(key: string, value: string): void {
+  const previous = localStorage.getItem(key);
+  localStorage.setItem(key, value);
+  if (!IS_CLOUD || previous === null || previous === value) return;
+  markAppDataKeyDirty(key);
+  void syncToCloud().catch(error => {
+    publishAppDataSyncStatus(key, 'error');
+    console.error(`Cloud sync failed for ${key}; it will retry:`, error);
+  });
+}
+
+export function markStudentDeleted(className: string, student: { id?: string; name?: string }): void {
+  const identity = student.id || `legacy:${className.toLocaleLowerCase()}:${(student.name || '').trim().toLocaleLowerCase()}`;
+  const pending = readPendingWrite('sms_students');
+  localStorage.setItem('sms_students_cloud_pending', JSON.stringify({
+    version: `${Date.now()}-${Math.random()}`,
+    deletedStudentIds: [...new Set([...(pending?.deletedStudentIds || []), identity])]
+  }));
+  publishAppDataSyncStatus('sms_students', 'pending');
+}
+
+function studentIdentity(className: string, student: any): string {
+  const normalize = (value: string) => value.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+  return String(student?.id || `legacy:${encodeURIComponent(normalize(className))}:${encodeURIComponent(normalize(String(student?.name || '')))}:${student?._legacyPosition ?? 0}`);
+}
+
+function legacyDeletionIdentity(className: string, student: any): string {
+  const normalize = (value: string) => value.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+  return `legacy:${normalize(className)}:${normalize(String(student?.name || ''))}`;
+}
+
+function studentNameAliases(student: any): Set<string> {
+  const normalize = (value: string) => value.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+  return new Set([student?.name, ...(Array.isArray(student?.previousNames) ? student.previousNames : [])]
+    .filter((name): name is string => typeof name === 'string' && name.trim().length > 0)
+    .map(normalize));
+}
+
+function mergeStudentValues(localValue: string, cloudValue: string | null, deletedIds: string[] = [], teacherClass?: string): string {
+  const parse = (value: string | null): Record<string, any[]> => {
+    try {
+      const parsed = value ? JSON.parse(value) : {};
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  };
+  const localStudents = parse(localValue);
+  const cloudStudents = parse(cloudValue);
+  const deleted = new Set(deletedIds);
+  const merged: Record<string, any[]> = {};
+  for (const className of new Set([...Object.keys(cloudStudents), ...Object.keys(localStudents)])) {
+    const records: { id: string; student: any; hasExplicitId: boolean }[] = [];
+    const sources = teacherClass && className !== teacherClass
+      ? [cloudStudents[className]]
+      : [cloudStudents[className], localStudents[className]];
+    for (const rows of sources) {
+      if (!Array.isArray(rows)) continue;
+      for (const [position, row] of rows.entries()) {
+        const student = typeof row === 'string' ? { name: row } : row;
+        if (!student || typeof student !== 'object') continue;
+        const studentWithPosition = { ...student, _legacyPosition: position };
+        const id = studentIdentity(className, studentWithPosition);
+        if (deleted.has(id) || deleted.has(legacyDeletionIdentity(className, student))) continue;
+        const explicitId = typeof student.id === 'string' && student.id.length > 0;
+        const aliases = studentNameAliases(student);
+        let index = records.findIndex(record => record.id === id);
+        if (index < 0) {
+          index = records.findIndex(record => {
+            if (explicitId && record.hasExplicitId) return false;
+            const existingAliases = studentNameAliases(record.student);
+            return [...aliases].some(alias => existingAliases.has(alias));
+          });
+        }
+        if (index < 0) {
+          records.push({ id, student: { ...student, id }, hasExplicitId: explicitId });
+          continue;
+        }
+        const existing = records[index].student;
+        const existingUpdatedAt = Date.parse(existing?.updatedAt || '') || 0;
+        const studentUpdatedAt = Date.parse(student.updatedAt || '') || 0;
+        if (studentUpdatedAt >= existingUpdatedAt) {
+          records[index] = {
+            id: explicitId ? id : records[index].id,
+            student: { ...student, id: records[index].id },
+            hasExplicitId: records[index].hasExplicitId || explicitId
+          };
+        } else if (explicitId && !records[index].hasExplicitId) {
+          records[index] = { ...records[index], id, student: { ...existing, id } , hasExplicitId: true };
+        }
+      }
+    }
+    merged[className] = records.map(record => record.student);
+  }
+  return JSON.stringify(merged);
+}
 
 function appDataKeysFilter(keys: string[]): string {
   return `key=in.(${keys.map(key => encodeURIComponent(key)).join(',')})`;
@@ -552,6 +741,7 @@ function appDataKeysFilter(keys: string[]): string {
 
 function applyCloudAppDataItem(item: any, isAdmin: boolean, forceApply = false): boolean {
   if (!item?.key || item.value === undefined) return false;
+  if (readPendingWrite(item.key)) return false;
   const localValue = localStorage.getItem(item.key);
   const cloudTimestamp = Date.parse(item.updated_at || '') || 0;
   const isSharedRoleKey = item.key === 'sms_class_teachers' || item.key === 'sms_teaching_assignments';
@@ -590,6 +780,7 @@ function applyCloudAppDataItem(item: any, isAdmin: boolean, forceApply = false):
 
 async function syncAppDataKeys(keys: string[] = APP_DATA_SYNC_KEYS, bypassCache = false): Promise<void> {
   if (!IS_CLOUD || keys.length === 0) return;
+  await syncToCloud();
   let isAdmin = false;
   try { isAdmin = JSON.parse(localStorage.getItem('sms_current_user') || 'null')?.role === 'admin'; } catch {}
 
@@ -600,7 +791,8 @@ async function syncAppDataKeys(keys: string[] = APP_DATA_SYNC_KEYS, bypassCache 
     bypassCache
   );
   const changed = (Array.isArray(metadata) ? metadata : []).filter((item: any) => {
-    return item.key && localStorage.getItem(`${item.key}_cloud_updated_at`) !== (item.updated_at || '');
+    return item.key && !readPendingWrite(item.key) &&
+      localStorage.getItem(`${item.key}_cloud_updated_at`) !== (item.updated_at || '');
   });
   if (changed.length === 0) return;
 
@@ -652,7 +844,7 @@ export async function syncRoleAssignmentsToCloud(classTeachers: unknown, teachin
   };
   await Promise.all(ROLE_SYNC_KEYS.map(async key => {
     const value = JSON.stringify(values[key]);
-    const updatedAt = new Date().toISOString();
+    const updatedAt = nextCloudUpdatedAt(cloudItem?.updated_at);
     try {
       await supabaseRequest('app_data', 'POST', { key, value, updated_at: updatedAt }, undefined, true);
     } catch {
@@ -662,44 +854,229 @@ export async function syncRoleAssignmentsToCloud(classTeachers: unknown, teachin
 }
 
 let syncToCloudPromise: Promise<void> | null = null;
-const lastSyncedAppDataValues = new Map<string, string>();
 
-export async function syncAppDataKeyToCloud(key: string, value: string): Promise<void> {
-  if (!IS_CLOUD) return;
-  if (syncToCloudPromise) await syncToCloudPromise.catch(() => {});
+async function pushPendingAppDataKey(key: string): Promise<void> {
+  const pending = readPendingWrite(key);
+  if (!pending) return;
+  let localValue = localStorage.getItem(key);
+  if (localValue === null) return;
+
+  if (key === 'sms_students') {
+    let teacherClass: string | undefined;
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('sms_current_user') || 'null');
+      const assignedClasses = JSON.parse(localStorage.getItem('sms_class_teachers') || '{}');
+      if (currentUser?.role === 'teacher') {
+        teacherClass = Object.keys(assignedClasses).find(className => assignedClasses[className] === currentUser.id);
+      }
+    } catch {}
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const latest = await supabaseRequest(
+        'app_data', 'GET', undefined,
+        `?key=eq.${encodeURIComponent(key)}&select=key,value,updated_at&limit=1`,
+        false, true
+      );
+      const cloudItem = Array.isArray(latest) ? latest[0] : null;
+      const mergedValue = mergeStudentValues(localValue, cloudItem?.value ?? null, pending.deletedStudentIds || [], teacherClass);
+      if (mergedValue !== localValue) {
+        localValue = mergedValue;
+        localStorage.setItem(key, localValue);
+      }
+      const updatedAt = nextCloudUpdatedAt();
+      if (cloudItem?.updated_at) {
+        const result = await supabaseRequest(
+          'app_data', 'PATCH',
+          { value: localValue, updated_at: updatedAt },
+          `?key=eq.${encodeURIComponent(key)}&updated_at=eq.${encodeURIComponent(cloudItem.updated_at)}&select=key,updated_at`,
+          false, false, true
+        );
+        if (!Array.isArray(result) || result.length === 0) continue;
+      } else {
+        try {
+          await supabaseRequest('app_data', 'POST', { key, value: localValue, updated_at: updatedAt });
+        } catch (error: any) {
+          if (error?.status === 409) continue;
+          throw error;
+        }
+      }
+      completePendingWrite(key, pending, localValue, updatedAt);
+      return;
+    }
+    throw new Error('Student list changed repeatedly while saving. It will retry automatically.');
+  }
+
   const updatedAt = new Date().toISOString();
-  localStorage.setItem(`${key}_ts`, String(Date.parse(updatedAt)));
   try {
-    await supabaseRequest('app_data', 'POST', { key, value, updated_at: updatedAt }, undefined, true);
+    await supabaseRequest('app_data', 'POST', { key, value: localValue, updated_at: updatedAt }, undefined, true);
   } catch {
     await supabaseRequest(
       'app_data', 'PATCH',
-      { value, updated_at: updatedAt },
+      { value: localValue, updated_at: updatedAt },
       `?key=eq.${encodeURIComponent(key)}`
     );
   }
-  lastSyncedAppDataValues.set(key, value);
+  completePendingWrite(key, pending, localValue, updatedAt);
+}
+
+function completePendingWrite(key: string, pending: PendingAppDataWrite, value: string, updatedAt: string) {
+  if (localStorage.getItem(key) !== value) return;
+  const currentPending = readPendingWrite(key);
+  if (currentPending?.version !== pending.version) return;
+  localStorage.setItem(`${key}_ts`, String(Date.parse(updatedAt)));
   localStorage.setItem(`${key}_cloud_updated_at`, updatedAt);
+  localStorage.removeItem(`${key}${PENDING_SUFFIX}`);
+  publishAppDataSyncStatus(key, 'saved');
+  window.dispatchEvent(new Event('cloud-sync-complete'));
+}
+
+async function syncPendingAppDataKeys(keys: string[] = SYNC_KEYS): Promise<void> {
+  for (const key of keys) {
+    if (!readPendingWrite(key)) continue;
+    try {
+      await pushPendingAppDataKey(key);
+    } catch (error) {
+      publishAppDataSyncStatus(key, 'error');
+      throw error;
+    }
+  }
+}
+
+const STUDENT_RENAME_PENDING_KEY = 'sms_student_rename_pending';
+
+type PendingStudentRename = {
+  className: string;
+  oldName: string;
+  newName: string;
+  nextStudents: string;
+  nextBehavior: string;
+  behaviorChanged: boolean;
+  scoresUpdated: boolean;
+  studentsSaved: boolean;
+  behaviorSaved: boolean;
+};
+
+function readPendingStudentRename(): PendingStudentRename | null {
+  try {
+    const raw = localStorage.getItem(STUDENT_RENAME_PENDING_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePendingStudentRename(rename: PendingStudentRename): void {
+  localStorage.setItem(STUDENT_RENAME_PENDING_KEY, JSON.stringify(rename));
+}
+
+async function completePendingStudentRename(): Promise<void> {
+  const rename = readPendingStudentRename();
+  if (!rename) return;
+
+  if (!rename.scoresUpdated) {
+    await renameStudentScoreReferences(rename.className, rename.oldName, rename.newName);
+    rename.scoresUpdated = true;
+    writePendingStudentRename(rename);
+  }
+
+  if (!rename.studentsSaved) {
+    markAppDataKeyDirty('sms_students', rename.nextStudents);
+    await pushPendingAppDataKey('sms_students');
+    rename.studentsSaved = true;
+    writePendingStudentRename(rename);
+  }
+
+  if (!rename.behaviorSaved) {
+    if (rename.behaviorChanged) {
+      let latestBehavior: Record<string, any> = {};
+      let intendedBehavior: Record<string, any> = {};
+      try { latestBehavior = JSON.parse(localStorage.getItem('sms_behavior') || '{}'); } catch {}
+      try { intendedBehavior = JSON.parse(rename.nextBehavior); } catch {}
+      const mergedBehavior = {
+        ...intendedBehavior,
+        ...latestBehavior,
+        [rename.newName]: {
+          ...(intendedBehavior[rename.newName] || {}),
+          ...(latestBehavior[rename.oldName] || {}),
+          ...(latestBehavior[rename.newName] || {})
+        }
+      };
+      markAppDataKeyDirty('sms_behavior', JSON.stringify(mergedBehavior));
+      await pushPendingAppDataKey('sms_behavior');
+    }
+    rename.behaviorSaved = true;
+    writePendingStudentRename(rename);
+  }
+
+  localStorage.removeItem(STUDENT_RENAME_PENDING_KEY);
+  publishAppDataSyncStatus('sms_students', 'saved');
+  window.dispatchEvent(new Event('cloud-sync-complete'));
+}
+
+export async function renameStudent(
+  className: string,
+  oldName: string,
+  newName: string,
+  nextStudents: string
+): Promise<void> {
+  if (oldName === newName) return;
+  let behavior: Record<string, any> = {};
+  try { behavior = JSON.parse(localStorage.getItem('sms_behavior') || '{}'); } catch {}
+  const nextBehavior = { ...behavior };
+  const behaviorChanged = Object.prototype.hasOwnProperty.call(behavior, oldName);
+  if (behaviorChanged) {
+    nextBehavior[newName] = { ...(behavior[oldName] || {}), ...(behavior[newName] || {}) };
+  }
+  const rename: PendingStudentRename = {
+    className,
+    oldName,
+    newName,
+    nextStudents,
+    nextBehavior: JSON.stringify(nextBehavior),
+    behaviorChanged,
+    scoresUpdated: false,
+    studentsSaved: false,
+    behaviorSaved: false
+  };
+  writePendingStudentRename(rename);
+  if (!IS_CLOUD) {
+    await renameStudentScoreReferences(className, oldName, newName);
+    localStorage.setItem('sms_students', nextStudents);
+    localStorage.setItem('sms_behavior', rename.nextBehavior);
+    return;
+  }
+  publishAppDataSyncStatus('sms_students', 'pending');
+  try {
+    if (syncToCloudPromise) await syncToCloudPromise.catch(() => undefined);
+    await syncToCloud();
+    if (readPendingStudentRename()) {
+      throw new Error('Student rename is still pending and will retry automatically.');
+    }
+  } catch (error) {
+    publishAppDataSyncStatus('sms_students', 'error');
+    const pending = readPendingStudentRename();
+    if (error && typeof error === 'object') {
+      (error as any).renameStage = !pending?.scoresUpdated
+        ? 'scores'
+        : !pending.studentsSaved
+          ? 'students'
+          : 'behavior';
+    }
+    throw error;
+  }
+}
+
+export async function syncAppDataKeyToCloud(key: string, value: string): Promise<void> {
+  if (!IS_CLOUD) return;
+  markAppDataKeyDirty(key, value);
+  await syncToCloud();
 }
 
 export function syncToCloud(): Promise<void> {
   if (!IS_CLOUD) return Promise.resolve();
   if (syncToCloudPromise) return syncToCloudPromise;
   syncToCloudPromise = (async () => {
-    for (const key of SYNC_KEYS) {
-      const value = localStorage.getItem(key);
-      if (value && lastSyncedAppDataValues.get(key) !== value) {
-        try {
-          await supabaseRequest('app_data', 'POST', { key, value, updated_at: new Date().toISOString() }, undefined, true);
-          lastSyncedAppDataValues.set(key, value);
-        } catch {
-          try {
-            await supabaseRequest('app_data', 'PATCH', { value, updated_at: new Date().toISOString() }, `?key=eq.${encodeURIComponent(key)}`);
-            lastSyncedAppDataValues.set(key, value);
-          } catch (e) { console.error('Sync to cloud failed for', key, e); }
-        }
-      }
-    }
+    await completePendingStudentRename();
+    await syncPendingAppDataKeys();
   })().finally(() => { syncToCloudPromise = null; });
   return syncToCloudPromise;
 }
@@ -707,15 +1084,17 @@ export function syncToCloud(): Promise<void> {
 // ✅ FIXED — handles classes deletion + addition without reverting
 export async function syncFromCloud(bypassCache = false) {
   if (!IS_CLOUD) return;
-  try {
-    await syncAppDataKeys(APP_DATA_SYNC_KEYS, bypassCache);
-  } catch (e) { console.error('Sync from cloud failed:', e); }
+  await syncAppDataKeys(APP_DATA_SYNC_KEYS, bypassCache);
 }
 
 // ==================== REGISTERED STUDENTS (per class) ====================
 // Reads/writes DIRECTLY to Supabase so all devices see the same numbers instantly.
 
 export async function getRegisteredStudents(): Promise<Record<string, { regB: number; regG: number }>> {
+  if (readPendingWrite('sms_registered_students')) {
+    const pending = localStorage.getItem('sms_registered_students');
+    return pending ? JSON.parse(pending) : {};
+  }
   if (IS_CLOUD) {
     try {
       const data = await supabaseRequest(
@@ -736,6 +1115,9 @@ export async function getRegisteredStudents(): Promise<Record<string, { regB: nu
 }
 
 export async function getSchoolClassesFromCloud(): Promise<string[]> {
+  if (readPendingWrite('sms_school_classes')) {
+    try { return JSON.parse(localStorage.getItem('sms_school_classes') || '[]'); } catch { return []; }
+  }
   if (IS_CLOUD) {
     try {
       const data = await supabaseRequest('app_data', 'GET', undefined, '?key=eq.sms_school_classes&select=value');
@@ -766,15 +1148,12 @@ export async function saveRegisteredStudents(
   localStorage.setItem('sms_registered_students', value);
 
   if (IS_CLOUD) {
-    const payload = { key: 'sms_registered_students', value, updated_at: new Date().toISOString() };
+    markAppDataKeyDirty('sms_registered_students', value);
     try {
-      await supabaseRequest('app_data', 'POST', payload, undefined, true);
-    } catch (e) {
-      try {
-        await supabaseRequest('app_data', 'PATCH', { value, updated_at: payload.updated_at }, '?key=eq.sms_registered_students');
-      } catch (e2) {
-        console.error('Cloud saveRegisteredStudents failed:', e2);
-      }
+      await syncToCloud();
+    } catch (error) {
+      publishAppDataSyncStatus('sms_registered_students', 'error');
+      throw error;
     }
   }
 }

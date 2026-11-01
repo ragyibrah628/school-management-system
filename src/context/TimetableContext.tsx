@@ -246,17 +246,17 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
   const setSchoolName = (name: string) => {
     setSchoolNameState(name);
     localStorage.setItem('tt_schoolName', name);
-    localStorage.setItem('sms_school_name_setting', name);
+    cloud.saveAppDataKeyLocally('sms_school_name_setting', name);
   };
 
   // Persistence
-  useEffect(() => { localStorage.setItem('tt_teachers', JSON.stringify(teachers)); }, [teachers]);
-  useEffect(() => { localStorage.setItem('tt_subjects', JSON.stringify(subjects)); }, [subjects]);
-  useEffect(() => { localStorage.setItem('tt_rooms', JSON.stringify(rooms)); }, [rooms]);
-  useEffect(() => { localStorage.setItem('tt_classes', JSON.stringify(classes)); }, [classes]);
-  useEffect(() => { localStorage.setItem('tt_classSubjects', JSON.stringify(classSubjects)); }, [classSubjects]);
-  useEffect(() => { localStorage.setItem('tt_timeSlots', JSON.stringify(timeSlots)); }, [timeSlots]);
-  useEffect(() => { localStorage.setItem('tt_days', JSON.stringify(days)); }, [days]);
+  useEffect(() => { cloud.saveAppDataKeyLocally('tt_teachers', JSON.stringify(teachers)); }, [teachers]);
+  useEffect(() => { cloud.saveAppDataKeyLocally('tt_subjects', JSON.stringify(subjects)); }, [subjects]);
+  useEffect(() => { cloud.saveAppDataKeyLocally('tt_rooms', JSON.stringify(rooms)); }, [rooms]);
+  useEffect(() => { cloud.saveAppDataKeyLocally('tt_classes', JSON.stringify(classes)); }, [classes]);
+  useEffect(() => { cloud.saveAppDataKeyLocally('tt_classSubjects', JSON.stringify(classSubjects)); }, [classSubjects]);
+  useEffect(() => { cloud.saveAppDataKeyLocally('tt_timeSlots', JSON.stringify(timeSlots)); }, [timeSlots]);
+  useEffect(() => { cloud.saveAppDataKeyLocally('tt_days', JSON.stringify(days)); }, [days]);
   useEffect(() => {
     const serializedTimetable = JSON.stringify(timetableData);
     localStorage.setItem('tt_timetableData', serializedTimetable);
@@ -271,9 +271,10 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
       !timetableSyncInFlight.current
     ) {
       timetableSyncInFlight.current = true;
+      cloud.markAppDataKeyDirty('tt_timetableData', serializedTimetable);
       cloud.syncToCloud()
         .then(() => { lastSyncedTimetableValue.current = serializedTimetable; })
-        .catch(() => {})
+        .catch(error => console.error('Timetable sync failed:', error))
         .finally(() => { timetableSyncInFlight.current = false; });
     }
     if (timetableData?.schedule) {
