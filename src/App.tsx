@@ -4,6 +4,8 @@ import { TimetableSubsystem } from './components/TimetableSubsystem';
 import { TeacherDutyForm, DutyReportPrint, AdminRegisteredStudents } from './components/DutyReport';
 import { LessonPlan } from './components/LessonPlan';
 import * as cloud from './lib/cloud';
+import { evaluateMark, gradeForPercentage, remarkForPercentage, sortStudentsForMarkEntry } from './utils/markEntry';
+import { rankResultsByAverage } from './utils/resultsRanking';
 
 // Safe image component that won't crash
 function SafeImg({ src, alt, className }: { src: string; alt: string; className?: string }) {
@@ -655,8 +657,20 @@ function AppInner() {
       setSelectedExam(null);
       return;
     }
-    setLoading(true);
     const studentList = getStudentsForSubject(examScoreClass, examScoreSubject);
+    const invalidStudent = studentList.find(student => {
+      const rawScore = examScores[student];
+      if (rawScore === '' || rawScore == null) return false;
+      const existing = scores.find((savedScore: any) => savedScore.exam_id === selectedExam.id && savedScore.student_name === student && savedScore.class_name === examScoreClass && savedScore.subject === examScoreSubject);
+      const maxScore = Number(existing?.max_score) || 100;
+      const score = Number(rawScore);
+      return !Number.isFinite(score) || score < 0 || score > maxScore;
+    });
+    if (invalidStudent) {
+      alert(`Enter a mark between 0 and the maximum score for ${invalidStudent}.`);
+      return;
+    }
+    setLoading(true);
     let saved = 0;
     let failed = 0;
     let lastError = '';
@@ -675,7 +689,7 @@ function AppInner() {
             subject: examScoreSubject,
             class_name: examScoreClass,
             score: Number(score),
-            max_score: 100,
+            max_score: Number(existing?.max_score) || 100,
             term: selectedExam.term,
             exam_name: selectedExam.name,
             exam_id: selectedExam.id,
@@ -1715,7 +1729,7 @@ function AppInner() {
               }
 
               // Get all students and scores for these classes
-              let allStudentRows: { student: string; cls: string; scores: Record<string, number | null>; total: number; avg: number; rank?: number }[] = [];
+              let allStudentRows: { student: string; cls: string; scores: Record<string, number | null>; total: number; avg: number; hasResults: boolean; rank?: number | '-'; rankedClassTotal?: number }[] = [];
               const allSubjects = [...new Set(filtered.map((s: any) => s.subject))].sort();
 
               classesToShow.forEach(cls => {
@@ -1728,15 +1742,15 @@ function AppInner() {
                     const sc = classScores.find((s: any) => s.student_name === student && s.subject === sub);
                     sScores[sub] = sc ? Number(sc.score) : null;
                   });
-                  const valid = Object.values(sScores).filter(v => v !== null) as number[];
+                  const valid = Object.values(sScores).filter((value): value is number => value !== null && Number.isFinite(value));
                   const total = valid.reduce((a, b) => a + b, 0);
-                  const avg = valid.length > 0 ? total / (valid.length * 100) * 100 : 0;
-                  allStudentRows.push({ student, cls, scores: sScores, total, avg });
+                  const avg = valid.length > 0 ? total / valid.length : 0;
+                  allStudentRows.push({ student, cls, scores: sScores, total, avg, hasResults: valid.length > 0 });
                 });
               });
 
               // Grading system
-              const getGrade = (score: number): string => score >= 75 ? 'A' : score >= 65 ? 'B' : score >= 45 ? 'C' : score >= 30 ? 'D' : 'F';
+              const getGrade = gradeForPercentage;
               const getPoint = (score: number): number => score >= 75 ? 1 : score >= 65 ? 2 : score >= 45 ? 3 : score >= 30 ? 4 : 5;
               const getDivision = (totalPoints: number): string => {
                 if (totalPoints >= 7 && totalPoints <= 17) return 'I';
@@ -1748,23 +1762,16 @@ function AppInner() {
 
               // Calculate points and division for each student
               allStudentRows.forEach(r => {
-                const validScores = Object.values(r.scores).filter(v => v !== null) as number[];
+                const validScores = Object.values(r.scores).filter((value): value is number => value !== null && Number.isFinite(value));
                 const points = validScores.map(s => getPoint(s));
                 // Best 7 subjects (lowest points = best)
                 const best7 = points.sort((a, b) => a - b).slice(0, 7);
                 (r as any).totalPoints = best7.reduce((a, b) => a + b, 0);
                 (r as any).division = validScores.length >= 7 ? getDivision((r as any).totalPoints) : '-';
-                (r as any).letterGrade = getGrade(r.avg);
+                (r as any).letterGrade = r.hasResults ? getGrade(r.avg) : '-';
               });
 
-              // Sort by total points ascending (best first), then by total score descending
-              allStudentRows.sort((a, b) => {
-                const pA = (a as any).totalPoints || 99;
-                const pB = (b as any).totalPoints || 99;
-                if (pA !== pB) return pA - pB;
-                return b.total - a.total;
-              });
-              allStudentRows.forEach((r, i) => { r.rank = i + 1; });
+              allStudentRows = rankResultsByAverage(allStudentRows, 1);
 
               if (allStudentRows.length === 0) return <p className="text-sm text-slate-500">No students found for this selection.</p>;
 
@@ -1810,9 +1817,9 @@ function AppInner() {
                 pw.document.write(`</tr><tr style="background:#d4edda">`);
                 allSubjects.forEach(() => pw.document.write(`<th style="font-size:7px">100</th><th style="font-size:7px"></th>`));
                 pw.document.write(`</tr></thead><tbody>`);
-                allStudentRows.forEach(r => {
+                allStudentRows.forEach((r, index) => {
                   const rr = r as any;
-                  pw.document.write(`<tr><td style="font-weight:bold">${r.rank}</td><td style="text-align:left;font-weight:bold;white-space:nowrap">${r.student}</td>`);
+                  pw.document.write(`<tr><td style="font-weight:bold">${index + 1}</td><td style="text-align:left;font-weight:bold;white-space:nowrap">${r.student}${r.hasResults ? '' : ' — No results'}</td>`);
                   allSubjects.forEach(sub => {
                     const v = r.scores[sub];
                     if (v !== null) {
@@ -1824,7 +1831,7 @@ function AppInner() {
                     }
                   });
                   pw.document.write(`<td style="font-weight:bold">${r.total.toFixed(2)}</td>`);
-                  pw.document.write(`<td style="font-weight:bold">${r.avg.toFixed(2)}</td>`);
+                  pw.document.write(`<td style="font-weight:bold">${r.hasResults ? r.avg.toFixed(1) : 'No results'}</td>`);
                   pw.document.write(`<td style="font-weight:bold">${rr.letterGrade}</td>`);
                   pw.document.write(`<td style="font-weight:bold">${r.rank}</td>`);
                   pw.document.write(`<td style="font-weight:bold">${rr.totalPoints}</td>`);
@@ -1886,10 +1893,10 @@ function AppInner() {
                 const acName = localStorage.getItem('sms_academic_name') || '';
                 const hmName = localStorage.getItem('sms_headmaster_name') || 'Saidi Mpambika';
                 const rr = row as any;
-                const grade = (score: number) => score >= 75 ? 'A' : score >= 65 ? 'B' : score >= 45 ? 'C' : score >= 30 ? 'D' : 'F';
+                const grade = gradeForPercentage;
                 const point = (score: number) => score >= 75 ? 1 : score >= 65 ? 2 : score >= 45 ? 3 : score >= 30 ? 4 : 5;
-                const remark = (score: number) => score >= 75 ? 'Bora Sana' : score >= 65 ? 'Vizuri Sana' : score >= 45 ? 'Vizuri' : score >= 30 ? 'Wastani' : 'Inahitaji Jitihada';
-                const classTotal = allStudentRows.filter(r => r.cls === row.cls).length;
+                const remark = remarkForPercentage;
+                const classTotal = row.rankedClassTotal || 0;
 
                 // Auto-generate comments — KWA KISWAHILI, kulingana na Daraja na Wastani (4 comments kwa kila daraja)
                 const firstName = row.student.split(' ')[0];
@@ -1976,7 +1983,7 @@ function AppInner() {
                 pw.document.write(`<div class="info-grid">
                   <div class="info-cell">Jina la Mwanafunzi: <strong style="font-size:14px">${row.student}</strong></div>
                   <div class="info-cell">Darasa: <strong style="font-size:14px">${row.cls}</strong></div>
-                  <div class="info-cell">Nafasi: <strong style="font-size:14px">${row.rank} kati ya ${classTotal}</strong></div>
+                  <div class="info-cell">Position: <strong style="font-size:14px">${row.hasResults ? `Position ${row.rank} out of ${classTotal}` : '-'}</strong></div>
                   <div class="info-cell">Daraja: <strong style="font-size:14px">${rr.division}</strong> | Pointi: <strong style="font-size:14px">${rr.totalPoints}</strong></div>
                 </div>`);
 
@@ -1997,7 +2004,7 @@ function AppInner() {
                 pw.document.write(`</tbody></table>`);
 
                 // Overall box — KISWAHILI
-                pw.document.write(`<div class="grade-box"><strong style="font-size:14px">Wastani: ${row.avg.toFixed(1)}% &nbsp;|&nbsp; Gredi: ${grade(row.avg)} &nbsp;|&nbsp; Pointi: ${rr.totalPoints} &nbsp;|&nbsp; Daraja: ${rr.division} &nbsp;|&nbsp; Nafasi: ${row.rank} / ${classTotal}</strong></div>`);
+                pw.document.write(`<div class="grade-box"><strong style="font-size:14px">${row.hasResults ? `Wastani: ${row.avg.toFixed(1)}% | Gredi: ${grade(row.avg)} | Pointi: ${rr.totalPoints} | Daraja: ${rr.division} | Position ${row.rank} out of ${classTotal}` : 'No results | Position: -'}</strong></div>`);
 
                 // Behavior Assessment
                 const bData = JSON.parse(localStorage.getItem('sms_behavior') || '{}');
@@ -2119,9 +2126,7 @@ function AppInner() {
                 if (!selectedExamData) return;
                 if (!released.includes(selectedExamData.term) && !confirm(`${selectedExamData.term} haijaidhinishwa. Uendelee kuchapisha report cards?`)) return;
 
-                const classRows = allStudentRows
-                  .filter(row => row.cls === viewClass)
-                  .sort((first, second) => first.student.localeCompare(second.student));
+                const classRows = allStudentRows.filter(row => row.cls === viewClass);
                 const skippedNames = classRows
                   .filter(row => !Object.values(row.scores).some(score => score !== null))
                   .map(row => row.student);
@@ -2164,14 +2169,14 @@ function AppInner() {
                           const rr = r as any;
                           return (
                             <tr key={i} className="border-b hover:bg-slate-50">
-                              <td className="p-1 border text-center font-bold text-xs">{r.rank}</td>
+                              <td className="p-1 border text-center font-bold text-xs">{i + 1}</td>
                               <td className="p-1 border font-medium text-xs whitespace-nowrap">{r.student}</td>
                               {allSubjects.map(sub => {
                                 const v = r.scores[sub];
                                 return <td key={sub} className={`p-1 border text-center text-[10px] ${v === null ? 'text-slate-300' : v >= 45 ? 'text-emerald-700' : 'text-red-600'}`}>{v !== null ? `${v} ${getGrade(v)}` : '—'}</td>;
                               })}
                               <td className="p-1 border text-center font-bold text-xs">{r.total}</td>
-                              <td className="p-1 border text-center font-bold text-xs">{r.avg.toFixed(1)}</td>
+                              <td className="p-1 border text-center font-bold text-xs">{r.hasResults ? r.avg.toFixed(1) : <span className="text-slate-400">No results</span>}</td>
                               <td className="p-1 border text-center font-bold text-xs">{rr.letterGrade}</td>
                               <td className="p-1 border text-center font-bold text-xs">{r.rank}</td>
                               <td className="p-1 border text-center font-bold text-xs">{rr.totalPoints}</td>
@@ -2241,7 +2246,7 @@ function AppInner() {
           </div>
           <nav className="flex-1 py-2">
             {teacherMenus.map(m => (
-              <button key={m.id} onClick={() => setActiveMenu(m.id)} className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium transition-all ${activeMenu === m.id ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+              <button key={m.id} onClick={() => { setActiveMenu(m.id); if (window.innerWidth < 640) setSidebarOpen(false); }} className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium transition-all ${activeMenu === m.id ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
                 <span className="text-sm">{m.icon}</span>
                 {sidebarOpen && <span>{m.label}</span>}
               </button>
@@ -2706,7 +2711,8 @@ function AppInner() {
 
                 {/* Student score table */}
                 {examScoreClass && examScoreSubject && (() => {
-                  const subjectStudents = getStudentsForSubject(examScoreClass, examScoreSubject);
+                  const subjectStudents = sortStudentsForMarkEntry((students[examScoreClass] || [])
+                    .filter(student => student.subjects.includes(examScoreSubject)));
                   return (
                   <div>
                     {subjectStudents.length === 0 ? (
@@ -2714,24 +2720,58 @@ function AppInner() {
                     ) : (
                       <>
                         <p className="text-xs text-slate-500 mb-2">{subjectStudents.length} students taking {examScoreSubject} in {examScoreClass}</p>
-                        <table className="w-full text-sm border">
+                        <table className="w-full table-fixed border text-[11px] sm:text-sm">
+                          <colgroup>
+                            <col style={{ width: '6%' }} />
+                            <col style={{ width: '31%' }} />
+                            <col style={{ width: '15%' }} />
+                            <col style={{ width: '9%' }} />
+                            <col style={{ width: '8%' }} />
+                            <col style={{ width: '31%' }} />
+                          </colgroup>
                           <thead>
                             <tr className="bg-slate-100 border-b">
-                              <th className="text-left p-2 w-8">#</th>
-                              <th className="text-left p-2">Student Name</th>
-                              <th className="text-center p-2 w-24">Score</th>
-                              <th className="text-center p-2 w-16">/100</th>
+                              <th className="text-center px-1 py-2">#</th>
+                              <th className="text-left px-1 py-2">Student</th>
+                              <th className="text-center px-1 py-2">Mark</th>
+                              <th className="text-center px-1 py-2">Max</th>
+                              <th className="text-center px-1 py-2">Grade</th>
+                              <th className="text-left px-1 py-2">Remarks</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {subjectStudents.map((s, i) => {
-                              const existing = scores.find((sc: any) => sc.exam_id === selectedExam.id && sc.student_name === s && sc.class_name === examScoreClass && sc.subject === examScoreSubject);
+                            {subjectStudents.map((student, i) => {
+                              const studentName = student.name;
+                              const existing = scores.find((sc: any) => sc.exam_id === selectedExam.id && sc.student_name === studentName && sc.class_name === examScoreClass && sc.subject === examScoreSubject);
+                              const maxScore = Number(existing?.max_score) || 100;
+                              const rawScore = examScores[studentName] ?? (existing ? String(existing.score) : '');
+                              const markDetails = evaluateMark(rawScore, maxScore);
                               return (
-                                <tr key={i} className="border-b">
-                                  <td className="p-2 text-slate-400">{i + 1}</td>
-                                  <td className="p-2 font-medium">{s}</td>
-                                  <td className="p-1"><input type="number" min={0} max={100} value={examScores[s] ?? existing?.score ?? ''} onChange={e => setExamScores(prev => ({...prev, [s]: e.target.value}))} className="w-full border px-2 py-1 rounded text-center" placeholder={existing ? String(existing.score) : '—'} /></td>
-                                  <td className="p-2 text-center text-slate-400">100</td>
+                                <tr key={student.id || `${studentName}-${i}`} className="border-b">
+                                  <td className="px-1 py-2 text-center text-slate-400">{i + 1}</td>
+                                  <td className="break-words px-1 py-2 font-medium">
+                                    {studentName.trim().replace(/\s+/g, ' ')}
+                                    {!student.gender && <span className="mt-0.5 block text-[9px] font-normal text-amber-700">Gender not set</span>}
+                                  </td>
+                                  <td className="px-1 py-1">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={maxScore}
+                                      value={rawScore}
+                                      onChange={e => setExamScores(prev => ({ ...prev, [studentName]: e.target.value }))}
+                                      className={`w-full min-w-0 rounded border px-1 py-1 text-center ${markDetails.invalid ? 'border-red-500' : ''}`}
+                                      aria-label={`Mark for ${studentName}`}
+                                    />
+                                    {markDetails.invalid && <span className="block text-[9px] leading-tight text-red-600">0–{maxScore}</span>}
+                                  </td>
+                                  <td className="px-1 py-2 text-center text-slate-500">{maxScore}</td>
+                                  <td className="px-1 py-2 text-center font-semibold">
+                                    {markDetails.grade}
+                                  </td>
+                                  <td className="break-words px-1 py-2 text-[10px] leading-tight sm:text-xs">
+                                    {markDetails.remark}
+                                  </td>
                                 </tr>
                               );
                             })}
@@ -2873,9 +2913,9 @@ function AppInner() {
                   );
                   if (examScoresAll.length === 0) return <p className="text-sm text-slate-500">No results found for this exam.</p>;
 
-                  const getGradeP = (score: number) => score >= 75 ? 'A' : score >= 65 ? 'B' : score >= 45 ? 'C' : score >= 30 ? 'D' : 'F';
+                  const getGradeP = gradeForPercentage;
                   const getPointP = (score: number) => score >= 75 ? 1 : score >= 65 ? 2 : score >= 45 ? 3 : score >= 30 ? 4 : 5;
-                  const getRemarkP = (score: number) => score >= 75 ? 'Bora Sana' : score >= 65 ? 'Vizuri Sana' : score >= 45 ? 'Vizuri' : score >= 30 ? 'Wastani' : 'Inahitaji Jitihada';
+                  const getRemarkP = remarkForPercentage;
                   const totalScore = examScoresAll.reduce((a: number, s: any) => a + s.score, 0);
                   const avg = examScoresAll.length > 0 ? totalScore / examScoresAll.length : 0;
                   const points = examScoresAll.map((s: any) => getPointP(s.score)).sort((a: number, b: number) => a - b).slice(0, 7);
