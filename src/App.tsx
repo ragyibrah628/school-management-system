@@ -11,6 +11,41 @@ function SafeImg({ src, alt, className }: { src: string; alt: string; className?
   return <img src={src} alt={alt} className={className} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />;
 }
 
+function normalizeStudentName(name: string): string {
+  return String(name || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function legacyStudentId(className: string, name: string, position: number): string {
+  return `legacy:${encodeURIComponent(normalizeStudentName(className))}:${encodeURIComponent(normalizeStudentName(name))}:${position}`;
+}
+
+function normalizeStudentRoster(saved: any, defaultSubjects: string[]) {
+  if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return {};
+  const normalized: Record<string, any[]> = {};
+  Object.entries(saved).forEach(([className, list]: [string, any]) => {
+    if (!Array.isArray(list)) return;
+    normalized[className] = list.map((student: any, position: number) => {
+      if (typeof student === 'string') {
+        return {
+          id: legacyStudentId(className, student, position),
+          name: student,
+          subjects: [...defaultSubjects],
+          phone: ''
+        };
+      }
+      if (!student || typeof student !== 'object') return student;
+      return {
+        ...student,
+        id: student.id || legacyStudentId(className, student.name || '', position),
+        name: student.name || '',
+        subjects: Array.isArray(student.subjects) ? student.subjects : [...defaultSubjects],
+        phone: student.phone || ''
+      };
+    }).filter(Boolean);
+  });
+  return normalized;
+}
+
 // Error boundary to prevent white screen
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; errorMsg: string }> {
   constructor(props: { children: ReactNode }) { super(props); this.state = { hasError: false, errorMsg: '' }; }
@@ -35,6 +70,16 @@ function AppInner() {
   const [error, setError] = useState('');
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [studentSaveStatus, setStudentSaveStatus] = useState('');
+  useEffect(() => {
+    const onSyncStatus = (event: Event) => {
+      const { key, status } = (event as CustomEvent).detail || {};
+      if (key !== 'sms_students') return;
+      setStudentSaveStatus(status === 'saved' ? 'Saved' : status === 'error' ? 'Not saved yet, will retry' : 'Saving…');
+    };
+    window.addEventListener('app-data-sync-status', onSyncStatus);
+    return () => window.removeEventListener('app-data-sync-status', onSyncStatus);
+  }, []);
   const [schoolLogo, setSchoolLogo] = useState('');
   const [academicName, setAcademicName] = useState('');
   const [headmasterName, setHeadmasterName] = useState('Saidi Mpambika');
@@ -76,7 +121,10 @@ function AppInner() {
       const base64 = reader.result as string;
       localStorage.setItem('sms_school_logo', base64);
       setSchoolLogo(base64);
-      if (cloud.isCloudMode()) setTimeout(()=> cloud.syncToCloud().catch(()=>{}), 300);
+      if (cloud.isCloudMode()) {
+        cloud.markAppDataKeyDirty('sms_school_logo', base64);
+        setTimeout(() => cloud.syncToCloud().catch(error => console.error('School logo sync failed:', error)), 300);
+      }
       alert('School logo updated! It will appear on login after sync (5 sec) on all devices.');
     };
     reader.readAsDataURL(file);
@@ -93,18 +141,14 @@ function AppInner() {
   });
 
   // Students: { className: [{ name, subjects, phone }, ...] }
-  const [students, setStudents] = useState<Record<string, { name: string; subjects: string[]; phone?: string }[]>>(() => {
+  const [students, setStudents] = useState<Record<string, { id: string; name: string; subjects: string[]; phone?: string; gender?: 'female' | 'male'; updatedAt?: string; previousNames?: string[] }[]>>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('sms_students') || '{}');
-      const migrated: Record<string, { name: string; subjects: string[]; phone?: string }[]> = {};
-      Object.entries(saved).forEach(([cls, list]: [string, any]) => {
-        if (Array.isArray(list) && list.length > 0 && typeof list[0] === 'string') {
-          migrated[cls] = list.map((name: string) => ({ name, subjects: [...ALL_SUBJECTS], phone: '' }));
-        } else {
-          migrated[cls] = (list || []).map((s: any) => ({ ...s, phone: s.phone || '' }));
-        }
-      });
-      return migrated;
+      const savedSubjects = JSON.parse(localStorage.getItem('sms_school_subjects') || '[]');
+      const defaults = Array.isArray(savedSubjects) && savedSubjects.length
+        ? savedSubjects
+        : ['Mathematics', 'English', 'Biology', 'Physics', 'Chemistry', 'History', 'Geography', 'Computer Science', 'Literature', 'Kiswahili', 'Civics', 'Book Keeping', 'Commerce', 'Bible Knowledge'];
+      return normalizeStudentRoster(saved, defaults);
     } catch { return {}; }
   });
 
@@ -134,8 +178,14 @@ function AppInner() {
     const previous = localStorage.getItem('sms_students');
     localStorage.setItem('sms_students', value);
     const changed = previous !== null && previous !== value;
-    if (changed) localStorage.setItem('sms_students_ts', String(Date.now()));
-    if (cloud.isCloudMode() && changed) { const t=setTimeout(()=>cloud.syncToCloud(),400); return()=>clearTimeout(t); }
+    if (cloud.isCloudMode() && changed) {
+      localStorage.setItem('sms_students_ts', String(Date.now()));
+      cloud.markAppDataKeyDirty('sms_students', value);
+      const t = setTimeout(() => {
+        cloud.syncToCloud().catch(error => console.error('Student registration sync failed:', error));
+      }, 400);
+      return () => clearTimeout(t);
+    }
   }, [students]);
 
   const addTeachingAssignment = (teacherId: string, cls: string, sub: string) => {
@@ -176,13 +226,21 @@ function AppInner() {
   };
 
   const [newStudentName, setNewStudentName] = useState('');
+  const [newStudentGender, setNewStudentGender] = useState<'female' | 'male' | ''>('');
+  const [studentRegistrationError, setStudentRegistrationError] = useState('');
+  const [editingStudentId, setEditingStudentId] = useState('');
+  const [editStudentName, setEditStudentName] = useState('');
+  const [editStudentGender, setEditStudentGender] = useState<'female' | 'male' | ''>('');
+  const [editStudentSubjects, setEditStudentSubjects] = useState<string[]>([]);
+  const [studentEditError, setStudentEditError] = useState('');
+  const [studentEditSaving, setStudentEditSaving] = useState(false);
   const [selectedParentExam, setSelectedParentExam] = useState('');
 
   // Messaging system
   const [messages, setMessages] = useState<any[]>(() => {
     try { return JSON.parse(localStorage.getItem('sms_messages') || '[]'); } catch { return []; }
   });
-  useEffect(() => { localStorage.setItem('sms_messages', JSON.stringify(messages)); }, [messages]);
+  useEffect(() => { cloud.saveAppDataKeyLocally('sms_messages', JSON.stringify(messages)); }, [messages]);
 
   const [msgText, setMsgText] = useState('');
   const [msgSubject, setMsgSubject] = useState('');
@@ -258,21 +316,121 @@ function AppInner() {
     alert('Subjects updated!');
   };
 
-  const removeStudent = (cls: string, name: string) => {
-    setStudents(prev => ({
-      ...prev,
-      [cls]: (prev[cls] || []).filter(s => s.name !== name)
-    }));
+  const persistStudents = (next: typeof students) => {
+    if (cloud.isCloudMode()) {
+      const value = JSON.stringify(next);
+      cloud.markAppDataKeyDirty('sms_students', value);
+      localStorage.setItem('sms_students_ts', String(Date.now()));
+      setTimeout(() => {
+        cloud.syncToCloud().catch(error => console.error('Student registration sync failed:', error));
+      }, 400);
+    }
+    setStudents(next);
   };
 
-  const toggleStudentSubject = (cls: string, studentName: string, subject: string) => {
-    setStudents(prev => ({
-      ...prev,
-      [cls]: (prev[cls] || []).map(s => s.name === studentName ? {
+  const removeStudent = (cls: string, student: { id?: string; name: string }) => {
+    if (cloud.isCloudMode()) cloud.markStudentDeleted(cls, student);
+    persistStudents({
+      ...students,
+      [cls]: (students[cls] || []).filter(s => student.id ? s.id !== student.id : s.name !== student.name)
+    });
+  };
+
+  const hasStudentSubjectMarks = (cls: string, studentName: string, subject: string): boolean =>
+    scores.some(score => score.class_name === cls && score.student_name === studentName && score.subject === subject);
+
+  const toggleStudentSubject = (cls: string, student: typeof students[string][number], subject: string) => {
+    if (student.subjects.includes(subject) && hasStudentSubjectMarks(cls, student.name, subject)) {
+      alert(`This student already has results in ${subject}. Results are kept. Ask the admin to remove those results first if you really want to remove the subject.`);
+      return;
+    }
+    persistStudents({
+      ...students,
+      [cls]: (students[cls] || []).map(s => s.id === student.id ? {
         ...s,
-        subjects: s.subjects.includes(subject) ? s.subjects.filter(sub => sub !== subject) : [...s.subjects, subject]
+        subjects: s.subjects.includes(subject) ? s.subjects.filter(sub => sub !== subject) : [...s.subjects, subject],
+        updatedAt: new Date().toISOString()
       } : s)
-    }));
+    });
+  };
+
+  const beginStudentEdit = (student: typeof students[string][number]) => {
+    setEditingStudentId(student.id);
+    setEditStudentName(student.name);
+    setEditStudentGender(student.gender || '');
+    setEditStudentSubjects([...student.subjects]);
+    setStudentEditError('');
+  };
+
+  const saveStudentEdit = async (className: string, student: typeof students[string][number]) => {
+    const name = editStudentName.trim().replace(/\s+/g, ' ');
+    if (!name) { setStudentEditError('Enter the student’s name.'); return; }
+    if (!editStudentGender) { setStudentEditError('Select Female or Male.'); return; }
+    const sameNameStudents = (students[className] || []).filter(item =>
+      normalizeStudentName(item.name) === normalizeStudentName(student.name)
+    );
+    if (name !== student.name && sameNameStudents.length > 1) {
+      setStudentEditError('This student shares a name with another student in this class. Ask the administrator to resolve the duplicate before renaming.');
+      return;
+    }
+    if ((students[className] || []).some(item =>
+      item.id !== student.id && normalizeStudentName(item.name) === normalizeStudentName(name)
+    )) {
+      setStudentEditError('A student with this name is already registered in this class.');
+      return;
+    }
+
+    const removedSubjects = student.subjects.filter(subject => !editStudentSubjects.includes(subject));
+    const subjectWithMarks = removedSubjects.find(subject => hasStudentSubjectMarks(className, student.name, subject));
+    if (subjectWithMarks) {
+      setStudentEditError(`This student already has results in ${subjectWithMarks}. Results are kept. Ask the admin to remove those results first if you really want to remove the subject.`);
+      return;
+    }
+
+    setStudentEditSaving(true);
+    setStudentEditError('');
+    const nextStudents = {
+      ...students,
+      [className]: (students[className] || []).map(item => item.id === student.id
+        ? {
+            ...item,
+            id: student.id,
+            name,
+            gender: editStudentGender,
+            subjects: [...editStudentSubjects],
+            updatedAt: new Date().toISOString(),
+            previousNames: name !== student.name
+              ? [...new Set([...(student.previousNames || []), student.name])]
+              : student.previousNames
+          }
+        : item)
+    };
+    try {
+      if (name !== student.name) {
+        await cloud.renameStudent(className, student.name, name, JSON.stringify(nextStudents));
+        setScores(JSON.parse(localStorage.getItem('sms_scores') || '[]'));
+        setBehaviorData(JSON.parse(localStorage.getItem('sms_behavior') || '{}'));
+      } else {
+        persistStudents(nextStudents);
+      }
+      setStudents(JSON.parse(localStorage.getItem('sms_students') || JSON.stringify(nextStudents)));
+      setEditingStudentId('');
+    } catch (error: any) {
+      try {
+        setStudents(JSON.parse(localStorage.getItem('sms_students') || JSON.stringify(students)));
+        setScores(JSON.parse(localStorage.getItem('sms_scores') || '[]'));
+        setBehaviorData(JSON.parse(localStorage.getItem('sms_behavior') || '{}'));
+      } catch {}
+      console.error('Student edit failed:', error);
+      const failureMessage = error?.renameStage === 'scores'
+        ? 'The score update failed, so this rename was not applied. It will retry automatically.'
+        : error?.renameStage === 'students'
+          ? 'Scores were updated, but the student record is not saved yet. The rename is pending and will retry automatically.'
+          : 'The student and scores were saved, but behavior data is still syncing and will retry automatically.';
+      setStudentEditError(`${failureMessage} ${error?.message || error}`);
+    } finally {
+      setStudentEditSaving(false);
+    }
   };
 
   // Helper: get student names taking a specific subject in a class (sorted A-Z)
@@ -386,7 +544,11 @@ function AppInner() {
     const poll = async (forceMetadata = false) => {
       if (user && cloud.isCloudMode() && !document.hidden) {
         if (user.role === 'teacher' && activeMenuRef.current === 'exams') return;
-        await cloud.syncFromCloud(forceMetadata);
+        try {
+          await cloud.syncFromCloud(forceMetadata);
+        } catch (syncError) {
+          console.error('Cloud sync failed; pending local changes will retry:', syncError);
+        }
         try {
           const freshExams = JSON.parse(localStorage.getItem('sms_exams') || '[]');
           setExams(prev => {
@@ -399,7 +561,7 @@ function AppInner() {
           setClassTeachers((prev: any) => JSON.stringify(prev) !== JSON.stringify(freshCT) ? freshCT : prev);
         } catch {}
         try {
-          const freshST = JSON.parse(localStorage.getItem('sms_students') || '{}');
+          const freshST = normalizeStudentRoster(JSON.parse(localStorage.getItem('sms_students') || '{}'), ALL_SUBJECTS);
           setStudents((prev: any) => JSON.stringify(prev) !== JSON.stringify(freshST) ? freshST : prev);
         } catch {}
         try {
@@ -562,7 +724,8 @@ function AppInner() {
     const previous = localStorage.getItem('sms_school_subjects');
     localStorage.setItem('sms_school_subjects', value);
     if (cloud.isCloudMode() && previous !== null && previous !== value) {
-      const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
+      cloud.markAppDataKeyDirty('sms_school_subjects', value);
+      const t = setTimeout(() => { cloud.syncToCloud().catch(error => console.error('School subject sync failed:', error)); }, 400);
       return () => clearTimeout(t);
     }
   }, [schoolSubjects]);
@@ -818,8 +981,9 @@ function AppInner() {
     localStorage.setItem('tt_shared_classes', value);
     // ✅ FIX: sync classes to Supabase immediately so admin changes appear for teachers
     if (cloud.isCloudMode() && schoolClassesReady && previous !== null && previous !== value) {
-      // debounced very short - fire and forget
-      const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
+      cloud.markAppDataKeyDirty('sms_school_classes', value);
+      cloud.markAppDataKeyDirty('tt_shared_classes', value);
+      const t = setTimeout(() => { cloud.syncToCloud().catch(error => console.error('School class sync failed:', error)); }, 400);
       return () => clearTimeout(t);
     }
   }, [schoolClasses]);
@@ -917,7 +1081,8 @@ function AppInner() {
     const previous = localStorage.getItem('sms_behavior');
     localStorage.setItem('sms_behavior', value);
     if (cloud.isCloudMode() && previous !== null && previous !== value) {
-      cloud.syncToCloud().catch(() => {});
+      cloud.markAppDataKeyDirty('sms_behavior', value);
+      cloud.syncToCloud().catch(error => console.error('Behavior sync failed:', error));
     }
   }, [behaviorData]);
   useEffect(() => {
@@ -1135,19 +1300,19 @@ function AppInner() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">School Name</label>
-                <input value={schoolNameSetting} onChange={e => { setSchoolNameSetting(e.target.value); localStorage.setItem('sms_school_name_setting', e.target.value); }} className="w-full border px-3 py-2 rounded-xl text-sm font-semibold" />
+                <input value={schoolNameSetting} onChange={e => { setSchoolNameSetting(e.target.value); cloud.saveAppDataKeyLocally('sms_school_name_setting', e.target.value); }} className="w-full border px-3 py-2 rounded-xl text-sm font-semibold" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">District / Council Name</label>
-                <input value={districtName} onChange={e => { setDistrictName(e.target.value); localStorage.setItem('sms_district_name', e.target.value); }} className="w-full border px-3 py-2 rounded-xl text-sm" />
+                <input value={districtName} onChange={e => { setDistrictName(e.target.value); cloud.saveAppDataKeyLocally('sms_district_name', e.target.value); }} className="w-full border px-3 py-2 rounded-xl text-sm" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">School Address (Report Card)</label>
-                <input value={schoolAddress} onChange={e => { setSchoolAddress(e.target.value); localStorage.setItem('sms_school_address', e.target.value); }} className="w-full border px-3 py-2 rounded-xl text-sm" placeholder="e.g. P.O. Box 51, Ruangwa - Lindi" />
+                <input value={schoolAddress} onChange={e => { setSchoolAddress(e.target.value); cloud.saveAppDataKeyLocally('sms_school_address', e.target.value); }} className="w-full border px-3 py-2 rounded-xl text-sm" placeholder="e.g. P.O. Box 51, Ruangwa - Lindi" />
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">School Motto</label>
-                <input value={schoolMotto} onChange={e => { setSchoolMotto(e.target.value); localStorage.setItem('sms_school_motto', e.target.value); }} className="w-full border px-3 py-2 rounded-xl text-sm" placeholder="e.g. Honor All Build Together" />
+                <input value={schoolMotto} onChange={e => { setSchoolMotto(e.target.value); cloud.saveAppDataKeyLocally('sms_school_motto', e.target.value); }} className="w-full border px-3 py-2 rounded-xl text-sm" placeholder="e.g. Honor All Build Together" />
               </div>
             </div>
           </div>
@@ -1174,18 +1339,18 @@ function AppInner() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-3 border rounded-xl p-4">
                 <h3 className="font-bold text-sm">Academic Master</h3>
-                <input placeholder="Academic Master Name" value={academicName} onChange={e => { setAcademicName(e.target.value); localStorage.setItem('sms_academic_name', e.target.value); }} className="w-full border px-3 py-2 rounded-xl text-sm" />
+                <input placeholder="Academic Master Name" value={academicName} onChange={e => { setAcademicName(e.target.value); cloud.saveAppDataKeyLocally('sms_academic_name', e.target.value); }} className="w-full border px-3 py-2 rounded-xl text-sm" />
                 <div className="flex items-center gap-3">
                   {academicSig ? <SafeImg src={academicSig} alt="Signature" className="h-12 border rounded p-1" /> : <span className="text-xs text-slate-400">No signature</span>}
-                  <label className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer">Upload Signature<input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onloadend = () => { const b = r.result as string; setAcademicSig(b); localStorage.setItem('sms_academic_sig', b); }; r.readAsDataURL(f); }} className="hidden" /></label>
+                  <label className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer">Upload Signature<input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onloadend = () => { const b = r.result as string; setAcademicSig(b); cloud.saveAppDataKeyLocally('sms_academic_sig', b); }; r.readAsDataURL(f); }} className="hidden" /></label>
                 </div>
               </div>
               <div className="space-y-3 border rounded-xl p-4">
                 <h3 className="font-bold text-sm">Headmaster</h3>
-                <input placeholder="Headmaster Name" value={headmasterName} onChange={e => { setHeadmasterName(e.target.value); localStorage.setItem('sms_headmaster_name', e.target.value); }} className="w-full border px-3 py-2 rounded-xl text-sm" />
+                <input placeholder="Headmaster Name" value={headmasterName} onChange={e => { setHeadmasterName(e.target.value); cloud.saveAppDataKeyLocally('sms_headmaster_name', e.target.value); }} className="w-full border px-3 py-2 rounded-xl text-sm" />
                 <div className="flex items-center gap-3">
                   {headmasterSig ? <SafeImg src={headmasterSig} alt="Signature" className="h-12 border rounded p-1" /> : <span className="text-xs text-slate-400">No signature</span>}
-                  <label className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer">Upload Signature<input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onloadend = () => { const b = r.result as string; setHeadmasterSig(b); localStorage.setItem('sms_headmaster_sig', b); }; r.readAsDataURL(f); }} className="hidden" /></label>
+                  <label className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer">Upload Signature<input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onloadend = () => { const b = r.result as string; setHeadmasterSig(b); cloud.saveAppDataKeyLocally('sms_headmaster_sig', b); }; r.readAsDataURL(f); }} className="hidden" /></label>
                 </div>
               </div>
             </div>
@@ -1228,6 +1393,11 @@ function AppInner() {
                 localStorage.setItem('sms_school_classes', JSON.stringify(updatedClasses));
                 localStorage.setItem('tt_shared_classes', JSON.stringify(updatedClasses));
                 localStorage.setItem('sms_school_classes_ts', String(Date.now()));
+                if (cloud.isCloudMode()) {
+                  const value = JSON.stringify(updatedClasses);
+                  cloud.markAppDataKeyDirty('sms_school_classes', value);
+                  cloud.markAppDataKeyDirty('tt_shared_classes', value);
+                }
                 setSchoolClasses(updatedClasses);
                 if (cloud.isCloudMode()) cloud.syncToCloud().catch(() => {});
                 setNewClassName('');
@@ -1238,6 +1408,10 @@ function AppInner() {
                 localStorage.setItem('sms_school_classes', '[]');
                 localStorage.setItem('tt_shared_classes', '[]');
                 localStorage.setItem('sms_school_classes_ts', String(Date.now()));
+                if (cloud.isCloudMode()) {
+                  cloud.markAppDataKeyDirty('sms_school_classes', '[]');
+                  cloud.markAppDataKeyDirty('tt_shared_classes', '[]');
+                }
                 setSchoolClasses([]);
                 if (cloud.isCloudMode()) cloud.syncToCloud().catch(() => {});
               }} className="bg-white border border-red-200 text-red-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-red-50" title="Futa yote ya mwanzo">🗑️ Clear All</button>
@@ -1251,6 +1425,11 @@ function AppInner() {
                     localStorage.setItem('sms_school_classes', JSON.stringify(updatedClasses));
                     localStorage.setItem('tt_shared_classes', JSON.stringify(updatedClasses));
                     localStorage.setItem('sms_school_classes_ts', String(Date.now()));
+                    if (cloud.isCloudMode()) {
+                      const value = JSON.stringify(updatedClasses);
+                      cloud.markAppDataKeyDirty('sms_school_classes', value);
+                      cloud.markAppDataKeyDirty('tt_shared_classes', value);
+                    }
                     setSchoolClasses(updatedClasses);
                     if (cloud.isCloudMode()) cloud.syncToCloud().catch(() => {});
                   }} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
@@ -2295,41 +2474,129 @@ function AppInner() {
           {/* Student Registration (only for class teachers) */}
           {activeMenu === 'students' && myClass && (
             <div className="bg-white p-6 rounded-2xl border">
-              <h2 className="font-bold text-lg mb-2">Register Students — {myClass}</h2>
-              <p className="text-xs text-slate-500 mb-4">Register students for this class. Student records remain here until you delete them.</p>
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="font-bold text-lg">Register Students — {myClass}</h2>
+                  {studentSaveStatus && <span role="status" className={`text-xs font-medium ${studentSaveStatus === 'Saved' ? 'text-emerald-700' : studentSaveStatus.startsWith('Not saved') ? 'text-red-600' : 'text-amber-600'}`}>{studentSaveStatus}</span>}
+                </div>
+                <p className="text-xs text-slate-500 mb-4">Register students for this class. Student records remain here until you delete them.</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                 <input placeholder="Student full name" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} className="border px-3 py-2.5 rounded-xl" />
-                <button onClick={async () => {
-                  if (!newStudentName.trim()) { alert('Enter student name'); return; }
-                  setStudents(prev => ({ ...prev, [myClass]: [...(prev[myClass] || []), { name: newStudentName.trim(), subjects: [...ALL_SUBJECTS] }] }));
+                <div className="flex gap-2">
+                  {(['female', 'male'] as const).map(gender => (
+                    <button key={gender} type="button" aria-pressed={newStudentGender === gender} onClick={() => { setNewStudentGender(gender); setStudentRegistrationError(''); }} className={`flex-1 border rounded-xl px-3 py-2.5 text-sm font-medium ${newStudentGender === gender ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600'}`}>
+                      {gender === 'female' ? 'Female' : 'Male'}
+                    </button>
+                  ))}
+                </div>
+                <div className="md:col-span-2">
+                  <button onClick={async () => {
+                  const name = newStudentName.trim().replace(/\s+/g, ' ');
+                  if (!name) { setStudentRegistrationError('Enter the student’s name.'); return; }
+                  if (!newStudentGender) { setStudentRegistrationError('Select Female or Male.'); return; }
+                  if ((students[myClass] || []).some(student => student.name.trim().replace(/\s+/g, ' ').toLocaleLowerCase() === name.toLocaleLowerCase())) {
+                    setStudentRegistrationError('A student with this name is already registered in this class.');
+                    return;
+                  }
+                  setStudentRegistrationError('');
+                  const newStudent = {
+                    id: typeof crypto !== 'undefined' && crypto.randomUUID
+                      ? crypto.randomUUID()
+                      : `student-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                    name,
+                    gender: newStudentGender,
+                    subjects: [...ALL_SUBJECTS],
+                    updatedAt: new Date().toISOString()
+                  };
+                  persistStudents({ ...students, [myClass]: [...(students[myClass] || []), newStudent] });
 
                   await loadData();
                   setNewStudentName('');
-                  alert('Student added. The record remains until you delete it.');
+                  setNewStudentGender('');
                 }} className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-semibold">Add Student</button>
+                  {studentRegistrationError && <p role="alert" className="mt-2 text-sm text-red-600">{studentRegistrationError}</p>}
+                </div>
               </div>
               <div>
                 <h3 className="font-bold text-sm mb-2">Students in {myClass} ({(students[myClass] || []).length})</h3>
                 {(students[myClass] || []).length === 0 ? <p className="text-sm text-slate-500">No students registered yet.</p> :
                   <div className="space-y-2">
                     {(students[myClass] || []).map((s, i) => (
-                      <div key={i} className="border rounded-xl p-3">
+                      <div key={s.id || i} className="border rounded-xl p-3">
                         <div className="flex justify-between items-center mb-2">
                           <div>
                             <span className="font-semibold text-sm">{i + 1}. {s.name}</span>
+                            <span className={`ml-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.gender ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-800'}`}>
+                              {s.gender ? (s.gender === 'female' ? 'Female' : 'Male') : 'Gender not set'}
+                            </span>
                           </div>
                           <div className="flex gap-1">
-                            <button onClick={() => removeStudent(myClass, s.name)} className="text-red-500 text-xs font-bold hover:text-red-700">✕</button>
+                            <button onClick={() => beginStudentEdit(s)} className="text-indigo-600 text-xs font-bold hover:text-indigo-800">Edit</button>
+                            <button onClick={() => removeStudent(myClass, s)} className="text-red-500 text-xs font-bold hover:text-red-700">✕</button>
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-1">
-                          {ALL_SUBJECTS.map(sub => (
-                            <button key={sub} onClick={() => toggleStudentSubject(myClass, s.name, sub)} className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${s.subjects.includes(sub) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-100 text-slate-400 border-slate-200 line-through'}`}>
-                              {s.subjects.includes(sub) ? '✓' : '✕'} {sub}
-                            </button>
-                          ))}
-                        </div>
-                        <p className="text-[10px] text-slate-400 mt-1">{s.subjects.length} subjects</p>
+                        {editingStudentId === s.id ? (
+                          <div className="mt-3 space-y-3 rounded-lg bg-slate-50 p-3">
+                            <label className="block text-xs font-semibold text-slate-600">
+                              Student name
+                              <input value={editStudentName} onChange={e => setEditStudentName(e.target.value)} className="mt-1 w-full border px-3 py-2 rounded-lg text-sm font-normal" />
+                            </label>
+                            <div>
+                              <p className="text-xs font-semibold text-slate-600 mb-1">Gender</p>
+                              <div className="flex gap-2">
+                                {(['female', 'male'] as const).map(gender => (
+                                  <button key={gender} type="button" aria-pressed={editStudentGender === gender} onClick={() => { setEditStudentGender(gender); setStudentEditError(''); }} className={`flex-1 border rounded-lg px-3 py-2 text-sm ${editStudentGender === gender ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600'}`}>
+                                    {gender === 'female' ? 'Female' : 'Male'}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <fieldset>
+                              <legend className="text-xs font-semibold text-slate-600 mb-1">Subjects</legend>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                                {ALL_SUBJECTS.map(subject => {
+                                  const selected = editStudentSubjects.includes(subject);
+                                  const blocked = selected && hasStudentSubjectMarks(myClass, s.name, subject);
+                                  return (
+                                    <label key={subject} className={`flex items-center gap-2 rounded border bg-white px-2 py-1.5 text-xs ${blocked ? 'text-slate-400' : 'text-slate-700'}`}>
+                                      <input
+                                        type="checkbox"
+                                        checked={selected}
+                                        onChange={() => {
+                                          if (selected && blocked) {
+                                            setStudentEditError(`This student already has results in ${subject}. Results are kept. Ask the admin to remove those results first if you really want to remove the subject.`);
+                                            return;
+                                          }
+                                          setStudentEditError('');
+                                          setEditStudentSubjects(current => selected
+                                            ? current.filter(item => item !== subject)
+                                            : [...current, subject]);
+                                        }}
+                                      />
+                                      <span>{subject}</span>
+                                      {blocked && <span className="ml-auto text-[10px]">Has results</span>}
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </fieldset>
+                            {studentEditError && <p role="alert" className="text-sm text-red-600">{studentEditError}</p>}
+                            <div className="flex justify-end gap-2">
+                              <button onClick={() => { setEditingStudentId(''); setStudentEditError(''); }} disabled={studentEditSaving} className="rounded-lg border px-3 py-2 text-xs font-semibold text-slate-600 disabled:opacity-50">Cancel</button>
+                              <button onClick={() => void saveStudentEdit(myClass, s)} disabled={studentEditSaving} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{studentEditSaving ? 'Saving…' : 'Save'}</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex flex-wrap gap-1">
+                              {ALL_SUBJECTS.map(sub => (
+                                <button key={sub} onClick={() => toggleStudentSubject(myClass, s, sub)} className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${s.subjects.includes(sub) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-100 text-slate-400 border-slate-200 line-through'}`}>
+                                  {s.subjects.includes(sub) ? '✓' : '✕'} {sub}
+                                </button>
+                              ))}
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1">{s.subjects.length} subjects</p>
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -2517,16 +2784,17 @@ function AppInner() {
     const parentPhone = user?.username || '';
     let parentStudentName = user?.studentName || '';
     let parentStudentClass = user?.studentClass || '';
-    // Search all classes for student with this phone
-    if (!parentStudentName) {
-      Object.entries(students).forEach(([cls, list]) => {
-        list.forEach(s => {
-          if (s.phone === parentPhone) {
-            parentStudentName = s.name;
-            parentStudentClass = cls;
-          }
-        });
-      });
+    const linkedStudent = Object.entries(students).flatMap(([cls, list]) =>
+      list.filter(student =>
+        (user?.studentId && student.id === user.studentId) ||
+        (parentStudentName && (!parentStudentClass || parentStudentClass === cls) &&
+          (student.name === parentStudentName || student.previousNames?.includes(parentStudentName))) ||
+        (!parentStudentName && student.phone === parentPhone)
+      ).map(student => ({ cls, student }))
+    )[0];
+    if (linkedStudent) {
+      parentStudentName = linkedStudent.student.name;
+      parentStudentClass = linkedStudent.cls;
     }
 
     const parentMenus = [
@@ -2598,7 +2866,11 @@ function AppInner() {
                   if (!ex) return <p className="text-sm text-slate-500">Exam not found.</p>;
                   if (!released.includes(ex.term)) return <p className="text-sm text-amber-600">Results for {ex.term} have not been released yet.</p>;
 
-                  const examScoresAll = scores.filter((s: any) => s.exam_id === selectedParentExam && s.student_name === parentStudentName);
+                  const examScoresAll = scores.filter((s: any) =>
+                    s.exam_id === selectedParentExam &&
+                    s.student_name === parentStudentName &&
+                    (!parentStudentClass || s.class_name === parentStudentClass)
+                  );
                   if (examScoresAll.length === 0) return <p className="text-sm text-slate-500">No results found for this exam.</p>;
 
                   const getGradeP = (score: number) => score >= 75 ? 'A' : score >= 65 ? 'B' : score >= 45 ? 'C' : score >= 30 ? 'D' : 'F';

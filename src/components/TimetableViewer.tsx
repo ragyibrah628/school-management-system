@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTimetable } from '../context/TimetableContext';
+import * as cloud from '../lib/cloud';
 import { DayOfWeek, TimetableCell } from '../types';
 import { getTeacherOccupiedSlots } from '../utils/scheduler';
 import { 
@@ -880,7 +881,7 @@ export const TimetableViewer: React.FC = () => {
                         const codes = JSON.parse(localStorage.getItem('sms_subject_codes')||'{}');
                         if (Object.values(codes).includes(c)) { alert('Code already exists'); return; }
                         const nextSubs = [...subs, name.trim()].sort();
-                        localStorage.setItem('sms_school_subjects', JSON.stringify(nextSubs));
+                        cloud.saveAppDataKeyLocally('sms_school_subjects', JSON.stringify(nextSubs));
                         const nextCodes = {...codes, [name.trim()]: c};
                         localStorage.setItem('sms_subject_codes', JSON.stringify(nextCodes));
                         // Also set as second subject if first already chosen
@@ -922,7 +923,7 @@ export const TimetableViewer: React.FC = () => {
                           if (!dataAct.schedule[selectedId]) dataAct.schedule[selectedId] = {};
                           if (!dataAct.schedule[selectedId][activeCell.day]) dataAct.schedule[selectedId][activeCell.day] = {};
                           dataAct.schedule[selectedId][activeCell.day][activeCell.periodId] = cell;
-                          localStorage.setItem('tt_timetableData', JSON.stringify(dataAct));
+                          cloud.saveAppDataKeyLocally('tt_timetableData', JSON.stringify(dataAct));
                           localStorage.setItem('tt_timetableData_ts', String(Date.now()));
                           // Also try context update for in-memory
                           try { (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, 'activity', '', '', cell); } catch {}
@@ -936,7 +937,7 @@ export const TimetableViewer: React.FC = () => {
                                   d2.schedule[selectedId][activeCell.day][activeCell.periodId].activity = selectedActivity;
                                   d2.schedule[selectedId][activeCell.day][activeCell.periodId].isActivity = true;
                                   d2.schedule[selectedId][activeCell.day][activeCell.periodId].subjectName = selectedActivity;
-                                  localStorage.setItem('tt_timetableData', JSON.stringify(d2));
+                                  cloud.saveAppDataKeyLocally('tt_timetableData', JSON.stringify(d2));
                                 }
                               }
                             } catch {}

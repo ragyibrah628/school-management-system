@@ -53,31 +53,58 @@ function useFitToPage(
     const sheet = sheetRef.current;
     if (!sheet) return;
 
-    const printMedia = window.matchMedia('print');
-    if (!printMedia.matches) {
+    if (!window.matchMedia('print').matches) {
       sheet.style.setProperty('--fs', '13pt');
+      sheet.style.removeProperty('--cell-padding-y');
+      sheet.style.removeProperty('--block-gap');
+      sheet.style.removeProperty('--process-row-padding-y');
       return;
     }
 
-    const letterInnerHeight = 255 * 96 / 25.4;
-    const minimumFontSize = 8.5;
-    for (let fontSize = 13; fontSize >= minimumFontSize; fontSize -= 0.25) {
+    const letterTargetHeight = (279 - 9) * 96 / 25.4;
+    const fits = () => sheet.scrollHeight <= letterTargetHeight;
+
+    sheet.style.removeProperty('--cell-padding-y');
+    sheet.style.removeProperty('--block-gap');
+    sheet.style.removeProperty('--process-row-padding-y');
+    for (let fontSize = 11; fontSize >= 10.5; fontSize -= 0.25) {
       sheet.style.setProperty('--fs', `${fontSize}pt`);
-      if (sheet.getBoundingClientRect().height <= letterInnerHeight) return;
+      if (fits()) return;
     }
-    sheet.style.setProperty('--fs', `${minimumFontSize}pt`);
+
+    const tallPage = window.matchMedia('(min-height: 290mm)').matches;
+    const compactSpacing = tallPage
+      ? [[1.75, 4], [1.5, 3.5], [1.25, 3], [1, 2.5]]
+      : [[1, 3], [0.75, 2.5], [0.5, 2]];
+    for (const [padding, gap] of compactSpacing) {
+      sheet.style.setProperty('--cell-padding-y', `${padding}mm`);
+      sheet.style.setProperty('--process-row-padding-y', `${padding}mm`);
+      sheet.style.setProperty('--block-gap', `${gap}mm`);
+      if (fits()) return;
+    }
+
+    for (let fontSize = 10.25; fontSize >= 8; fontSize -= 0.25) {
+      sheet.style.setProperty('--fs', `${fontSize}pt`);
+      if (fits()) return;
+    }
   }, [sheetRef]);
 
   useLayoutEffect(() => {
+    let active = true;
+    const measureWhenFontsReady = () => {
+      void document.fonts.ready.then(() => {
+        if (active) fitToPage();
+      });
+    };
     fitToPage();
+    measureWhenFontsReady();
     const printMedia = window.matchMedia('print');
     printMedia.addEventListener('change', fitToPage);
     window.addEventListener('beforeprint', fitToPage);
-    window.addEventListener('afterprint', fitToPage);
     return () => {
+      active = false;
       printMedia.removeEventListener('change', fitToPage);
       window.removeEventListener('beforeprint', fitToPage);
-      window.removeEventListener('afterprint', fitToPage);
     };
   }, [fitToPage, ...dependencies]);
 
@@ -163,7 +190,7 @@ export function LessonPlan({
   useEffect(() => {
     const printStyle = document.createElement('style');
     printStyle.dataset.lessonPlanPrint = 'true';
-    printStyle.textContent = '@page { size: A4 portrait; margin: 0; }';
+    printStyle.textContent = '@media print { @page { margin: 0; } }';
     document.head.appendChild(printStyle);
     document.documentElement.classList.add('lesson-plan-print-mode');
     document.body.classList.add('lesson-plan-print-mode');
@@ -297,6 +324,7 @@ export function LessonPlan({
     selectedPart,
     selectedRemark,
     selectedResources,
+    selectedSlotId,
     subject,
     teacherName,
     registeredGirls,
