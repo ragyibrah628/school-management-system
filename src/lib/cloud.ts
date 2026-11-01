@@ -10,6 +10,7 @@ const IS_CLOUD = !!(SUPABASE_URL && SUPABASE_KEY && SUPABASE_URL.startsWith('htt
 const realtimeClient = IS_CLOUD ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 const LEGACY_DEFAULT_CLASSES = ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
 const GET_CACHE_TTL_MS = 30000;
+let scorePracticalColumnsAvailable: boolean | null = null;
 const getCache = new Map<string, { expiresAt: number; data: any }>();
 const getInFlight = new Map<string, Promise<any>>();
 const getCacheVersions = new Map<string, number>();
@@ -334,14 +335,43 @@ export async function deleteUser(id: string) {
 export async function getScores(): Promise<any[]> {
   if (IS_CLOUD) {
     try {
-      const data: any[] = await supabaseRequest('scores', 'GET', undefined, '?select=id,teacher_name,student_name,class_name,subject,term,score,max_score,exam_name,exam_id,created_at&order=created_at.desc&limit=5000');
+      let data: any[];
+      if (scorePracticalColumnsAvailable !== false) {
+        try {
+          data = await supabaseRequest('scores', 'GET', undefined, '?select=id,teacher_name,student_name,class_name,subject,term,score,max_score,theory_score,practical_score,exam_name,exam_id,created_at&order=created_at.desc&limit=5000');
+          scorePracticalColumnsAvailable = true;
+        } catch (error: any) {
+          const message = String(error?.message || error);
+          if (!message.includes('theory_score') && !message.includes('practical_score') && !message.includes('PGRST204')) throw error;
+          scorePracticalColumnsAvailable = false;
+          data = await supabaseRequest('scores', 'GET', undefined, '?select=id,teacher_name,student_name,class_name,subject,term,score,max_score,exam_name,exam_id,created_at&order=created_at.desc&limit=5000');
+        }
+      } else {
+        data = await supabaseRequest('scores', 'GET', undefined, '?select=id,teacher_name,student_name,class_name,subject,term,score,max_score,exam_name,exam_id,created_at&order=created_at.desc&limit=5000');
+      }
       if (Array.isArray(data)) {
         const saved = localStorage.getItem('sms_scores');
         let localScores: any[] = [];
         try { localScores = saved ? JSON.parse(saved) : []; } catch {}
         if (data.length > 0) {
+          const localById = new Map(localScores.map((score: any) => [score.id, score]));
           const cloudIds = new Set(data.map((score: any) => score.id));
-          const merged = [...data, ...localScores.filter((score: any) => !cloudIds.has(score.id))];
+          const merged = [
+            ...data.map((score: any) => {
+              const local = localById.get(score.id) || {};
+              return {
+                ...local,
+                ...score,
+                theory_score: Object.prototype.hasOwnProperty.call(score, 'theory_score')
+                  ? score.theory_score
+                  : local.theory_score,
+                practical_score: Object.prototype.hasOwnProperty.call(score, 'practical_score')
+                  ? score.practical_score
+                  : local.practical_score
+              };
+            }),
+            ...localScores.filter((score: any) => !cloudIds.has(score.id))
+          ];
           localStorage.setItem('sms_scores', JSON.stringify(merged));
           return merged;
         }
@@ -424,6 +454,12 @@ export async function addScore(score: any) {
         exam_id: score.exam_id ? String(score.exam_id) : null,
         created_at: new Date().toISOString(),
       };
+      if (Object.prototype.hasOwnProperty.call(score, 'theory_score')) {
+        payload.theory_score = score.theory_score == null ? null : Number(score.theory_score);
+      }
+      if (Object.prototype.hasOwnProperty.call(score, 'practical_score')) {
+        payload.practical_score = score.practical_score == null ? null : Number(score.practical_score);
+      }
       // drop null/undefined optional fields if needed
       if (!payload.exam_name) delete payload.exam_name;
       if (!payload.exam_id) delete payload.exam_id;
