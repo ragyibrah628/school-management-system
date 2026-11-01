@@ -30,6 +30,12 @@ CREATE TABLE IF NOT EXISTS scores (
 
 ALTER TABLE scores ADD COLUMN IF NOT EXISTS teacher_id TEXT;
 
+-- Optional practical assessment columns for Form 3/4 practical subjects.
+-- Run this migration before saving practical scores:
+-- ALTER TABLE public.scores
+--   ADD COLUMN IF NOT EXISTS theory_score NUMERIC,
+--   ADD COLUMN IF NOT EXISTS practical_score NUMERIC;
+
 CREATE TABLE IF NOT EXISTS duty_reports (
   id TEXT PRIMARY KEY,
   teacher_name TEXT NOT NULL,

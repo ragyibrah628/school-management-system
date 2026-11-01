@@ -3,7 +3,23 @@ export function gradeForPercentage(score: number): string {
 }
 
 export function remarkForPercentage(score: number): string {
-  return score >= 75 ? 'Bora Sana' : score >= 65 ? 'Vizuri Sana' : score >= 45 ? 'Vizuri' : score >= 30 ? 'Wastani' : 'Inahitaji Jitihada';
+  return ({
+    A: 'Bora Sana',
+    B: 'Vizuri Sana',
+    C: 'Vizuri',
+    D: 'Wastani',
+    F: 'Inahitaji Jitihada'
+  } as Record<string, string>)[gradeForPercentage(score)];
+}
+
+export function englishRemarkForPercentage(score: number): string {
+  return ({
+    A: 'Excellent',
+    B: 'Very Good',
+    C: 'Good',
+    D: 'Satisfactory',
+    F: 'Fail'
+  } as Record<string, string>)[gradeForPercentage(score)];
 }
 
 export function compareStudentNames(left: string, right: string): number {
@@ -36,6 +52,6 @@ export function evaluateMark(value: string, maxScore: number): {
   return {
     invalid: false,
     grade: gradeForPercentage(percentage),
-    remark: remarkForPercentage(percentage)
+    remark: englishRemarkForPercentage(percentage)
   };
 }

@@ -6,6 +6,8 @@ import { LessonPlan } from './components/LessonPlan';
 import * as cloud from './lib/cloud';
 import { evaluateMark, gradeForPercentage, remarkForPercentage, sortStudentsForMarkEntry } from './utils/markEntry';
 import { rankResultsByAverage } from './utils/resultsRanking';
+import { createScoreSheetHtml } from './utils/scoreSheet';
+import { classLevel, isPracticalSubject, practicalFinalPercentage, practicalModeFromScores, PRACTICAL_MAX, THEORY_MAX } from './utils/practical';
 
 // Safe image component that won't crash
 function SafeImg({ src, alt, className }: { src: string; alt: string; className?: string }) {
@@ -517,9 +519,7 @@ function AppInner() {
     return (teachingAssignments[teacherId] || []).length > 0;
   };
 
-  const activeTeacherExams = exams.filter(ex =>
-    teacherHasExamAssignment(ex, user?.id) && isExamOpen(ex, user?.id)
-  );
+  const activeTeacherExams = exams.filter(ex => teacherHasExamAssignment(ex, user?.id));
   const noActiveExamMessage = (): string => {
     if (exams.length === 0) return 'Hakuna mtihani.';
     const assignedExams = exams.filter(ex => teacherHasExamAssignment(ex, user?.id));
@@ -625,6 +625,8 @@ function AppInner() {
   const [examScoreClass, setExamScoreClass] = useState('');
   const [examScoreSubject, setExamScoreSubject] = useState('');
   const [examScores, setExamScores] = useState<Record<string, string>>({});
+  const [examPracticalScores, setExamPracticalScores] = useState<Record<string, { theory: string; practical: string }>>({});
+  const [examPracticalModeChoice, setExamPracticalModeChoice] = useState<boolean | null>(null);
 
   useEffect(() => {
     const assignments = getTeacherSubjectsForClass(user?.id, examScoreClass);
@@ -657,7 +659,82 @@ function AppInner() {
       setSelectedExam(null);
       return;
     }
+    const practicalModeEligible = [3, 4].includes(classLevel(examScoreClass) || 0) && isPracticalSubject(examScoreSubject);
+    const selectedScores = scores.filter((savedScore: any) =>
+      savedScore.exam_id === selectedExam.id &&
+      savedScore.class_name === examScoreClass &&
+      savedScore.subject === examScoreSubject
+    );
+    const savedMode = practicalModeFromScores(selectedScores);
+    const practicalMode = practicalModeEligible && (savedMode ?? examPracticalModeChoice) === true;
+    if (practicalModeEligible && (savedMode ?? examPracticalModeChoice) === null) {
+      alert('Choose whether this subject has a practical for this exam before saving.');
+      return;
+    }
     const studentList = getStudentsForSubject(examScoreClass, examScoreSubject);
+    if (practicalMode) {
+      const prepared = studentList.flatMap(student => {
+        const values = examPracticalScores[student] || { theory: '', practical: '' };
+        if (values.theory === '' && values.practical === '') return [];
+        if (values.theory === '' || values.practical === '') return [];
+        const theory = Number(values.theory);
+        const practical = Number(values.practical);
+        if (!Number.isFinite(theory) || theory < 0 || theory > THEORY_MAX) {
+          return [{ student, error: `Enter Theory between 0 and ${THEORY_MAX} for ${student}.` }];
+        }
+        if (!Number.isFinite(practical) || practical < 0 || practical > PRACTICAL_MAX) {
+          return [{ student, error: `Enter Practical between 0 and ${PRACTICAL_MAX} for ${student}.` }];
+        }
+        return [{ student, theory, practical }];
+      });
+      const invalid = prepared.find((item: any) => item.error);
+      if (invalid) {
+        alert(invalid.error);
+        return;
+      }
+      setLoading(true);
+      let saved = 0;
+      let failed = 0;
+      let lastError = '';
+      const savedNames = new Set<string>();
+      for (const item of prepared as { student: string; theory: number; practical: number }[]) {
+        const existing = selectedScores.find((savedScore: any) => savedScore.student_name === item.student);
+        try {
+          await cloud.addScore({
+            id: existing?.id || `sc-${selectedExam.id}-${user?.id}-${examScoreClass}-${examScoreSubject}-${item.student}`.replace(/[^a-zA-Z0-9_-]/g, '_'),
+            teacher_name: user?.name,
+            student_name: item.student,
+            subject: examScoreSubject,
+            class_name: examScoreClass,
+            score: practicalFinalPercentage(item.theory, item.practical),
+            max_score: 100,
+            theory_score: item.theory,
+            practical_score: item.practical,
+            term: selectedExam.term,
+            exam_name: selectedExam.name,
+            exam_id: selectedExam.id,
+            teacher_id: user?.id
+          });
+          saved++;
+          savedNames.add(item.student);
+        } catch (error: any) {
+          failed++;
+          lastError = error?.message || String(error);
+          console.error('addScore failed for', item.student, error);
+        }
+      }
+      await loadData();
+      setLoading(false);
+      setExamScores({});
+      setExamPracticalScores(previous => {
+        const remaining = { ...previous };
+        for (const student of savedNames) delete remaining[student];
+        return remaining;
+      });
+      if (failed === 0) alert(`✅ Practical scores saved! (${saved} students) — sent to admin`);
+      else alert(`⚠️ Saved ${saved}, failed ${failed} — ${lastError}\nCheck the scores table migration and Supabase configuration.`);
+      return;
+    }
     const invalidStudent = studentList.find(student => {
       const rawScore = examScores[student];
       if (rawScore === '' || rawScore == null) return false;
@@ -708,6 +785,57 @@ function AppInner() {
     setExamScores({});
     if (failed === 0) alert('✅ Scores saved! (' + saved + ' students) — sent to admin');
     else alert('⚠️ Saved ' + saved + ', failed ' + failed + ' — ' + lastError + '\nCheck: Supabase Table Editor → scores → does exam_id column exist? And Netlify env vars VITE_SUPABASE_URL/KEY correct?');
+  };
+
+  const printScoreSheet = () => {
+    if (!selectedExam || !examScoreClass || !examScoreSubject) return;
+    const roster = sortStudentsForMarkEntry((students[examScoreClass] || [])
+      .filter(student => student.subjects.includes(examScoreSubject)));
+    const savedRows = scores.filter((score: any) =>
+      score.exam_id === selectedExam.id &&
+      score.class_name === examScoreClass &&
+      score.subject === examScoreSubject
+    );
+    const savedPracticalMode = practicalModeFromScores(savedRows);
+    const practicalMode = [3, 4].includes(classLevel(examScoreClass) || 0) &&
+      isPracticalSubject(examScoreSubject) &&
+      (savedPracticalMode ?? examPracticalModeChoice) === true;
+    const popup = window.open('', '_blank');
+    if (!popup) {
+      alert('Allow pop-ups to print the Score Sheet.');
+      return;
+    }
+
+    popup.document.open();
+    popup.document.write(createScoreSheetHtml({
+      schoolName: schoolNameSetting,
+      councilName: districtName,
+      schoolLogo,
+      className: examScoreClass,
+      subject: examScoreSubject,
+      examName: selectedExam.name || 'Exam',
+      term: selectedExam.term || '',
+      academicYear: String(selectedExam.academicYear || selectedExam.academic_year || new Date().getFullYear()),
+      teacherName: user?.name || '',
+      printedAt: new Date().toLocaleDateString(),
+      practicalMode,
+      students: roster.map(student => {
+        const saved = savedRows.find((score: any) => score.student_name === student.name);
+        const numericScore = saved && Number.isFinite(Number(saved.score)) ? Number(saved.score) : null;
+        return {
+          name: student.name,
+          score: numericScore,
+          maxScore: Number(saved?.max_score) || 100,
+          theoryScore: saved?.theory_score == null ? null : Number(saved.theory_score),
+          practicalScore: saved?.practical_score == null ? null : Number(saved.practical_score)
+        };
+      })
+    }));
+    popup.document.close();
+    popup.setTimeout(() => {
+      popup.focus();
+      popup.print();
+    }, 350);
   };
 
   const [schoolSubjects, setSchoolSubjects] = useState<string[]>(() => {
@@ -2644,7 +2772,7 @@ function AppInner() {
           <div className="bg-white p-6 rounded-2xl border">
             <h2 className="font-bold text-lg mb-4">📝 Exams & Score Entry</h2>
 
-            {/* List of open exams */}
+            {/* Assigned exams remain available for printing after their deadlines. */}
             {activeTeacherExams.length === 0 ? (
               <p className="text-sm text-slate-500 italic">{noActiveExamMessage()}</p>
             ) : (
@@ -2655,7 +2783,7 @@ function AppInner() {
                   const isSelected = selectedExam?.id === ex.id;
 
                   return (
-                    <div key={ex.id} className={`border rounded-xl p-4 cursor-pointer transition-all ${isSelected ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300'}`} onClick={() => { setSelectedExam(isSelected ? null : ex); setExamScoreClass(''); setExamScoreSubject(''); setExamScores({}); }}>
+                    <div key={ex.id} className={`border rounded-xl p-4 cursor-pointer transition-all ${isSelected ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300'}`} onClick={() => { setSelectedExam(isSelected ? null : ex); setExamScoreClass(''); setExamScoreSubject(''); setExamScores({}); setExamPracticalScores({}); setExamPracticalModeChoice(null); }}>
                       <div className="flex justify-between items-center">
                         <div>
                           <p className="font-bold">{ex.name}</p>
@@ -2672,15 +2800,25 @@ function AppInner() {
               </div>
             )}
 
-            {/* Score entry form when exam is selected */}
-            {selectedExam && isExamOpen(selectedExam, user?.id) && teacherHasExamAssignment(selectedExam, user?.id) && (() => {
+            {/* Score entry form when an assigned exam is selected */}
+            {selectedExam && teacherHasExamAssignment(selectedExam, user?.id) && (() => {
               const myAssignments = teachingAssignments[user?.id] || [];
               const myClasses = getTeacherClasses(user?.id);
               const mySubjectsForClass = examScoreClass ? getTeacherSubjectsForClass(user?.id, examScoreClass) : [];
+              const examOpen = isExamOpen(selectedExam, user?.id);
+              const practicalModeEligible = [3, 4].includes(classLevel(examScoreClass) || 0) && isPracticalSubject(examScoreSubject);
+              const selectedSavedScores = scores.filter((score: any) =>
+                score.exam_id === selectedExam.id &&
+                score.class_name === examScoreClass &&
+                score.subject === examScoreSubject
+              );
+              const savedPracticalMode = practicalModeFromScores(selectedSavedScores);
+              const effectivePracticalMode = savedPracticalMode ?? examPracticalModeChoice;
 
               return (
               <div className="border-t pt-4 mt-4">
-                <h3 className="font-bold mb-3">Enter Scores — {selectedExam.name}</h3>
+                <h3 className="font-bold mb-3">{examOpen ? 'Enter Scores' : 'Saved Scores'} — {selectedExam.name}</h3>
+                {!examOpen && <p className="mb-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-700">The deadline has passed. Score entry is read-only; saved marks can still be printed.</p>}
 
                 {myAssignments.length === 0 ? (
                   <p className="text-sm text-amber-600 bg-amber-50 p-3 rounded-xl">⚠️ No classes assigned to you yet. Contact admin to assign your teaching classes and subjects.</p>
@@ -2688,7 +2826,7 @@ function AppInner() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                   <div>
                     <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Class (Your assigned classes)</label>
-                    <select value={examScoreClass} onChange={e => { setExamScoreClass(e.target.value); setExamScoreSubject(''); setExamScores({}); }} className="w-full border px-3 py-2.5 rounded-xl">
+                    <select value={examScoreClass} onChange={e => { setExamScoreClass(e.target.value); setExamScoreSubject(''); setExamScores({}); setExamPracticalScores({}); setExamPracticalModeChoice(null); }} className="w-full border px-3 py-2.5 rounded-xl">
                       <option value="">-- Select Class --</option>
                       {myClasses.map(c => <option key={c}>{c}</option>)}
                     </select>
@@ -2698,7 +2836,7 @@ function AppInner() {
                     {mySubjectsForClass.length === 1 ? (
                       <div className="border px-3 py-2.5 rounded-xl bg-slate-50 font-semibold text-sm">{mySubjectsForClass[0]}</div>
                     ) : mySubjectsForClass.length > 1 ? (
-                      <select value={examScoreSubject} onChange={e => setExamScoreSubject(e.target.value)} className="w-full border px-3 py-2.5 rounded-xl">
+                      <select value={examScoreSubject} onChange={e => { setExamScoreSubject(e.target.value); setExamScores({}); setExamPracticalScores({}); setExamPracticalModeChoice(null); }} className="w-full border px-3 py-2.5 rounded-xl">
                         <option value="">-- Select Subject --</option>
                         {mySubjectsForClass.map(s => <option key={s}>{s}</option>)}
                       </select>
@@ -2709,8 +2847,65 @@ function AppInner() {
                 </div>
                 )}
 
-                {/* Student score table */}
+                {practicalModeEligible && examScoreClass && examScoreSubject && (
+                  <fieldset className="mb-4 rounded-xl border border-slate-200 p-3">
+                    <legend className="px-1 text-sm font-semibold">Does this subject have a practical for this exam?</legend>
+                    <div className="flex flex-wrap gap-5">
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="radio"
+                          name="exam-practical-mode"
+                          checked={effectivePracticalMode === true}
+                          disabled={savedPracticalMode === false || !examOpen}
+                          onChange={() => { setExamPracticalModeChoice(true); setExamScores({}); setExamPracticalScores({}); }}
+                        />
+                        Yes
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="radio"
+                          name="exam-practical-mode"
+                          checked={effectivePracticalMode === false}
+                          disabled={savedPracticalMode === true || !examOpen}
+                          onChange={() => { setExamPracticalModeChoice(false); setExamScores({}); setExamPracticalScores({}); }}
+                        />
+                        No
+                      </label>
+                    </div>
+                    {savedPracticalMode === true && <p className="mt-2 text-xs text-amber-700">Practical marks are already saved for this exam, so the mode cannot be changed to No.</p>}
+                    {savedPracticalMode === false && <p className="mt-2 text-xs text-amber-700">Single marks are already saved for this exam, so practical mode cannot be enabled.</p>}
+                    {effectivePracticalMode === null && <p className="mt-2 text-xs text-slate-500">Choose Yes or No before entering marks.</p>}
+                  </fieldset>
+                )}
+
                 {examScoreClass && examScoreSubject && (() => {
+                  const savedRows = scores.filter((score: any) =>
+                    score.exam_id === selectedExam.id &&
+                    score.class_name === examScoreClass &&
+                    score.subject === examScoreSubject &&
+                    score.score !== null && score.score !== undefined && score.score !== ''
+                  );
+                  if (savedRows.length === 0) return null;
+                  const pendingChanges = Object.entries(examScores).some(([studentName, rawScore]) => {
+                    const saved = savedRows.find((score: any) => score.student_name === studentName);
+                    return String(saved?.score ?? '') !== rawScore;
+                  }) || Object.entries(examPracticalScores).some(([studentName, values]) => {
+                    const saved = savedRows.find((score: any) => score.student_name === studentName);
+                    return String(saved?.theory_score ?? '') !== values.theory ||
+                      String(saved?.practical_score ?? '') !== values.practical;
+                  });
+                  return (
+                    <div className="mb-4">
+                      <button onClick={printScoreSheet} className="rounded-xl border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+                        Print Score Sheet
+                      </button>
+                      {pendingChanges && <p className="mt-1 text-xs text-amber-700">Unsaved marks are not included. Save first to include them.</p>}
+                    </div>
+                  );
+                })()}
+
+                {/* Student score table */}
+                {examOpen && examScoreClass && examScoreSubject && (!practicalModeEligible || effectivePracticalMode !== null) && (() => {
                   const subjectStudents = sortStudentsForMarkEntry((students[examScoreClass] || [])
                     .filter(student => student.subjects.includes(examScoreSubject)));
                   return (
@@ -2720,6 +2915,81 @@ function AppInner() {
                     ) : (
                       <>
                         <p className="text-xs text-slate-500 mb-2">{subjectStudents.length} students taking {examScoreSubject} in {examScoreClass}</p>
+                        {effectivePracticalMode ? (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-[640px] w-full table-fixed border text-[11px] sm:text-sm">
+                            <colgroup>
+                              <col style={{ width: '6%' }} />
+                              <col style={{ width: '26%' }} />
+                              <col style={{ width: '14%' }} />
+                              <col style={{ width: '14%' }} />
+                              <col style={{ width: '12%' }} />
+                              <col style={{ width: '9%' }} />
+                              <col style={{ width: '19%' }} />
+                            </colgroup>
+                            <thead>
+                              <tr className="bg-slate-100 border-b">
+                                <th className="px-1 py-2 text-center">#</th>
+                                <th className="px-1 py-2 text-left">Student</th>
+                                <th className="px-1 py-2 text-center">Theory /100</th>
+                                <th className="px-1 py-2 text-center">Practical /50</th>
+                                <th className="px-1 py-2 text-center">Final %</th>
+                                <th className="px-1 py-2 text-center">Grade</th>
+                                <th className="px-1 py-2 text-left">Remarks</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {subjectStudents.map((student, i) => {
+                                const studentName = student.name;
+                                const existing = selectedSavedScores.find((score: any) => score.student_name === studentName);
+                                const values = examPracticalScores[studentName] || {
+                                  theory: existing?.theory_score == null ? '' : String(existing.theory_score),
+                                  practical: existing?.practical_score == null ? '' : String(existing.practical_score)
+                                };
+                                const theory = Number(values.theory);
+                                const practical = Number(values.practical);
+                                const theoryValid = values.theory !== '' && Number.isFinite(theory) && theory >= 0 && theory <= THEORY_MAX;
+                                const practicalValid = values.practical !== '' && Number.isFinite(practical) && practical >= 0 && practical <= PRACTICAL_MAX;
+                                const final = theoryValid && practicalValid ? practicalFinalPercentage(theory, practical) : null;
+                                const details = final === null
+                                  ? { grade: '-', remark: '-' }
+                                  : evaluateMark(String(final), 100);
+                                const partial = (values.theory === '' && values.practical !== '') ||
+                                  (values.theory !== '' && values.practical === '');
+                                return (
+                                  <tr key={student.id || `${studentName}-${i}`} className="border-b">
+                                    <td className="px-1 py-2 text-center text-slate-400">{i + 1}</td>
+                                    <td className="break-words px-1 py-2 font-medium">
+                                      {studentName.trim().replace(/\s+/g, ' ')}
+                                      {!student.gender && <span className="mt-0.5 block text-[9px] font-normal text-amber-700">Gender not set</span>}
+                                    </td>
+                                    <td className="px-1 py-1">
+                                      <input type="number" min={0} max={THEORY_MAX} value={values.theory}
+                                        onChange={event => setExamPracticalScores(previous => ({ ...previous, [studentName]: { ...values, theory: event.target.value } }))}
+                                        className={`w-full min-w-0 rounded border px-1 py-1 text-center ${values.theory !== '' && !theoryValid ? 'border-red-500' : ''}`}
+                                        aria-label={`Theory for ${studentName}`} />
+                                      {values.theory !== '' && !theoryValid && <span className="block text-[9px] text-red-600">0–{THEORY_MAX}</span>}
+                                    </td>
+                                    <td className="px-1 py-1">
+                                      <input type="number" min={0} max={PRACTICAL_MAX} value={values.practical}
+                                        onChange={event => setExamPracticalScores(previous => ({ ...previous, [studentName]: { ...values, practical: event.target.value } }))}
+                                        className={`w-full min-w-0 rounded border px-1 py-1 text-center ${values.practical !== '' && !practicalValid ? 'border-red-500' : ''}`}
+                                        aria-label={`Practical for ${studentName}`} />
+                                      {values.practical !== '' && !practicalValid && <span className="block text-[9px] text-red-600">0–{PRACTICAL_MAX}</span>}
+                                    </td>
+                                    <td className="px-1 py-2 text-center font-semibold">{final === null ? '-' : `${final.toFixed(1)}%`}</td>
+                                    <td className="px-1 py-2 text-center font-semibold">{details.grade}</td>
+                                    <td className="break-words px-1 py-2 text-[10px] leading-tight sm:text-xs">
+                                      {details.remark}
+                                      {partial && <span className="block text-[9px] font-normal text-amber-700">Enter both marks; this row will not be saved.</span>}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                        ) : (
                         <table className="w-full table-fixed border text-[11px] sm:text-sm">
                           <colgroup>
                             <col style={{ width: '6%' }} />
@@ -2777,6 +3047,7 @@ function AppInner() {
                             })}
                           </tbody>
                         </table>
+                        )}
                         <button onClick={saveExamScores} disabled={loading} className="mt-4 bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-semibold disabled:opacity-50 w-full">
                           {loading ? 'Saving...' : `Save All Scores — ${selectedExam.name}`}
                         </button>
