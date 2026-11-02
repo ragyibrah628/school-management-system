@@ -1,5 +1,25 @@
 // @ts-nocheck
 import { useState, useEffect, useCallback, useRef, ErrorInfo, Component, ReactNode } from 'react';
+import {
+  BookOpen,
+  CalendarDays,
+  CalendarRange,
+  ChartNoAxesCombined,
+  ClipboardCheck,
+  ClipboardList,
+  FilePlus2,
+  FileText,
+  LayoutDashboard,
+  Mail,
+  Menu,
+  NotebookPen,
+  School,
+  Settings,
+  UserRoundCog,
+  UserRoundPlus,
+  UsersRound,
+  X
+} from 'lucide-react';
 import { TimetableSubsystem } from './components/TimetableSubsystem';
 import { TeacherDutyForm, DutyReportPrint, AdminRegisteredStudents } from './components/DutyReport';
 import { LessonPlan } from './components/LessonPlan';
@@ -8,11 +28,59 @@ import { evaluateMark, gradeForPercentage, remarkForPercentage, sortStudentsForM
 import { rankResultsByAverage } from './utils/resultsRanking';
 import { createScoreSheetHtml } from './utils/scoreSheet';
 import { classLevel, isPracticalSubject, practicalFinalPercentage, practicalModeFromScores, PRACTICAL_MAX, THEORY_MAX } from './utils/practical';
+import { hasUnsavedExamScoreChanges, subjectsForClass } from './utils/teachingAssignments';
 
 // Safe image component that won't crash
 function SafeImg({ src, alt, className }: { src: string; alt: string; className?: string }) {
   if (!src) return null;
   return <img src={src} alt={alt} className={className} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />;
+}
+
+function AppSidebar({ items, activeMenu, open, onClose, onSelect, heading, subtitle, logo, details }: any) {
+  return (
+    <>
+      {open && <button type="button" aria-label="Close navigation" onClick={onClose} className="fixed inset-0 z-40 bg-slate-950/45 lg:hidden" />}
+      <aside
+        aria-label={`${heading} navigation`}
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 max-w-[85vw] flex-col bg-slate-900 text-white shadow-xl transition-transform duration-200 lg:shadow-none ${open ? 'translate-x-0' : '-translate-x-full'}`}
+      >
+        <div className="flex min-h-[76px] items-center gap-3 border-b border-slate-700 px-4 py-3">
+          {logo
+            ? <SafeImg src={logo} alt="School logo" className="h-9 w-9 shrink-0 rounded object-contain" />
+            : <School size={24} strokeWidth={2} className="shrink-0 text-indigo-300" />}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-bold leading-tight">{heading}</p>
+            <p className="mt-1 truncate text-xs text-slate-400">{subtitle}</p>
+            {details && <p className="mt-1 truncate text-[11px] text-slate-400">{details}</p>}
+          </div>
+          <button type="button" aria-label="Close navigation" onClick={onClose} className="rounded-lg p-2 text-slate-300 hover:bg-slate-800 hover:text-white lg:hidden">
+            <X size={20} />
+          </button>
+        </div>
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">
+          {items.map((item: any) => {
+            const Icon = item.icon;
+            const active = activeMenu === item.id;
+            return (
+              <button
+                type="button"
+                key={item.id}
+                title={item.label}
+                aria-current={active ? 'page' : undefined}
+                onClick={() => onSelect(item.id)}
+                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm leading-5 transition-colors ${active
+                  ? 'bg-indigo-600 font-semibold text-white shadow-sm'
+                  : 'text-slate-200 hover:bg-slate-800 hover:text-white'}`}
+              >
+                <Icon size={20} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+                <span className="min-w-0 whitespace-normal break-words">{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+    </>
+  );
 }
 
 function normalizeStudentName(name: string): string {
@@ -215,7 +283,7 @@ function AppInner() {
 
   // Get subjects this teacher teaches in a specific class
   const getTeacherSubjectsForClass = (teacherId: string, cls: string): string[] => {
-    return (teachingAssignments[teacherId] || []).filter(a => a.cls === cls).map(a => a.sub);
+    return subjectsForClass(teachingAssignments[teacherId] || [], cls);
   };
 
   const assignClassTeacher = (className: string, teacherId: string) => {
@@ -628,10 +696,33 @@ function AppInner() {
   const [examPracticalScores, setExamPracticalScores] = useState<Record<string, { theory: string; practical: string }>>({});
   const [examPracticalModeChoice, setExamPracticalModeChoice] = useState<boolean | null>(null);
 
+  const hasUnsavedExamMarkChanges = () => {
+    return hasUnsavedExamScoreChanges(
+      scores,
+      selectedExam?.id,
+      examScoreClass,
+      examScoreSubject,
+      examScores,
+      examPracticalScores
+    );
+  };
+
+  const confirmExamEntrySwitch = () =>
+    !hasUnsavedExamMarkChanges() ||
+    window.confirm('You have unsaved marks. Discard them and switch?');
+
+  const resetExamMarkEntry = () => {
+    setExamScores({});
+    setExamPracticalScores({});
+    setExamPracticalModeChoice(null);
+  };
+
   useEffect(() => {
     const assignments = getTeacherSubjectsForClass(user?.id, examScoreClass);
     if (assignments.length === 1 && examScoreSubject !== assignments[0]) {
       setExamScoreSubject(assignments[0]);
+    } else if (assignments.length !== 1 && examScoreSubject && !assignments.includes(examScoreSubject)) {
+      setExamScoreSubject('');
     }
   }, [examScoreClass, examScoreSubject, user?.id, teachingAssignments]);
 
@@ -1334,30 +1425,30 @@ function AppInner() {
   // Timetable now handled inside admin sidebar
 
   const adminMenus = [
-    { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-    { id: 'subjects', label: 'Subjects', icon: '📚' },
-    { id: 'classes', label: 'Classes & Streams', icon: '🏫' },
-    { id: 'teachers', label: 'Teacher Accounts', icon: '👨‍🏫' },
-    { id: 'assignments', label: 'Teaching Assignments', icon: '📋' },
-    { id: 'class_teachers', label: 'Class Teachers', icon: '👥' },
-    { id: 'registered', label: 'Registered Students', icon: '📝' },
-    { id: 'exams', label: 'Exam Management', icon: '📝' },
-    { id: 'results', label: 'Results & Approval', icon: '📈' },
-    { id: 'duty', label: 'Duty Reports', icon: '📅' },
-    { id: 'timetable', label: 'Timetable Schedule', icon: '🗓️' },
-    { id: 'settings', label: 'School Settings', icon: '⚙️' },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'subjects', label: 'Subjects', icon: BookOpen },
+    { id: 'classes', label: 'Classes & Streams', icon: School },
+    { id: 'teachers', label: 'Teacher Accounts', icon: UserRoundCog },
+    { id: 'assignments', label: 'Teaching Assignments', icon: ClipboardList },
+    { id: 'class_teachers', label: 'Class Teachers', icon: UsersRound },
+    { id: 'registered', label: 'Registered Students', icon: UserRoundPlus },
+    { id: 'exams', label: 'Exam Management', icon: FilePlus2 },
+    { id: 'results', label: 'Results & Approval', icon: ChartNoAxesCombined },
+    { id: 'duty', label: 'Duty Reports', icon: ClipboardCheck },
+    { id: 'timetable', label: 'Timetable Schedule', icon: CalendarRange },
+    { id: 'settings', label: 'School Settings', icon: Settings },
   ];
 
   // Behavior assessment (moved here so hooks are before any return)
 
   const teacherMenus = [
-    { id: 'my_timetable', label: 'My Timetable', icon: '🗓️' },
-    { id: 'lesson_plan', label: 'Lesson Plan', icon: '📝' },
-    ...(myClass ? [{ id: 'students', label: `Register Students (${myClass})`, icon: '📝' }] : []),
-    ...(myClass ? [{ id: 'behavior', label: 'Behavior Assessment', icon: '📋' }] : []),
-    { id: 'exams', label: 'Exams & Scores', icon: '📊' },
-    { id: 'duty', label: 'Duty Report', icon: '📅' },
-    { id: 'settings', label: 'My Account', icon: '⚙️' },
+    { id: 'my_timetable', label: 'My Timetable', icon: CalendarDays },
+    { id: 'lesson_plan', label: 'Lesson Plan', icon: NotebookPen },
+    ...(myClass ? [{ id: 'students', label: `Register Students (${myClass})`, icon: UserRoundPlus }] : []),
+    ...(myClass ? [{ id: 'behavior', label: 'Behavior Assessment', icon: ClipboardCheck }] : []),
+    { id: 'exams', label: 'Exams & Scores', icon: ChartNoAxesCombined },
+    { id: 'duty', label: 'Duty Report', icon: ClipboardList },
+    { id: 'settings', label: 'My Account', icon: Settings },
   ];
 
   if (screen === 'admin') {
@@ -1366,31 +1457,29 @@ function AppInner() {
     }
 
     return (
-      <div className="min-h-screen bg-slate-100 flex">
-        {/* Sidebar */}
-        <div className={`${sidebarOpen ? 'w-56' : 'w-14'} bg-slate-900 text-white min-h-screen flex flex-col transition-all duration-200 fixed left-0 top-0 z-40`}>
-          <div className="p-3 border-b border-slate-700 flex items-center gap-2">
-            {schoolLogo && <SafeImg src={schoolLogo} alt="Logo" className="w-8 h-8 object-contain rounded" />}
-            {sidebarOpen && <div><p className="text-xs font-bold leading-tight">{schoolNameSetting.substring(0, 15)}</p><p className="text-[9px] text-slate-400">Admin Panel</p></div>}
-          </div>
-          <nav className="flex-1 py-2 overflow-y-auto">
-            {adminMenus.map(m => (
-              <button key={m.id} onClick={() => setActiveMenu(m.id)} className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium transition-all ${activeMenu === m.id ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
-                <span className="text-sm">{m.icon}</span>
-                {sidebarOpen && <span>{m.label}</span>}
-              </button>
-            ))}
-          </nav>
-          <div className="p-2 border-t border-slate-700">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="w-full text-center text-slate-500 text-xs py-1 hover:text-white">{sidebarOpen ? '◀' : '▶'}</button>
-          </div>
-        </div>
+      <div className="min-h-screen bg-slate-100">
+        <AppSidebar
+          items={adminMenus}
+          activeMenu={activeMenu}
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          onSelect={(menuId: string) => {
+            setActiveMenu(menuId);
+            if (window.innerWidth < 1024) setSidebarOpen(false);
+          }}
+          heading={schoolNameSetting}
+          subtitle="Admin Panel"
+          logo={schoolLogo}
+        />
 
         {/* Main Content */}
-        <div className={`flex-1 ${sidebarOpen ? 'ml-56' : 'ml-14'} transition-all duration-200`}>
+        <div className={`min-h-screen transition-[margin] duration-200 ${sidebarOpen ? 'lg:ml-64' : ''}`}>
           <div className="bg-white border-b px-6 py-3 flex justify-between items-center sticky top-0 z-30">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold">{adminMenus.find(m => m.id === activeMenu)?.icon} {adminMenus.find(m => m.id === activeMenu)?.label}</span>
+              <button type="button" aria-label={sidebarOpen ? 'Close navigation' : 'Open navigation'} onClick={() => setSidebarOpen(!sidebarOpen)} className="rounded-lg p-2 text-slate-700 hover:bg-slate-100">
+                <Menu size={20} />
+              </button>
+              <span className="text-sm font-bold">{adminMenus.find(m => m.id === activeMenu)?.label}</span>
               <span className="text-xs text-slate-400">— {mode}</span>
             </div>
             <div className="flex items-center gap-2">
@@ -2365,30 +2454,29 @@ function AppInner() {
 
   if (screen === 'teacher') {
     return (
-      <div className="min-h-screen bg-slate-100 flex">
-        {/* Teacher Sidebar */}
-        <div className={`${sidebarOpen ? 'w-52' : 'w-14'} bg-slate-900 text-white min-h-screen flex flex-col transition-all duration-200 fixed left-0 top-0 z-40`}>
-          <div className="p-3 border-b border-slate-700 flex items-center gap-2">
-            {schoolLogo && <SafeImg src={schoolLogo} alt="Logo" className="w-8 h-8 object-contain rounded" />}
-            {sidebarOpen && <div><p className="text-xs font-bold leading-tight">{schoolNameSetting.substring(0, 15)}</p><p className="text-[9px] text-slate-400">Teacher Panel</p></div>}
-          </div>
-          <nav className="flex-1 py-2">
-            {teacherMenus.map(m => (
-              <button key={m.id} onClick={() => { setActiveMenu(m.id); if (window.innerWidth < 640) setSidebarOpen(false); }} className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium transition-all ${activeMenu === m.id ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
-                <span className="text-sm">{m.icon}</span>
-                {sidebarOpen && <span>{m.label}</span>}
-              </button>
-            ))}
-          </nav>
-          <div className="p-2 border-t border-slate-700">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="w-full text-center text-slate-500 text-xs py-1 hover:text-white">{sidebarOpen ? '◀' : '▶'}</button>
-          </div>
-        </div>
+      <div className="min-h-screen bg-slate-100">
+        <AppSidebar
+          items={teacherMenus}
+          activeMenu={activeMenu}
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          onSelect={(menuId: string) => {
+            setActiveMenu(menuId);
+            if (window.innerWidth < 1024) setSidebarOpen(false);
+          }}
+          heading={schoolNameSetting}
+          subtitle="Teacher Panel"
+          logo={schoolLogo}
+          details={user?.name}
+        />
 
-        <div className={`flex-1 ${sidebarOpen ? 'ml-52' : 'ml-14'} transition-all duration-200`}>
+        <div className={`min-h-screen transition-[margin] duration-200 ${sidebarOpen ? 'lg:ml-64' : ''}`}>
         <div className="bg-white border-b px-6 py-3 flex justify-between items-center sticky top-0 z-30">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold">{teacherMenus.find(m => m.id === activeMenu)?.icon} {teacherMenus.find(m => m.id === activeMenu)?.label || 'Teacher Panel'}</span>
+            <button type="button" aria-label={sidebarOpen ? 'Close navigation' : 'Open navigation'} onClick={() => setSidebarOpen(!sidebarOpen)} className="rounded-lg p-2 text-slate-700 hover:bg-slate-100">
+              <Menu size={20} />
+            </button>
+            <span className="text-sm font-bold">{teacherMenus.find(m => m.id === activeMenu)?.label || 'Teacher Panel'}</span>
             <span className="text-xs text-slate-400">{user?.name}{myClass ? ` — Class Teacher: ${myClass}` : ''}</span>
           </div>
           <div className="flex items-center gap-2">
@@ -2783,7 +2871,13 @@ function AppInner() {
                   const isSelected = selectedExam?.id === ex.id;
 
                   return (
-                    <div key={ex.id} className={`border rounded-xl p-4 cursor-pointer transition-all ${isSelected ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300'}`} onClick={() => { setSelectedExam(isSelected ? null : ex); setExamScoreClass(''); setExamScoreSubject(''); setExamScores({}); setExamPracticalScores({}); setExamPracticalModeChoice(null); }}>
+                    <div key={ex.id} className={`border rounded-xl p-4 cursor-pointer transition-all ${isSelected ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300'}`} onClick={() => {
+                      if (!confirmExamEntrySwitch()) return;
+                      setSelectedExam(isSelected ? null : ex);
+                      setExamScoreClass('');
+                      setExamScoreSubject('');
+                      resetExamMarkEntry();
+                    }}>
                       <div className="flex justify-between items-center">
                         <div>
                           <p className="font-bold">{ex.name}</p>
@@ -2826,22 +2920,33 @@ function AppInner() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
                   <div>
                     <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Class (Your assigned classes)</label>
-                    <select value={examScoreClass} onChange={e => { setExamScoreClass(e.target.value); setExamScoreSubject(''); setExamScores({}); setExamPracticalScores({}); setExamPracticalModeChoice(null); }} className="w-full border px-3 py-2.5 rounded-xl">
+                    <select value={examScoreClass} onChange={e => {
+                      if (!confirmExamEntrySwitch()) return;
+                      setExamScoreClass(e.target.value);
+                      setExamScoreSubject('');
+                      resetExamMarkEntry();
+                    }} className="w-full border px-3 py-2.5 rounded-xl">
                       <option value="">-- Select Class --</option>
                       {myClasses.map(c => <option key={c}>{c}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Subject (Your subject in this class)</label>
+                    <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Subject</label>
                     {mySubjectsForClass.length === 1 ? (
                       <div className="border px-3 py-2.5 rounded-xl bg-slate-50 font-semibold text-sm">{mySubjectsForClass[0]}</div>
                     ) : mySubjectsForClass.length > 1 ? (
-                      <select value={examScoreSubject} onChange={e => { setExamScoreSubject(e.target.value); setExamScores({}); setExamPracticalScores({}); setExamPracticalModeChoice(null); }} className="w-full border px-3 py-2.5 rounded-xl">
+                      <select value={examScoreSubject} onChange={e => {
+                        if (!confirmExamEntrySwitch()) return;
+                        setExamScoreSubject(e.target.value);
+                        resetExamMarkEntry();
+                      }} className="w-full border px-3 py-2.5 rounded-xl">
                         <option value="">-- Select Subject --</option>
                         {mySubjectsForClass.map(s => <option key={s}>{s}</option>)}
                       </select>
                     ) : (
-                      <div className="border px-3 py-2.5 rounded-xl bg-slate-50 text-slate-400 text-sm italic">Select a class first</div>
+                      <div className="border px-3 py-2.5 rounded-xl bg-slate-50 text-slate-400 text-sm italic">
+                        {examScoreClass ? 'No subjects assigned for this class' : 'Select a class first'}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -2879,21 +2984,11 @@ function AppInner() {
                 )}
 
                 {examScoreClass && examScoreSubject && (() => {
-                  const savedRows = scores.filter((score: any) =>
-                    score.exam_id === selectedExam.id &&
-                    score.class_name === examScoreClass &&
-                    score.subject === examScoreSubject &&
+                  const savedRows = selectedSavedScores.filter((score: any) =>
                     score.score !== null && score.score !== undefined && score.score !== ''
                   );
                   if (savedRows.length === 0) return null;
-                  const pendingChanges = Object.entries(examScores).some(([studentName, rawScore]) => {
-                    const saved = savedRows.find((score: any) => score.student_name === studentName);
-                    return String(saved?.score ?? '') !== rawScore;
-                  }) || Object.entries(examPracticalScores).some(([studentName, values]) => {
-                    const saved = savedRows.find((score: any) => score.student_name === studentName);
-                    return String(saved?.theory_score ?? '') !== values.theory ||
-                      String(saved?.practical_score ?? '') !== values.practical;
-                  });
+                  const pendingChanges = hasUnsavedExamMarkChanges();
                   return (
                     <div className="mb-4">
                       <button onClick={printScoreSheet} className="rounded-xl border border-slate-400 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50">
@@ -3109,35 +3204,36 @@ function AppInner() {
     }
 
     const parentMenus = [
-      { id: 'report_cards', label: 'Report Cards', icon: '📄' },
-      { id: 'inbox', label: `Inbox (${messages.filter((m: any) => m.targetPhones?.includes(parentPhone)).length})`, icon: '✉️' },
-      { id: 'settings', label: 'My Account', icon: '⚙️' },
+      { id: 'report_cards', label: 'Report Cards', icon: FileText },
+      { id: 'inbox', label: `Inbox (${messages.filter((m: any) => m.targetPhones?.includes(parentPhone)).length})`, icon: Mail },
+      { id: 'settings', label: 'My Account', icon: Settings },
     ];
 
     // Get available exams (only released terms)
     const parentExams = exams;
 
     return (
-      <div className="min-h-screen bg-slate-100 flex">
-        {/* Parent Sidebar */}
-        <div className="w-52 bg-slate-900 text-white min-h-screen flex flex-col fixed left-0 top-0 z-40">
-          <div className="p-3 border-b border-slate-700">
-            <p className="text-xs font-bold">👨‍👩‍👧 Parent Portal</p>
-            <p className="text-[9px] text-slate-400">{parentStudentName}</p>
-          </div>
-          <nav className="flex-1 py-2">
-            {parentMenus.map(m => (
-              <button key={m.id} onClick={() => setActiveMenu(m.id)} className={`w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium transition-all ${activeMenu === m.id ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
-                <span>{m.icon}</span><span>{m.label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
+      <div className="min-h-screen bg-slate-100">
+        <AppSidebar
+          items={parentMenus}
+          activeMenu={activeMenu}
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          onSelect={(menuId: string) => {
+            setActiveMenu(menuId);
+            if (window.innerWidth < 1024) setSidebarOpen(false);
+          }}
+          heading="Parent Portal"
+          subtitle={parentStudentName}
+        />
 
-        <div className="flex-1 ml-52">
+        <div className={`min-h-screen transition-[margin] duration-200 ${sidebarOpen ? 'lg:ml-64' : ''}`}>
           <div className="bg-white border-b px-6 py-3 flex justify-between items-center sticky top-0 z-30">
-            <div>
-              <span className="text-sm font-bold">👨‍👩‍👧 Parent: {user?.name}</span>
+            <div className="flex min-w-0 items-center gap-2">
+              <button type="button" aria-label={sidebarOpen ? 'Close navigation' : 'Open navigation'} onClick={() => setSidebarOpen(!sidebarOpen)} className="shrink-0 rounded-lg p-2 text-slate-700 hover:bg-slate-100">
+                <Menu size={20} />
+              </button>
+              <span className="truncate text-sm font-bold">Parent: {user?.name}</span>
               <span className="text-xs text-slate-400 ml-2">Student: {parentStudentName} ({parentStudentClass})</span>
             </div>
             <button onClick={logout} className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-semibold">Logout</button>

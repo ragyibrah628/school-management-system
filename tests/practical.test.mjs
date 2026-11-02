@@ -10,7 +10,32 @@ const vite = await createServer({
 after(() => vite.close());
 
 const practical = await vite.ssrLoadModule('/src/utils/practical.ts');
+const assignments = await vite.ssrLoadModule('/src/utils/teachingAssignments.ts');
 const { createScoreSheetHtml } = await vite.ssrLoadModule('/src/utils/scoreSheet.ts');
+
+test('assigned subjects include multiple subjects for a class without mixing classes', () => {
+  const teacherAssignments = [
+    { cls: 'Form 3', sub: 'Mathematics' },
+    { cls: 'Form 3', sub: 'Computer Science' },
+    { cls: 'Form 4', sub: 'Biology' },
+    { cls: 'Form 3', sub: 'Mathematics' }
+  ];
+
+  assert.deepEqual(assignments.subjectsForClass(teacherAssignments, 'Form 3'), ['Mathematics', 'Computer Science']);
+  assert.deepEqual(assignments.subjectsForClass(teacherAssignments, 'Form 4'), ['Biology']);
+});
+
+test('unsaved score detection is scoped to the currently selected exam, class and subject', () => {
+  const saved = [
+    { exam_id: 'exam-1', class_name: 'Form 3', subject: 'Mathematics', student_name: 'A', score: 70 },
+    { exam_id: 'exam-1', class_name: 'Form 3', subject: 'Computer Science', student_name: 'A', score: 80, theory_score: 80, practical_score: 40 }
+  ];
+
+  assert.equal(assignments.hasUnsavedExamScoreChanges(saved, 'exam-1', 'Form 3', 'Mathematics', { A: '70' }, {}), false);
+  assert.equal(assignments.hasUnsavedExamScoreChanges(saved, 'exam-1', 'Form 3', 'Mathematics', { A: '71' }, {}), true);
+  assert.equal(assignments.hasUnsavedExamScoreChanges(saved, 'exam-1', 'Form 3', 'Computer Science', {}, { A: { theory: '81', practical: '40' } }), true);
+  assert.equal(assignments.hasUnsavedExamScoreChanges(saved, 'exam-1', 'Form 3', 'Computer Science', { A: '70' }, {}), true);
+});
 
 test('practical eligibility helpers recognize only Forms 3/4 and the four practical subjects', () => {
   assert.equal(practical.classLevel('Form IIIA'), 3);
