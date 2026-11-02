@@ -143,11 +143,26 @@ function AppInner() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [studentSaveStatus, setStudentSaveStatus] = useState('');
+  const [roleAssignmentSyncStatuses, setRoleAssignmentSyncStatuses] = useState<Record<string, 'pending' | 'saved' | 'error'>>({});
   useEffect(() => {
     const onSyncStatus = (event: Event) => {
       const { key, status } = (event as CustomEvent).detail || {};
-      if (key !== 'sms_students') return;
-      setStudentSaveStatus(status === 'saved' ? 'Saved' : status === 'error' ? 'Not saved yet, will retry' : 'Saving…');
+      if (key === 'sms_students') {
+        setStudentSaveStatus(status === 'saved' ? 'Saved' : status === 'error' ? 'Not saved yet, will retry' : 'Saving…');
+        return;
+      }
+      if (key !== 'sms_class_teachers' && key !== 'sms_teaching_assignments') return;
+      setRoleAssignmentSyncStatuses(prev => ({ ...prev, [key]: status }));
+      if (status === 'saved') {
+        setTimeout(() => {
+          setRoleAssignmentSyncStatuses(prev => {
+            if (prev[key] !== 'saved') return prev;
+            const next = { ...prev };
+            delete next[key];
+            return next;
+          });
+        }, 5000);
+      }
     };
     window.addEventListener('app-data-sync-status', onSyncStatus);
     return () => window.removeEventListener('app-data-sync-status', onSyncStatus);
@@ -238,13 +253,20 @@ function AppInner() {
     localStorage.setItem('sms_teaching_assignments', teachingAssignmentsValue);
     const classTeachersChanged = previousClassTeachers !== null && previousClassTeachers !== classTeachersValue;
     const teachingAssignmentsChanged = previousTeachingAssignments !== null && previousTeachingAssignments !== teachingAssignmentsValue;
-    if (classTeachersChanged) localStorage.setItem('sms_class_teachers_ts', String(Date.now()));
-    if (teachingAssignmentsChanged) localStorage.setItem('sms_teaching_assignments_ts', String(Date.now()));
-    if (cloud.isCloudMode() && (classTeachersChanged || teachingAssignmentsChanged)) {
-      const t=setTimeout(()=>cloud.syncRoleAssignmentsToCloud(classTeachers, teachingAssignments),400);
-      return()=>clearTimeout(t);
+    const changedKeys = [
+      ...(classTeachersChanged ? ['sms_class_teachers'] : []),
+      ...(teachingAssignmentsChanged ? ['sms_teaching_assignments'] : [])
+    ];
+    if (changedKeys.length > 0) {
+      const timestamp = String(Date.now());
+      for (const key of changedKeys) localStorage.setItem(`${key}_ts`, timestamp);
     }
-  }, [classTeachers, teachingAssignments]);
+    if (cloud.isCloudMode() && user?.role === 'admin' && changedKeys.length > 0) {
+      void cloud.syncRoleAssignmentsToCloud(classTeachers, teachingAssignments, changedKeys).catch(error => {
+        console.error('Role assignment cloud sync failed; it will retry:', error);
+      });
+    }
+  }, [classTeachers, teachingAssignments, user?.role]);
   useEffect(() => {
     const value = JSON.stringify(students);
     const previous = localStorage.getItem('sms_students');
@@ -658,8 +680,10 @@ function AppInner() {
       }
     };
     const stopPolling = user ? cloud.startVisiblePolling(() => poll(), 60000, () => poll(true)) : () => {};
+    const onOnline = () => { void poll(true); };
+    window.addEventListener('online', onOnline);
     if (user) void poll(true);
-    return () => { clearInterval(timer); stopPolling(); };
+    return () => { clearInterval(timer); stopPolling(); window.removeEventListener('online', onOnline); };
   }, [user?.id]);
 
   // Scores are the only cross-device data that must appear promptly for admins.
@@ -1488,6 +1512,18 @@ function AppInner() {
               <button onClick={logout} className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-semibold">Logout</button>
             </div>
           </div>
+        {Object.values(roleAssignmentSyncStatuses).some(status => status === 'pending' || status === 'error') && (
+          <div role="status" className={`border-b px-6 py-2 text-sm font-semibold ${Object.values(roleAssignmentSyncStatuses).includes('error') ? 'border-red-200 bg-red-50 text-red-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+            {Object.values(roleAssignmentSyncStatuses).includes('error')
+              ? 'Not saved to the cloud yet. The app will retry automatically.'
+              : 'Saving assignments to the cloud…'}
+          </div>
+        )}
+        {Object.values(roleAssignmentSyncStatuses).length > 0 && Object.values(roleAssignmentSyncStatuses).every(status => status === 'saved') && (
+          <div role="status" className="border-b border-emerald-200 bg-emerald-50 px-6 py-2 text-sm font-semibold text-emerald-800">
+            Saved to cloud
+          </div>
+        )}
         {showChangePassword && (
           <div className="bg-amber-50 border-b border-amber-200 px-6 py-4">
             <div className="max-w-md mx-auto space-y-2">
