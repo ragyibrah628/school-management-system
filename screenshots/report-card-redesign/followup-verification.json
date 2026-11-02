@@ -1,0 +1,338 @@
+[
+  {
+    "case": "normal-10",
+    "format": "A4",
+    "pages": 1,
+    "mediaBoxes": [
+      "0 0 595.91998 842.88"
+    ],
+    "clipped": false,
+    "modes": [
+      "color",
+      "grayscale",
+      "no-background"
+    ],
+    "layoutUnchanged": true,
+    "signatureHeight": 56.7,
+    "signatureBaselineDiff": 3.8,
+    "title": "RIPOTI YA MAENDELEO YA MWANAFUNZI",
+    "info": "Jina la Mwanafunzi: Rehema Ali Darasa: Form 3 Nafasi: 1 kati ya 41 Daraja: I | Pointi: 19",
+    "summary": "Wastani: 68.7% | Gredi: B | Pointi: 19 | Daraja: I | Nafasi: 1 / 41",
+    "comments": [
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri.",
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri."
+    ],
+    "lowMarks": [],
+    "pdf": "screenshots\\report-card-redesign\\followup-normal-10-A4.pdf"
+  },
+  {
+    "case": "normal-10",
+    "format": "Letter",
+    "pages": 1,
+    "mediaBoxes": [
+      "0 0 612 792"
+    ],
+    "clipped": false,
+    "modes": [
+      "color",
+      "grayscale",
+      "no-background"
+    ],
+    "layoutUnchanged": true,
+    "signatureHeight": 56.7,
+    "signatureBaselineDiff": 3.8,
+    "title": "RIPOTI YA MAENDELEO YA MWANAFUNZI",
+    "info": "Jina la Mwanafunzi: Rehema Ali Darasa: Form 3 Nafasi: 1 kati ya 41 Daraja: I | Pointi: 19",
+    "summary": "Wastani: 68.7% | Gredi: B | Pointi: 19 | Daraja: I | Nafasi: 1 / 41",
+    "comments": [
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri.",
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri."
+    ],
+    "lowMarks": [],
+    "pdf": "screenshots\\report-card-redesign\\followup-normal-10-Letter.pdf"
+  },
+  {
+    "case": "compact-13",
+    "format": "A4",
+    "pages": 1,
+    "mediaBoxes": [
+      "0 0 595.91998 842.88"
+    ],
+    "clipped": false,
+    "modes": [
+      "color",
+      "grayscale",
+      "no-background"
+    ],
+    "layoutUnchanged": true,
+    "signatureHeight": 56.7,
+    "signatureBaselineDiff": 3.8,
+    "title": "RIPOTI YA MAENDELEO YA MWANAFUNZI",
+    "info": "Jina la Mwanafunzi: Rehema Ali Darasa: Form 3 Nafasi: 1 kati ya 41 Daraja: I | Pointi: 25",
+    "summary": "Wastani: 68.3% | Gredi: B | Pointi: 25 | Daraja: I | Nafasi: 1 / 41",
+    "comments": [
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri.",
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri."
+    ],
+    "lowMarks": [],
+    "pdf": "screenshots\\report-card-redesign\\followup-compact-13-A4.pdf"
+  },
+  {
+    "case": "compact-13",
+    "format": "Letter",
+    "pages": 1,
+    "mediaBoxes": [
+      "0 0 612 792"
+    ],
+    "clipped": false,
+    "modes": [
+      "color",
+      "grayscale",
+      "no-background"
+    ],
+    "layoutUnchanged": true,
+    "signatureHeight": 56.7,
+    "signatureBaselineDiff": 3.8,
+    "title": "RIPOTI YA MAENDELEO YA MWANAFUNZI",
+    "info": "Jina la Mwanafunzi: Rehema Ali Darasa: Form 3 Nafasi: 1 kati ya 41 Daraja: I | Pointi: 25",
+    "summary": "Wastani: 68.3% | Gredi: B | Pointi: 25 | Daraja: I | Nafasi: 1 / 41",
+    "comments": [
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri.",
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri."
+    ],
+    "lowMarks": [],
+    "pdf": "screenshots\\report-card-redesign\\followup-compact-13-Letter.pdf"
+  },
+  {
+    "case": "short-5",
+    "format": "A4",
+    "pages": 1,
+    "mediaBoxes": [
+      "0 0 595.91998 842.88"
+    ],
+    "clipped": false,
+    "modes": [
+      "color",
+      "grayscale",
+      "no-background"
+    ],
+    "layoutUnchanged": true,
+    "signatureHeight": 56.7,
+    "signatureBaselineDiff": 3.8,
+    "title": "RIPOTI YA MAENDELEO YA MWANAFUNZI",
+    "info": "Jina la Mwanafunzi: Rehema Ali Darasa: Form 3 Nafasi: 1 kati ya 41 Daraja: I | Pointi: 13",
+    "summary": "Wastani: 58.4% | Gredi: C | Pointi: 13 | Daraja: I | Nafasi: 1 / 41",
+    "comments": [
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri.",
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri."
+    ],
+    "lowMarks": [
+      "D",
+      "F"
+    ],
+    "pdf": "screenshots\\report-card-redesign\\followup-short-5-A4.pdf"
+  },
+  {
+    "case": "short-5",
+    "format": "Letter",
+    "pages": 1,
+    "mediaBoxes": [
+      "0 0 612 792"
+    ],
+    "clipped": false,
+    "modes": [
+      "color",
+      "grayscale",
+      "no-background"
+    ],
+    "layoutUnchanged": true,
+    "signatureHeight": 56.7,
+    "signatureBaselineDiff": 3.8,
+    "title": "RIPOTI YA MAENDELEO YA MWANAFUNZI",
+    "info": "Jina la Mwanafunzi: Rehema Ali Darasa: Form 3 Nafasi: 1 kati ya 41 Daraja: I | Pointi: 13",
+    "summary": "Wastani: 58.4% | Gredi: C | Pointi: 13 | Daraja: I | Nafasi: 1 / 41",
+    "comments": [
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri.",
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri."
+    ],
+    "lowMarks": [
+      "D",
+      "F"
+    ],
+    "pdf": "screenshots\\report-card-redesign\\followup-short-5-Letter.pdf"
+  },
+  {
+    "case": "long-name-long-comments",
+    "format": "A4",
+    "pages": 1,
+    "mediaBoxes": [
+      "0 0 595.91998 842.88"
+    ],
+    "clipped": false,
+    "modes": [
+      "color",
+      "grayscale",
+      "no-background"
+    ],
+    "layoutUnchanged": true,
+    "signatureHeight": 56.7,
+    "signatureBaselineDiff": 3.8,
+    "title": "RIPOTI YA MAENDELEO YA MWANAFUNZI",
+    "info": "Jina la Mwanafunzi: Amina Zawadi wa Mwanafunzi Mwenye Jina Refu Sana la Mfano Darasa: Form 3 Nafasi: 1 kati ya 41 Daraja: I | Pointi: 9",
+    "summary": "Wastani: 68.4% | Gredi: B | Pointi: 9 | Daraja: I | Nafasi: 1 / 41",
+    "comments": [
+      "Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji. Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji. Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji. Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji. Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji.",
+      "Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji. Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji. Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji. Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji. Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji."
+    ],
+    "lowMarks": [],
+    "pdf": "screenshots\\report-card-redesign\\followup-long-name-long-comments-A4.pdf"
+  },
+  {
+    "case": "long-name-long-comments",
+    "format": "Letter",
+    "pages": 1,
+    "mediaBoxes": [
+      "0 0 612 792"
+    ],
+    "clipped": false,
+    "modes": [
+      "color",
+      "grayscale",
+      "no-background"
+    ],
+    "layoutUnchanged": true,
+    "signatureHeight": 56.7,
+    "signatureBaselineDiff": 3.8,
+    "title": "RIPOTI YA MAENDELEO YA MWANAFUNZI",
+    "info": "Jina la Mwanafunzi: Amina Zawadi wa Mwanafunzi Mwenye Jina Refu Sana la Mfano Darasa: Form 3 Nafasi: 1 kati ya 41 Daraja: I | Pointi: 9",
+    "summary": "Wastani: 68.4% | Gredi: B | Pointi: 9 | Daraja: I | Nafasi: 1 / 41",
+    "comments": [
+      "Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji. Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji. Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji. Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji. Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji.",
+      "Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji. Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji. Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji. Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji. Maoni ya mwalimu yanahitajika kuendelezwa kwa bidii na ushirikiano. Endelea kusoma kwa mpangilio, hudhuria vipindi vyote na omba msaada unapohitaji."
+    ],
+    "lowMarks": [],
+    "pdf": "screenshots\\report-card-redesign\\followup-long-name-long-comments-Letter.pdf"
+  },
+  {
+    "case": "incomplete-5-of-7",
+    "format": "A4",
+    "pages": 1,
+    "mediaBoxes": [
+      "0 0 595.91998 842.88"
+    ],
+    "clipped": false,
+    "modes": [
+      "color",
+      "grayscale",
+      "no-background"
+    ],
+    "layoutUnchanged": true,
+    "signatureHeight": 56.7,
+    "signatureBaselineDiff": 3.8,
+    "title": "RIPOTI YA MAENDELEO YA MWANAFUNZI",
+    "info": "Jina la Mwanafunzi: Rehema Ali Darasa: Form 3 Nafasi: 1 kati ya 41 Daraja: - | Pointi: 7",
+    "summary": "Wastani: 75.6% | Gredi: A | Pointi: 7 | Daraja: - | Nafasi: 1 / 41",
+    "comments": [
+      "Hongera sana Rehema! Wastani wa 75.6% unaonyesha juhudi na uelewa mzuri. Endelea kujituma na kutumia uwezo wako vizuri.",
+      "Rehema amepata wastani mzuri wa 75.6%. Shule inajivunia juhudi zake na inamtia moyo aendelee kufanya vizuri."
+    ],
+    "lowMarks": [],
+    "pdf": "screenshots\\report-card-redesign\\followup-incomplete-5-of-7-A4.pdf"
+  },
+  {
+    "case": "incomplete-5-of-7",
+    "format": "Letter",
+    "pages": 1,
+    "mediaBoxes": [
+      "0 0 612 792"
+    ],
+    "clipped": false,
+    "modes": [
+      "color",
+      "grayscale",
+      "no-background"
+    ],
+    "layoutUnchanged": true,
+    "signatureHeight": 56.7,
+    "signatureBaselineDiff": 3.8,
+    "title": "RIPOTI YA MAENDELEO YA MWANAFUNZI",
+    "info": "Jina la Mwanafunzi: Rehema Ali Darasa: Form 3 Nafasi: 1 kati ya 41 Daraja: - | Pointi: 7",
+    "summary": "Wastani: 75.6% | Gredi: A | Pointi: 7 | Daraja: - | Nafasi: 1 / 41",
+    "comments": [
+      "Hongera sana Rehema! Wastani wa 75.6% unaonyesha juhudi na uelewa mzuri. Endelea kujituma na kutumia uwezo wako vizuri.",
+      "Rehema amepata wastani mzuri wa 75.6%. Shule inajivunia juhudi zake na inamtia moyo aendelee kufanya vizuri."
+    ],
+    "lowMarks": [],
+    "pdf": "screenshots\\report-card-redesign\\followup-incomplete-5-of-7-Letter.pdf"
+  },
+  {
+    "case": "class-3",
+    "format": "A4",
+    "pages": 3,
+    "mediaBoxes": [
+      "0 0 595.91998 842.88",
+      "0 0 595.91998 842.88",
+      "0 0 595.91998 842.88"
+    ],
+    "clipped": false,
+    "modes": [
+      "color",
+      "grayscale",
+      "no-background"
+    ],
+    "layoutUnchanged": true,
+    "signatureHeight": 56.7,
+    "signatureBaselineDiff": 3.8,
+    "title": "RIPOTI YA MAENDELEO YA MWANAFUNZI",
+    "info": "Jina la Mwanafunzi: Rehema Ali Darasa: Form 3 Nafasi: 1 kati ya 41 Daraja: I | Pointi: 19",
+    "summary": "Wastani: 68.7% | Gredi: B | Pointi: 19 | Daraja: I | Nafasi: 1 / 41",
+    "comments": [
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri.",
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri.",
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri.",
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri.",
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri.",
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri."
+    ],
+    "lowMarks": [],
+    "pdf": "screenshots\\report-card-redesign\\followup-class-3-A4.pdf"
+  },
+  {
+    "case": "class-3",
+    "format": "Letter",
+    "pages": 3,
+    "mediaBoxes": [
+      "0 0 612 792",
+      "0 0 612 792",
+      "0 0 612 792"
+    ],
+    "clipped": false,
+    "modes": [
+      "color",
+      "grayscale",
+      "no-background"
+    ],
+    "layoutUnchanged": true,
+    "signatureHeight": 56.7,
+    "signatureBaselineDiff": 3.8,
+    "title": "RIPOTI YA MAENDELEO YA MWANAFUNZI",
+    "info": "Jina la Mwanafunzi: Rehema Ali Darasa: Form 3 Nafasi: 1 kati ya 41 Daraja: I | Pointi: 19",
+    "summary": "Wastani: 68.7% | Gredi: B | Pointi: 19 | Daraja: I | Nafasi: 1 / 41",
+    "comments": [
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri.",
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri.",
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri.",
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri.",
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri.",
+      "Hongera kwa juhudi zako. Endelea kufanya vizuri katika masomo yote na kutumia muda wako vizuri."
+    ],
+    "lowMarks": [],
+    "pdf": "screenshots\\report-card-redesign\\followup-class-3-Letter.pdf"
+  },
+  {
+    "case": "phone-popup",
+    "viewport": "390x844",
+    "width": 390,
+    "scrollWidth": 390
+  }
+]
