@@ -166,7 +166,7 @@ async function supabaseRequest(
     'Authorization': `Bearer ${SUPABASE_KEY}`,
     'Content-Type': 'application/json',
     'Prefer': returnRepresentation
-      ? 'return=representation'
+      ? (upsert ? 'resolution=merge-duplicates,return=representation' : 'return=representation')
       : method === 'POST'
         ? (upsert ? 'resolution=merge-duplicates,return=minimal' : 'return=representation')
         : 'return=minimal'
@@ -642,6 +642,7 @@ const SYNC_KEYS = [
 const ROLE_SYNC_KEYS = ['sms_class_teachers', 'sms_teaching_assignments'];
 const APP_DATA_SYNC_KEYS = [...new Set([...SYNC_KEYS, ...ROLE_SYNC_KEYS])];
 const PENDING_SUFFIX = '_cloud_pending';
+const CONFIRMED_VALUE_SUFFIX = '_cloud_confirmed_value';
 
 type PendingAppDataWrite = { version: string; deletedStudentIds?: string[] };
 
@@ -775,6 +776,30 @@ function appDataKeysFilter(keys: string[]): string {
   return `key=in.(${keys.map(key => encodeURIComponent(key)).join(',')})`;
 }
 
+function mergeRoleAssignmentValue(key: string, localValue: string, cloudValue: string | null): string {
+  const parseObject = (value: string | null): Record<string, any> => {
+    try {
+      const parsed = value ? JSON.parse(value) : {};
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  };
+  const cloudAssignments = parseObject(cloudValue);
+  const localAssignments = parseObject(localValue);
+  const merged = { ...cloudAssignments, ...localAssignments };
+  if (key === 'sms_teaching_assignments') {
+    for (const [teacherId, assignments] of Object.entries(merged)) {
+      if (!Array.isArray(assignments)) delete merged[teacherId];
+    }
+  }
+  return JSON.stringify(merged);
+}
+
+function isAdminSession(): boolean {
+  try { return JSON.parse(localStorage.getItem('sms_current_user') || 'null')?.role === 'admin'; } catch { return false; }
+}
+
 function applyCloudAppDataItem(item: any, isAdmin: boolean, forceApply = false): boolean {
   if (!item?.key || item.value === undefined) return false;
   if (readPendingWrite(item.key)) return false;
@@ -811,6 +836,7 @@ function applyCloudAppDataItem(item: any, isAdmin: boolean, forceApply = false):
   const changed = applyValue && localValue !== item.value;
   if (applyValue) localStorage.setItem(item.key, item.value);
   localStorage.setItem(`${item.key}_cloud_updated_at`, item.updated_at || '');
+  localStorage.setItem(`${item.key}${CONFIRMED_VALUE_SUFFIX}`, item.value);
   return changed;
 }
 
@@ -826,8 +852,29 @@ async function syncAppDataKeys(keys: string[] = APP_DATA_SYNC_KEYS, bypassCache 
     false,
     bypassCache
   );
+  const recoveredRoleKeys = new Set<string>();
+  if (isAdminSession()) {
+    const metadataByKey = new Map((Array.isArray(metadata) ? metadata : []).map((item: any) => [item.key, item]));
+    for (const key of ROLE_SYNC_KEYS) {
+      if (!keys.includes(key) || readPendingWrite(key)) continue;
+      const localValue = localStorage.getItem(key);
+      if (localValue === null) continue;
+      const item = metadataByKey.get(key);
+      const cloudTimestamp = Date.parse(item?.updated_at || '') || 0;
+      const localTimestamp = Number(localStorage.getItem(`${key}_ts`) || 0);
+      const confirmedValue = localStorage.getItem(`${key}${CONFIRMED_VALUE_SUFFIX}`);
+      const confirmedTimestamp = Date.parse(localStorage.getItem(`${key}_cloud_updated_at`) || '') || 0;
+      const localDiffersFromConfirmed = confirmedValue !== null && localValue !== confirmedValue;
+      const cloudHasNotChangedSinceConfirmation = confirmedTimestamp > 0 && cloudTimestamp <= confirmedTimestamp;
+      if (localTimestamp > cloudTimestamp || (localDiffersFromConfirmed && cloudHasNotChangedSinceConfirmation)) {
+        markAppDataKeyDirty(key, localValue);
+        recoveredRoleKeys.add(key);
+      }
+    }
+    if (recoveredRoleKeys.size > 0) await syncToCloud();
+  }
   const changed = (Array.isArray(metadata) ? metadata : []).filter((item: any) => {
-    return item.key && !readPendingWrite(item.key) &&
+    return item.key && !recoveredRoleKeys.has(item.key) && !readPendingWrite(item.key) &&
       localStorage.getItem(`${item.key}_cloud_updated_at`) !== (item.updated_at || '');
   });
   if (changed.length === 0) return;
@@ -867,26 +914,23 @@ export async function getRoleAssignmentsFromCloud(): Promise<{
   }
 }
 
-export async function syncRoleAssignmentsToCloud(classTeachers: unknown, teachingAssignments: unknown) {
+export async function syncRoleAssignmentsToCloud(
+  classTeachers: unknown,
+  teachingAssignments: unknown,
+  changedKeys: string[] = ROLE_SYNC_KEYS
+) {
   if (!IS_CLOUD) return;
-  try {
-    const currentUser = JSON.parse(localStorage.getItem('sms_current_user') || 'null');
-    if (currentUser?.role !== 'admin') return;
-  } catch { return; }
+  if (!isAdminSession()) return;
 
   const values: Record<string, unknown> = {
     sms_class_teachers: classTeachers,
     sms_teaching_assignments: teachingAssignments
   };
-  await Promise.all(ROLE_SYNC_KEYS.map(async key => {
-    const value = JSON.stringify(values[key]);
-    const updatedAt = nextCloudUpdatedAt(cloudItem?.updated_at);
-    try {
-      await supabaseRequest('app_data', 'POST', { key, value, updated_at: updatedAt }, undefined, true);
-    } catch {
-      await supabaseRequest('app_data', 'PATCH', { value, updated_at: updatedAt }, `?key=eq.${encodeURIComponent(key)}`);
-    }
-  }));
+  for (const key of changedKeys) {
+    if (!ROLE_SYNC_KEYS.includes(key)) continue;
+    markAppDataKeyDirty(key, JSON.stringify(values[key]));
+  }
+  await syncToCloud();
 }
 
 let syncToCloudPromise: Promise<void> | null = null;
@@ -896,6 +940,56 @@ async function pushPendingAppDataKey(key: string): Promise<void> {
   if (!pending) return;
   let localValue = localStorage.getItem(key);
   if (localValue === null) return;
+
+  if (ROLE_SYNC_KEYS.includes(key)) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const latest = await supabaseRequest(
+        'app_data', 'GET', undefined,
+        `?key=eq.${encodeURIComponent(key)}&select=key,value,updated_at&limit=1`,
+        false, true
+      );
+      const cloudItem = Array.isArray(latest) ? latest[0] : null;
+      const mergedValue = mergeRoleAssignmentValue(key, localValue, cloudItem?.value ?? null);
+      if (mergedValue !== localValue) {
+        localValue = mergedValue;
+        localStorage.setItem(key, localValue);
+      }
+      if (cloudItem && mergedValue === cloudItem.value) {
+        completePendingWrite(key, pending, mergedValue, cloudItem.updated_at || '');
+        return;
+      }
+
+      const updatedAt = nextCloudUpdatedAt(cloudItem?.updated_at);
+      try {
+        const result = cloudItem
+          ? await supabaseRequest(
+            'app_data', 'PATCH',
+            { value: mergedValue, updated_at: updatedAt },
+            `?key=eq.${encodeURIComponent(key)}&updated_at=eq.${encodeURIComponent(cloudItem.updated_at)}&select=key,value,updated_at`,
+            false, false, true
+          )
+          : await supabaseRequest(
+            'app_data', 'POST',
+            { key, value: mergedValue, updated_at: updatedAt },
+            undefined, false, false, true
+          );
+        const savedItem = Array.isArray(result)
+          ? result.find((item: any) => item.key === key && item.value === mergedValue)
+          : null;
+        if (!savedItem) {
+          if (cloudItem) continue;
+          throw new Error(`Cloud did not confirm saving ${key}.`);
+        }
+        invalidateAppDataKeyCache(key);
+        completePendingWrite(key, pending, mergedValue, savedItem.updated_at || updatedAt);
+        return;
+      } catch (error: any) {
+        if (error?.status === 409) continue;
+        throw error;
+      }
+    }
+    throw new Error(`Role assignments changed repeatedly while saving ${key}. It will retry automatically.`);
+  }
 
   if (key === 'sms_students') {
     let teacherClass: string | undefined;
@@ -923,35 +1017,47 @@ async function pushPendingAppDataKey(key: string): Promise<void> {
         const result = await supabaseRequest(
           'app_data', 'PATCH',
           { value: localValue, updated_at: updatedAt },
-          `?key=eq.${encodeURIComponent(key)}&updated_at=eq.${encodeURIComponent(cloudItem.updated_at)}&select=key,updated_at`,
+          `?key=eq.${encodeURIComponent(key)}&updated_at=eq.${encodeURIComponent(cloudItem.updated_at)}&select=key,value,updated_at`,
           false, false, true
         );
         if (!Array.isArray(result) || result.length === 0) continue;
+        const savedItem = result.find((item: any) => item.key === key && item.value === localValue);
+        if (!savedItem) throw new Error('Cloud did not confirm saving the student list.');
+        completePendingWrite(key, pending, localValue, savedItem.updated_at || updatedAt);
+        return;
       } else {
         try {
-          await supabaseRequest('app_data', 'POST', { key, value: localValue, updated_at: updatedAt });
+          const result = await supabaseRequest(
+            'app_data', 'POST', { key, value: localValue, updated_at: updatedAt },
+            undefined, false, false, true
+          );
+          const savedItem = Array.isArray(result)
+            ? result.find((item: any) => item.key === key && item.value === localValue)
+            : null;
+          if (!savedItem) throw new Error('Cloud did not confirm saving the student list.');
+          invalidateAppDataKeyCache(key);
+          completePendingWrite(key, pending, localValue, savedItem.updated_at || updatedAt);
+          return;
         } catch (error: any) {
           if (error?.status === 409) continue;
           throw error;
         }
       }
-      completePendingWrite(key, pending, localValue, updatedAt);
-      return;
     }
     throw new Error('Student list changed repeatedly while saving. It will retry automatically.');
   }
 
-  const updatedAt = new Date().toISOString();
-  try {
-    await supabaseRequest('app_data', 'POST', { key, value: localValue, updated_at: updatedAt }, undefined, true);
-  } catch {
-    await supabaseRequest(
-      'app_data', 'PATCH',
-      { value: localValue, updated_at: updatedAt },
-      `?key=eq.${encodeURIComponent(key)}`
-    );
-  }
-  completePendingWrite(key, pending, localValue, updatedAt);
+  const updatedAt = nextCloudUpdatedAt(localStorage.getItem(`${key}_cloud_updated_at`) || undefined);
+  const result = await supabaseRequest(
+    'app_data', 'POST', { key, value: localValue, updated_at: updatedAt },
+    undefined, true, false, true
+  );
+  const savedItem = Array.isArray(result)
+    ? result.find((item: any) => item.key === key && item.value === localValue)
+    : null;
+  if (!savedItem) throw new Error(`Cloud did not confirm saving ${key}.`);
+  invalidateAppDataKeyCache(key);
+  completePendingWrite(key, pending, localValue, savedItem.updated_at || updatedAt);
 }
 
 function completePendingWrite(key: string, pending: PendingAppDataWrite, value: string, updatedAt: string) {
@@ -960,12 +1066,13 @@ function completePendingWrite(key: string, pending: PendingAppDataWrite, value: 
   if (currentPending?.version !== pending.version) return;
   localStorage.setItem(`${key}_ts`, String(Date.parse(updatedAt)));
   localStorage.setItem(`${key}_cloud_updated_at`, updatedAt);
+  localStorage.setItem(`${key}${CONFIRMED_VALUE_SUFFIX}`, value);
   localStorage.removeItem(`${key}${PENDING_SUFFIX}`);
   publishAppDataSyncStatus(key, 'saved');
   window.dispatchEvent(new Event('cloud-sync-complete'));
 }
 
-async function syncPendingAppDataKeys(keys: string[] = SYNC_KEYS): Promise<void> {
+async function syncPendingAppDataKeys(keys: string[] = APP_DATA_SYNC_KEYS): Promise<void> {
   for (const key of keys) {
     if (!readPendingWrite(key)) continue;
     try {
