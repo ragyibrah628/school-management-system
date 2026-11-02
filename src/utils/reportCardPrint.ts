@@ -111,7 +111,7 @@ export function createReportCardPrintDocument(cardsHtml: string): string {
     text-align: center;
   }
   .behavior-table { margin-top: 2mm; }
-  .behavior-table th { padding: 1.2mm 0.7mm !important; color: #604d1c; background: #fff4cf !important; font-size: 9pt !important; }
+  .behavior-table th { padding: 1.2mm 0.2mm !important; color: #604d1c; background: #fff4cf !important; font-size: 9pt !important; }
   .behavior-table td { padding: 1.3mm 0.7mm !important; font-size: 9pt !important; font-weight: 700; text-align: center; }
   .comments-row { display: flex; width: 100%; gap: 3mm; margin-top: 3mm; align-items: stretch; }
   .comment-box {
@@ -137,7 +137,7 @@ export function createReportCardPrintDocument(cardsHtml: string): string {
   .comment-text { flex: 1 1 auto; min-width: 0; font-size: 9pt; line-height: 1.28; }
   .sig-row {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: flex-end;
     justify-content: space-between;
     gap: 2mm;
@@ -152,7 +152,7 @@ export function createReportCardPrintDocument(cardsHtml: string): string {
     display: block;
     width: auto;
     height: auto;
-    max-width: 35mm;
+    max-width: 50mm;
     max-height: 18mm;
     object-fit: contain;
     object-position: bottom right;
@@ -181,6 +181,8 @@ export function createReportCardPrintDocument(cardsHtml: string): string {
     .report-card { padding: 6mm; }
     .school-name { font-size: clamp(14px, 5vw, 18px) !important; }
     .report-title { font-size: clamp(10px, 3.2vw, 12px) !important; padding: 1mm 2mm; }
+    .subjects-table th { padding: 1mm 0.5mm; font-size: 9px; white-space: nowrap; }
+    .comments-row { flex-direction: column; }
   }
   @media print {
     html, body { width: 100%; margin: 0; padding: 0; background: #fff; overflow: visible; }
@@ -198,6 +200,7 @@ export function createReportCardPrintDocument(cardsHtml: string): string {
     .page-break { break-after: page; page-break-after: always; }
     .subjects-table { margin: 2mm 0; }
     .subjects-table th, .subjects-table td { padding: 1mm 1.1mm; }
+    .behavior-table th { overflow-wrap: normal; word-break: normal; hyphens: none; }
     .info-cell { padding: 1.7mm 2.5mm; }
     .grade-box { margin: 1.8mm 0; padding: 1.8mm; }
     .comment-title { padding-top: 1.5mm; padding-bottom: 1.5mm; }
@@ -223,7 +226,7 @@ export function createReportCardPrintDocument(cardsHtml: string): string {
     .report-card--long-comments .subjects-table td { padding: 0.6mm 0.8mm; }
     .report-card--long-comments .grade-box { margin: 1mm 0; padding: 1mm; }
     .report-card--long-comments .behavior-table { margin: 0.5mm 0 !important; }
-    .report-card--long-comments .behavior-table th,
+    .report-card--long-comments .behavior-table th { padding: 0.5mm 0.15mm !important; }
     .report-card--long-comments .behavior-table td { padding: 0.5mm 0.5mm !important; }
     .report-card--long-comments .comments-row { gap: 2mm; margin-top: 1mm; }
     .report-card--long-comments .comment-title { margin-bottom: 1mm; padding-top: 1mm; padding-bottom: 1mm; }

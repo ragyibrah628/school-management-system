@@ -60,6 +60,11 @@ test('report cards use full-width zero-margin pages and consistent page-break la
   assert.match(document, /mix-blend-mode:\s*multiply/);
   assert.match(document, /font-size:\s*9pt !important/);
   assert.doesNotMatch(document, /font-size:\s*8(?:\.5)?pt/);
+  assert.match(document, /\.subjects-table th \{[^}]*white-space:\s*nowrap/);
+  assert.match(document, /\.behavior-table th \{[^}]*overflow-wrap:\s*normal;[^}]*word-break:\s*normal/);
+  assert.match(document, /\.sig-row \{[^}]*flex-wrap:\s*nowrap/);
+  assert.match(document, /\.sig-img \{[^}]*max-width:\s*50mm;[^}]*max-height:\s*18mm/);
+  assert.match(document, /\.comments-row \{ flex-direction:\s*column; \}/);
   assert.match(document, /\.sig-row > span \{[^}]*gap:\s*1mm/);
   assert.match(document, /break-after:\s*page/);
   assert.match(document, /\.report-card--compact/);
