@@ -26,9 +26,11 @@ import { LessonPlan } from './components/LessonPlan';
 import * as cloud from './lib/cloud';
 import { evaluateMark, gradeForPercentage, remarkForPercentage, sortStudentsForMarkEntry } from './utils/markEntry';
 import { rankResultsByAverage } from './utils/resultsRanking';
-import { createScoreSheetHtml } from './utils/scoreSheet';
+import { assignedSubjectTeacherName, buildScoreSheetData, createScoreSheetsHtml, type ScoreSheetData } from './utils/scoreSheet';
+import { createReportCardPrintDocument } from './utils/reportCardPrint';
 import { classLevel, isPracticalSubject, practicalFinalPercentage, practicalModeFromScores, PRACTICAL_MAX, THEORY_MAX } from './utils/practical';
 import { hasUnsavedExamScoreChanges, subjectsForClass } from './utils/teachingAssignments';
+import { offeredSubjectsForClass, submittedSubjectsForClass, upsertClassSubjectSubmission, type ExamSubjectSubmission } from './utils/resultSubmissions';
 
 // Safe image component that won't crash
 function SafeImg({ src, alt, className }: { src: string; alt: string; className?: string }) {
@@ -221,6 +223,26 @@ function AppInner() {
   const [scores, setScores] = useState<any[]>([]);
   const [duties, setDuties] = useState<any[]>([]);
   const [released, setReleased] = useState<string[]>([]);
+  const [examSubmissions, setExamSubmissions] = useState<ExamSubjectSubmission[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('sms_exam_submissions') || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch { return []; }
+  });
+  useEffect(() => {
+    const refreshSubmissions = () => {
+      try {
+        const fresh = JSON.parse(localStorage.getItem('sms_exam_submissions') || '[]');
+        if (Array.isArray(fresh)) setExamSubmissions(prev => JSON.stringify(prev) !== JSON.stringify(fresh) ? fresh : prev);
+      } catch {}
+    };
+    window.addEventListener('cloud-sync-complete', refreshSubmissions);
+    window.addEventListener('storage', refreshSubmissions);
+    return () => {
+      window.removeEventListener('cloud-sync-complete', refreshSubmissions);
+      window.removeEventListener('storage', refreshSubmissions);
+    };
+  }, []);
 
   // Class teachers: { className: teacherId }
   const [classTeachers, setClassTeachers] = useState<Record<string, string>>(() => {
@@ -661,6 +683,12 @@ function AppInner() {
           setTeachingAssignments((prev: any) => JSON.stringify(prev) !== JSON.stringify(freshTA) ? freshTA : prev);
         } catch {}
         try {
+          const freshSubmissions = JSON.parse(localStorage.getItem('sms_exam_submissions') || '[]');
+          if (Array.isArray(freshSubmissions)) {
+            setExamSubmissions(prev => JSON.stringify(prev) !== JSON.stringify(freshSubmissions) ? freshSubmissions : prev);
+          }
+        } catch {}
+        try {
           const freshSubjects = JSON.parse(localStorage.getItem('sms_school_subjects') || '[]');
           if (freshSubjects.length) setSchoolSubjects(prev => JSON.stringify(prev) !== JSON.stringify(freshSubjects) ? freshSubjects : prev);
         } catch {}
@@ -766,6 +794,25 @@ function AppInner() {
 
   // Print orientation selected per-click via buttons
 
+  const recordSubmittedSubject = async (examId: string, className: string, subject: string) => {
+    let current: ExamSubjectSubmission[] = [];
+    try {
+      const saved = JSON.parse(localStorage.getItem('sms_exam_submissions') || '[]');
+      if (Array.isArray(saved)) current = saved;
+    } catch {}
+    const updated = upsertClassSubjectSubmission(current, {
+      exam_id: examId,
+      class_name: className,
+      subject,
+      teacher_id: user?.id,
+      submitted_at: new Date().toISOString()
+    });
+    const value = JSON.stringify(updated);
+    localStorage.setItem('sms_exam_submissions', value);
+    setExamSubmissions(updated);
+    await cloud.syncAppDataKeyToCloud('sms_exam_submissions', value);
+  };
+
   const saveExamScores = async () => {
     if (!selectedExam || !examScoreClass || !examScoreSubject) return;
     const assigned = (teachingAssignments[user?.id] || []).some(a => a.cls === examScoreClass && a.sub === examScoreSubject);
@@ -846,7 +893,16 @@ function AppInner() {
         for (const student of savedNames) delete remaining[student];
         return remaining;
       });
-      if (failed === 0) alert(`✅ Practical scores saved! (${saved} students) — sent to admin`);
+      let submissionError = '';
+      if (failed === 0 && saved > 0) {
+        try { await recordSubmittedSubject(selectedExam.id, examScoreClass, examScoreSubject); }
+        catch (error: any) {
+          submissionError = error?.message || String(error);
+          console.error('Practical subject submission sync failed:', error);
+        }
+      }
+      if (failed === 0 && !submissionError) alert(`✅ Practical scores saved! (${saved} students) — sent to admin`);
+      else if (failed === 0) alert(`⚠️ Scores saved, but the subject submission is not synced yet. It will retry automatically.\n${submissionError}`);
       else alert(`⚠️ Saved ${saved}, failed ${failed} — ${lastError}\nCheck the scores table migration and Supabase configuration.`);
       return;
     }
@@ -898,8 +954,34 @@ function AppInner() {
     await loadData();
     setLoading(false);
     setExamScores({});
-    if (failed === 0) alert('✅ Scores saved! (' + saved + ' students) — sent to admin');
+    let submissionError = '';
+    if (failed === 0 && saved > 0) {
+      try { await recordSubmittedSubject(selectedExam.id, examScoreClass, examScoreSubject); }
+      catch (error: any) {
+        submissionError = error?.message || String(error);
+        console.error('Subject submission sync failed:', error);
+      }
+    }
+    if (failed === 0 && !submissionError) alert('✅ Scores saved! (' + saved + ' students) — sent to admin');
+    else if (failed === 0) alert(`⚠️ Scores saved, but the subject submission is not synced yet. It will retry automatically.\n${submissionError}`);
     else alert('⚠️ Saved ' + saved + ', failed ' + failed + ' — ' + lastError + '\nCheck: Supabase Table Editor → scores → does exam_id column exist? And Netlify env vars VITE_SUPABASE_URL/KEY correct?');
+  };
+
+  const printScoreSheets = (sheets: ScoreSheetData[]) => {
+    if (sheets.length === 0) return;
+    const popup = window.open('', '_blank');
+    if (!popup) {
+      alert(`Allow pop-ups to print ${sheets.length === 1 ? 'the Score Sheet' : 'Score Sheets'}.`);
+      return;
+    }
+
+    popup.document.open();
+    popup.document.write(createScoreSheetsHtml(sheets));
+    popup.document.close();
+    popup.setTimeout(() => {
+      popup.focus();
+      popup.print();
+    }, 350);
   };
 
   const printScoreSheet = () => {
@@ -915,14 +997,7 @@ function AppInner() {
     const practicalMode = [3, 4].includes(classLevel(examScoreClass) || 0) &&
       isPracticalSubject(examScoreSubject) &&
       (savedPracticalMode ?? examPracticalModeChoice) === true;
-    const popup = window.open('', '_blank');
-    if (!popup) {
-      alert('Allow pop-ups to print the Score Sheet.');
-      return;
-    }
-
-    popup.document.open();
-    popup.document.write(createScoreSheetHtml({
+    printScoreSheets([buildScoreSheetData({
       schoolName: schoolNameSetting,
       councilName: districtName,
       schoolLogo,
@@ -934,23 +1009,35 @@ function AppInner() {
       teacherName: user?.name || '',
       printedAt: new Date().toLocaleDateString(),
       practicalMode,
-      students: roster.map(student => {
-        const saved = savedRows.find((score: any) => score.student_name === student.name);
-        const numericScore = saved && Number.isFinite(Number(saved.score)) ? Number(saved.score) : null;
-        return {
-          name: student.name,
-          score: numericScore,
-          maxScore: Number(saved?.max_score) || 100,
-          theoryScore: saved?.theory_score == null ? null : Number(saved.theory_score),
-          practicalScore: saved?.practical_score == null ? null : Number(saved.practical_score)
-        };
-      })
-    }));
-    popup.document.close();
-    popup.setTimeout(() => {
-      popup.focus();
-      popup.print();
-    }, 350);
+    }, roster, savedRows)]);
+  };
+
+  const buildAdminScoreSheet = (className: string, subject: string, exam: any): ScoreSheetData => {
+    const savedRows = scores.filter((score: any) =>
+      score.exam_id === exam.id &&
+      score.class_name === className &&
+      score.subject === subject
+    );
+    const teacherName = assignedSubjectTeacherName(className, subject, teachingAssignments, users, savedRows);
+    const practicalMode = [3, 4].includes(classLevel(className) || 0) &&
+      isPracticalSubject(subject) &&
+      practicalModeFromScores(savedRows) === true;
+    const roster = sortStudentsForMarkEntry((students[className] || [])
+      .filter(student => student.subjects.includes(subject)));
+
+    return buildScoreSheetData({
+      schoolName: schoolNameSetting,
+      councilName: districtName,
+      schoolLogo,
+      className,
+      subject,
+      examName: exam.name || 'Exam',
+      term: exam.term || '',
+      academicYear: String(exam.academicYear || exam.academic_year || new Date().getFullYear()),
+      teacherName,
+      printedAt: new Date().toLocaleDateString(),
+      practicalMode
+    }, roster, savedRows);
   };
 
   const [schoolSubjects, setSchoolSubjects] = useState<string[]>(() => {
@@ -1944,19 +2031,32 @@ function AppInner() {
                 {viewExamId && (() => {
                   const ex = exams.find((e: any) => e.id === viewExamId);
                   if (!ex) return null;
-                  const examScoresAll = scores.filter((s: any) => s.exam_id === viewExamId);
-                  const allSubjects = [...new Set(examScoresAll.map((s: any) => s.subject))];
-                  const canApprove = allSubjects.length >= 7;
+                  const classesInScope = viewClass === ''
+                    ? CLASSES
+                    : viewClass.startsWith('__')
+                      ? CLASSES.filter(cls => cls.toLowerCase().startsWith(viewClass.slice(2).replace(/_/g, ' ').toLowerCase()))
+                      : [viewClass];
+                  const submittedSubjects = [...new Set(classesInScope.flatMap(cls =>
+                    submittedSubjectsForClass(viewExamId, cls, scores, examSubmissions)
+                  ))];
+                  const offeredSubjects = [...new Set(classesInScope.flatMap(cls =>
+                    offeredSubjectsForClass(cls, teachingAssignments)
+                  ))];
+                  const canApprove = offeredSubjects.length > 0 && submittedSubjects.length >= offeredSubjects.length;
+                  const subjectsRemaining = Math.max(0, offeredSubjects.length - submittedSubjects.length);
                   const isReleased = released.includes(ex.term);
 
                   return isReleased ? (
-                    <span className="text-xs bg-emerald-100 text-emerald-700 px-4 py-2.5 rounded-xl font-semibold w-full text-center block">✅ {ex.term} Released</span>
+                    <div className="w-full text-center">
+                      <span className="text-xs bg-emerald-100 text-emerald-700 px-4 py-2.5 rounded-xl font-semibold w-full block">✅ {ex.term} Released</span>
+                      <p className="text-[10px] text-slate-400 mt-1">{submittedSubjects.length}/{offeredSubjects.length} subjects submitted</p>
+                    </div>
                   ) : (
                     <div className="w-full">
-                      <button onClick={() => { if (canApprove) releaseResults(ex.term); else alert(`Cannot approve! Only ${allSubjects.length} subjects submitted. Minimum 7 required.`); }} disabled={loading || !canApprove} className={`w-full px-4 py-2.5 rounded-xl font-semibold text-sm ${canApprove ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-500 cursor-not-allowed'}`}>
-                        {canApprove ? 'Approve & Release' : `Need ${7 - allSubjects.length} more subjects`}
+                      <button onClick={() => { if (canApprove) releaseResults(ex.term); else alert(`Cannot approve! Only ${submittedSubjects.length}/${offeredSubjects.length} subjects submitted for this class selection.`); }} disabled={loading || !canApprove} className={`w-full px-4 py-2.5 rounded-xl font-semibold text-sm ${canApprove ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-500 cursor-not-allowed'}`}>
+                        {canApprove ? 'Approve & Release' : `Need ${subjectsRemaining} more subjects`}
                       </button>
-                      <p className="text-[10px] text-slate-400 mt-1 text-center">{allSubjects.length}/7 subjects submitted</p>
+                      <p className="text-[10px] text-slate-400 mt-1 text-center">{submittedSubjects.length}/{offeredSubjects.length} subjects submitted</p>
                     </div>
                   );
                 })()}
@@ -1970,29 +2070,35 @@ function AppInner() {
               let filtered = scores.filter((s: any) => s.exam_id === viewExamId);
               const examName = exams.find((e: any) => e.id === viewExamId)?.name || '';
 
-              // Determine which classes to show
-              let classesToShow: string[] = [];
-              if (viewClass === '') {
-                classesToShow = CLASSES;
-              } else if (viewClass.startsWith('__FORM_')) {
-                const form = viewClass.replace('__', '');
-                classesToShow = CLASSES.filter(c => c.startsWith(form.replace('_', ' ')));
-              } else {
-                classesToShow = [viewClass];
-              }
+              const classesToShow = viewClass === ''
+                ? CLASSES
+                : viewClass.startsWith('__')
+                  ? CLASSES.filter(cls => cls.toLowerCase().startsWith(viewClass.slice(2).replace(/_/g, ' ').toLowerCase()))
+                  : [viewClass];
 
               // Get all students and scores for these classes
               let allStudentRows: { student: string; cls: string; scores: Record<string, number | null>; total: number; avg: number; hasResults: boolean; rank?: number | '-'; rankedClassTotal?: number }[] = [];
-              const allSubjects = [...new Set(filtered.map((s: any) => s.subject))].sort();
+              const submittedByClass = new Map(classesToShow.map(cls => [
+                cls,
+                submittedSubjectsForClass(viewExamId, cls, filtered, examSubmissions)
+              ]));
+              const allSubjects = [...new Set([...submittedByClass.values()].flat())].sort();
+              const selectedClassSubmittedSubjects = CLASSES.includes(viewClass)
+                ? submittedByClass.get(viewClass) || []
+                : [];
+              const selectedExamData = exams.find((exam: any) => exam.id === viewExamId);
 
               classesToShow.forEach(cls => {
                 const studentNames = getStudentNames(cls);
                 const classScores = filtered.filter((s: any) => s.class_name === cls);
+                const submittedForClass = new Set(submittedByClass.get(cls) || []);
 
                 studentNames.forEach(student => {
                   const sScores: Record<string, number | null> = {};
                   allSubjects.forEach(sub => {
-                    const sc = classScores.find((s: any) => s.student_name === student && s.subject === sub);
+                    const sc = submittedForClass.has(sub)
+                      ? classScores.find((s: any) => s.student_name === student && s.subject === sub)
+                      : undefined;
                     sScores[sub] = sc ? Number(sc.score) : null;
                   });
                   const valid = Object.values(sScores).filter((value): value is number => value !== null && Number.isFinite(value));
@@ -2223,25 +2329,34 @@ function AppInner() {
 
                 let acComment = getAcademicCommentSw(firstName, div, avgFix);
                 let hmComment = getHeadmasterCommentSw(firstName, div, avgFix);
+                const validCount = Object.values(row.scores).filter(v => v !== null).length;
+                const compactCard = validCount >= 11;
+                const longComments = acComment.length + hmComment.length > 700;
+                const cardClasses = [
+                  'report-card',
+                  pageBreakAfter ? 'page-break' : '',
+                  compactCard ? 'report-card--compact' : '',
+                  longComments ? 'report-card--long-comments' : ''
+                ].filter(Boolean).join(' ');
 
-                pw.document.write(`<section class="report-card${pageBreakAfter ? ' page-break' : ''}"><div class="header">`);
-                if (logo) pw.document.write(`<img src="${logo}" />`);
-                pw.document.write(`<div style="font-size:14px;font-weight:bold;letter-spacing:1.5px">${districtName}</div>
-                  <div style="font-size:22px;font-weight:bold;letter-spacing:2px;margin:3px 0">${schoolNameSetting}</div>
+                pw.document.write(`<section class="${cardClasses}"><div class="header">`);
+                if (logo) pw.document.write(`<img class="school-logo" src="${logo}" alt="Logo ya shule" />`);
+                pw.document.write(`<div class="council-name" style="font-size:14px;font-weight:bold">${districtName}</div>
+                  <div class="school-name" style="font-size:22px;font-weight:bold;margin:3px 0">${schoolNameSetting}</div>
                   <div style="font-size:11px;margin-bottom:4px">${schoolAddress}</div>
-                  <div style="font-size:16px;font-weight:bold;text-decoration:underline;margin-top:4px">RIPOTI YA MAENDELEO YA MWANAFUNZI</div>
-                  <div style="font-size:13px;margin-top:3px">${examName}</div></div>`);
+                  <div class="report-title" style="font-size:16px;font-weight:bold;text-decoration:underline;margin-top:4px">RIPOTI YA MAENDELEO YA MWANAFUNZI</div>
+                  <div class="exam-name" style="font-size:13px;margin-top:3px">${examName}</div></div>`);
 
                 // Student info grid — KISWAHILI
                 pw.document.write(`<div class="info-grid">
-                  <div class="info-cell">Jina la Mwanafunzi: <strong style="font-size:14px">${row.student}</strong></div>
-                  <div class="info-cell">Darasa: <strong style="font-size:14px">${row.cls}</strong></div>
-                  <div class="info-cell">Position: <strong style="font-size:14px">${row.hasResults ? `Position ${row.rank} out of ${classTotal}` : '-'}</strong></div>
-                  <div class="info-cell">Daraja: <strong style="font-size:14px">${rr.division}</strong> | Pointi: <strong style="font-size:14px">${rr.totalPoints}</strong></div>
+                  <div class="info-cell"><span class="info-label">Jina la Mwanafunzi: </span><strong class="info-value" style="font-size:14px">${row.student}</strong></div>
+                  <div class="info-cell"><span class="info-label">Darasa: </span><strong class="info-value" style="font-size:14px">${row.cls}</strong></div>
+                  <div class="info-cell"><span class="info-label">Position: </span><strong class="info-value" style="font-size:14px">${row.hasResults ? `Position ${row.rank} out of ${classTotal}` : '-'}</strong></div>
+                  <div class="info-cell"><span class="info-label">Daraja: </span><strong class="info-value" style="font-size:14px">${rr.division}</strong> | <span class="info-label">Pointi: </span><strong class="info-value" style="font-size:14px">${rr.totalPoints}</strong></div>
                 </div>`);
 
                 // Scores table — KISWAHILI
-                pw.document.write(`<table><thead><tr><th style="text-align:left">SOMO</th><th style="width:70px">ALAMA</th><th style="width:60px">GREDI</th><th style="width:60px">POINTI</th><th>MAELEZO</th></tr></thead><tbody>`);
+                pw.document.write(`<table class="subjects-table"><thead><tr><th style="text-align:left">SOMO</th><th>ALAMA</th><th>GREDI</th><th>POINTI</th><th>MAELEZO</th></tr></thead><tbody>`);
                 allSubjects.forEach(sub => {
                   const v = row.scores[sub];
                   if (v !== null) {
@@ -2252,7 +2367,6 @@ function AppInner() {
                     pw.document.write(`<tr><td style="text-align:left;font-weight:bold">${sub}</td><td style="text-align:center;color:${color};font-weight:bold;font-size:14px">${v}</td><td style="text-align:center;font-weight:bold;color:${color};font-size:14px">${g}</td><td style="text-align:center;font-size:13px">${p}</td><td style="text-align:center">${r}</td></tr>`);
                   }
                 });
-                const validCount = Object.values(row.scores).filter(v => v !== null).length;
                 pw.document.write(`<tr style="font-weight:bold;background:#d4edda"><td style="text-align:left">JUMLA (Masomo ${validCount})</td><td style="text-align:center;font-size:14px">${row.total}</td><td style="text-align:center;font-size:14px">${grade(row.avg)}</td><td style="text-align:center;font-size:13px">${rr.totalPoints}</td><td style="text-align:center">${remark(row.avg)}</td></tr>`);
                 pw.document.write(`</tbody></table>`);
 
@@ -2268,7 +2382,7 @@ function AppInner() {
 
                 const behaviorCats = ['Nidhamu', 'Kuwahi', 'Mahudhurio', 'Heshima', 'Uwajibikaji', 'Ushiriki Darasani', 'Ushirikiano', 'Usafi', 'Kujidhibiti', 'Uongozi'];
                 if (Object.keys(studentBehavior).length > 0) {
-                  pw.document.write(`<div style="margin:8px 0"><table><thead><tr><th colspan="10" style="text-align:left;font-size:12px;background:#fff3cd">TATHMINI YA TABIA — Mwalimu wa Darasa: <strong>${ctName}</strong></th></tr><tr style="background:#fff3cd">`);
+                  pw.document.write(`<div style="margin:8px 0"><table class="behavior-table"><thead><tr><th colspan="10" style="text-align:left;font-size:12px;background:#fff3cd">TATHMINI YA TABIA — Mwalimu wa Darasa: <strong>${ctName}</strong></th></tr><tr style="background:#fff3cd">`);
                   behaviorCats.forEach(c => pw.document.write(`<th style="font-size:9px;padding:4px;background:#fff3cd">${c}</th>`));
                   pw.document.write(`</tr></thead><tbody><tr>`);
                   const engCats = ['Discipline', 'Punctuality', 'Attendance', 'Respectfulness', 'Responsibility', 'Class Participation', 'Cooperation', 'Neatness', 'Self-Control', 'Leadership & Initiative'];
@@ -2284,13 +2398,13 @@ function AppInner() {
                 }
 
                 // Comments — KISWAHILI
-                pw.document.write(`<div style="display:flex;gap:10px;margin-top:8px">`);
+                pw.document.write(`<div class="comments-row">`);
                 pw.document.write(`<div class="comment-box" style="flex:1"><div class="comment-title">MAONI YA MWALIMU WA TAALUMA:</div><div class="comment-text">${acComment}</div><div class="sig-row"><span>Jina: <strong>${acName || '________________'}</strong></span><span>${acSig ? `<img src="${acSig}" class="sig-img" />` : 'Sahihi: ________________'}</span></div></div>`);
                 pw.document.write(`<div class="comment-box" style="flex:1"><div class="comment-title">MAONI YA MKUU WA SHULE:</div><div class="comment-text">${hmComment}</div><div class="sig-row"><span>Jina: <strong>${hmName}</strong></span><span>${hmSig ? `<img src="${hmSig}" class="sig-img" />` : 'Sahihi: ________________'}</span></div></div>`);
                 pw.document.write(`</div>`);
 
                 // Footer
-                pw.document.write(`<div style="text-align:center;margin-top:12px;font-size:11px;color:#555;font-style:italic;border-top:2px solid #ccc;padding-top:6px"><strong>${schoolNameSetting}</strong>: ${schoolMotto}</div>`);
+                pw.document.write(`<div class="footer" style="text-align:center;margin-top:12px;font-size:11px;color:#555;font-style:italic;border-top:2px solid #ccc;padding-top:6px"><strong>${schoolNameSetting}</strong>: ${schoolMotto}</div>`);
                 pw.document.write(`</section>`);
                 return reportHtml;
               };
@@ -2337,28 +2451,7 @@ function AppInner() {
                 const cardsHtml = rows.map((row, index) =>
                   buildReportCardHtml(row, imageUrls, index < rows.length - 1)
                 ).join('');
-                printWindow.document.write(`<!DOCTYPE html><html><head><title>Report Cards</title><style>
-                  @page { size: A4 portrait; margin: 10mm 12mm 8mm 12mm; }
-                  @page { @top-left { content: ''; } @top-right { content: ''; } @bottom-left { content: ''; } @bottom-right { content: ''; } }
-                  * { margin:0; padding:0; box-sizing:border-box; }
-                  body { font-family: 'Arial', 'Helvetica', sans-serif; font-size: 13px; color: #000; }
-                  table { width:100%; border-collapse:collapse; margin: 8px 0; }
-                  th,td { border:1px solid #000; padding:6px 8px; font-size: 13px; }
-                  th { background: #d4edda; font-size: 13px; font-weight:bold; }
-                  .header { text-align:center; margin-bottom:10px; border-bottom:3px double #000; padding-bottom:8px; }
-                  .header img { height:60px; margin-bottom:4px; }
-                  .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; border:2px solid #000; margin-bottom:10px; font-size:13px; }
-                  .info-cell { padding:7px 12px; border:1px solid #000; font-size:13px; }
-                  .grade-box { border:3px solid #000; padding:10px; text-align:center; margin:10px 0; background:#d4edda; border-radius:6px; }
-                  .comment-box { border:1px solid #000; padding:10px; border-radius:6px; margin-bottom:8px; }
-                  .comment-title { font-size:12px; font-weight:bold; margin-bottom:4px; text-decoration:underline; }
-                  .comment-text { font-size:12px; line-height:1.5; min-height:28px; }
-                  .sig-row { display:flex; justify-content:space-between; margin-top:10px; font-size:12px; align-items:flex-end; min-height:60px; }
-                  .sig-img { height:55px; max-width:180px; width:auto; object-fit:contain; display:block; }
-                  .comment-box .sig-row span:last-child { min-width:180px; text-align:right; }
-                  .page-break { page-break-after:always; break-after:page; }
-                  @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
-                </style></head><body>${cardsHtml}</body></html>`);
+                printWindow.document.write(createReportCardPrintDocument(cardsHtml));
                 printWindow.document.close();
                 const imageLoads = Array.from(printWindow.document.images).map((image: any) =>
                   image.complete ? Promise.resolve() : new Promise(resolve => {
@@ -2375,7 +2468,6 @@ function AppInner() {
 
               const printClassReportCards = () => {
                 if (!viewExamId || !CLASSES.includes(viewClass)) return;
-                const selectedExamData = exams.find((exam: any) => exam.id === viewExamId);
                 if (!selectedExamData) return;
                 if (!released.includes(selectedExamData.term) && !confirm(`${selectedExamData.term} haijaidhinishwa. Uendelee kuchapisha report cards?`)) return;
 
@@ -2401,6 +2493,31 @@ function AppInner() {
                       <button onClick={printClassReportCards} disabled={!CLASSES.includes(viewClass)} title={!CLASSES.includes(viewClass) ? 'Chagua darasa moja kwanza' : 'Print report cards za darasa hili'} className="px-3 py-1.5 bg-emerald-700 text-white rounded-lg text-xs font-semibold disabled:opacity-40">Print Class Report Cards</button>
                     </div>
                   </div>
+                  {selectedExamData && selectedClassSubmittedSubjects.length > 0 && (
+                    <section aria-label="Submitted subject score sheets" className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="mb-2 text-xs font-semibold text-slate-600">Submitted subject score sheets</p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => printScoreSheets(selectedClassSubmittedSubjects.map(subject =>
+                            buildAdminScoreSheet(viewClass, subject, selectedExamData)
+                          ))}
+                          className="rounded-lg bg-indigo-700 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-800"
+                        >
+                          Print all subject score sheets
+                        </button>
+                        {selectedClassSubmittedSubjects.map(subject => (
+                          <button
+                            key={subject}
+                            aria-label={`Print ${subject} score sheet`}
+                            onClick={() => printScoreSheets([buildAdminScoreSheet(viewClass, subject, selectedExamData)])}
+                            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                          >
+                            🖨 {subject}
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  )}
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm border">
                       <thead>
@@ -3300,7 +3417,9 @@ function AppInner() {
                   <option value="">-- Select Exam --</option>
                   {parentExams.map((ex: any) => {
                     const isReleased = released.includes(ex.term);
-                    return isReleased ? <option key={ex.id} value={ex.id}>{ex.name} ({ex.term})</option> : null;
+                    const hasClassSubmissions = parentStudentClass &&
+                      submittedSubjectsForClass(ex.id, parentStudentClass, scores, examSubmissions).length > 0;
+                    return isReleased && hasClassSubmissions ? <option key={ex.id} value={ex.id}>{ex.name} ({ex.term})</option> : null;
                   })}
                 </select>
 
@@ -3309,10 +3428,14 @@ function AppInner() {
                   if (!ex) return <p className="text-sm text-slate-500">Exam not found.</p>;
                   if (!released.includes(ex.term)) return <p className="text-sm text-amber-600">Results for {ex.term} have not been released yet.</p>;
 
+                  const classSubmittedSubjects = new Set(parentStudentClass
+                    ? submittedSubjectsForClass(selectedParentExam, parentStudentClass, scores, examSubmissions)
+                    : []);
                   const examScoresAll = scores.filter((s: any) =>
                     s.exam_id === selectedParentExam &&
                     s.student_name === parentStudentName &&
-                    (!parentStudentClass || s.class_name === parentStudentClass)
+                    s.class_name === parentStudentClass &&
+                    classSubmittedSubjects.has(s.subject)
                   );
                   if (examScoresAll.length === 0) return <p className="text-sm text-slate-500">No results found for this exam.</p>;
 
