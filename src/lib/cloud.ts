@@ -432,10 +432,12 @@ function studentRenameScoreFilter(className: string, oldName: string): string {
 
 export async function addScore(score: any) {
   // always keep optimistic local copy
+  const createdAt = new Date().toISOString();
+  const savedScore = { ...score, created_at: createdAt };
   const localScores: any[] = JSON.parse(localStorage.getItem('sms_scores') || '[]');
-  const existingIndex = localScores.findIndex((s: any) => s.id === score.id);
-  if (existingIndex >= 0) localScores[existingIndex] = { ...localScores[existingIndex], ...score };
-  else localScores.push(score);
+  const existingIndex = localScores.findIndex((s: any) => s.id === savedScore.id);
+  if (existingIndex >= 0) localScores[existingIndex] = { ...localScores[existingIndex], ...savedScore };
+  else localScores.push(savedScore);
   localStorage.setItem('sms_scores', JSON.stringify(localScores));
   if (IS_CLOUD) {
     try {
@@ -452,7 +454,7 @@ export async function addScore(score: any) {
         max_score: Number(score.max_score || 100),
         exam_name: score.exam_name ? String(score.exam_name) : null,
         exam_id: score.exam_id ? String(score.exam_id) : null,
-        created_at: new Date().toISOString(),
+        created_at: createdAt,
       };
       if (Object.prototype.hasOwnProperty.call(score, 'theory_score')) {
         payload.theory_score = score.theory_score == null ? null : Number(score.theory_score);
@@ -629,7 +631,7 @@ export async function releaseTerm(term: string, adminName: string) {
 
 const SYNC_KEYS = [
   'sms_school_subjects', 'sms_school_classes',
-  'sms_students', 'sms_exams',
+  'sms_students', 'sms_exams', 'sms_exam_submissions',
   'sms_behavior', 'sms_messages', 'sms_registered_students',
   'sms_school_name_setting', 'sms_district_name', 'sms_school_address',
   'sms_school_motto', 'sms_academic_name', 'sms_headmaster_name',
@@ -794,6 +796,28 @@ function mergeRoleAssignmentValue(key: string, localValue: string, cloudValue: s
     }
   }
   return JSON.stringify(merged);
+}
+
+function mergeExamSubmissionValues(localValue: string, cloudValue: string | null): string {
+  const parseRecords = (value: string | null): any[] => {
+    const parsed = value ? JSON.parse(value) : [];
+    if (!Array.isArray(parsed)) throw new Error('Invalid exam submission data; expected a list.');
+    for (const record of parsed) {
+      if (!record?.exam_id || !record?.class_name || !record?.subject) {
+        throw new Error('Invalid exam submission record; exam, class, and subject are required.');
+      }
+    }
+    return parsed;
+  };
+  const merged = new Map<string, any>();
+  for (const record of [...parseRecords(cloudValue), ...parseRecords(localValue)]) {
+    const identity = JSON.stringify([record.exam_id, record.class_name, record.subject]);
+    const existing = merged.get(identity);
+    if (!existing || (Date.parse(record.submitted_at || '') || 0) >= (Date.parse(existing.submitted_at || '') || 0)) {
+      merged.set(identity, record);
+    }
+  }
+  return JSON.stringify([...merged.values()]);
 }
 
 function isAdminSession(): boolean {
@@ -989,6 +1013,56 @@ async function pushPendingAppDataKey(key: string): Promise<void> {
       }
     }
     throw new Error(`Role assignments changed repeatedly while saving ${key}. It will retry automatically.`);
+  }
+
+  if (key === 'sms_exam_submissions') {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const latest = await supabaseRequest(
+        'app_data', 'GET', undefined,
+        `?key=eq.${encodeURIComponent(key)}&select=key,value,updated_at&limit=1`,
+        false, true
+      );
+      const cloudItem = Array.isArray(latest) ? latest[0] : null;
+      const mergedValue = mergeExamSubmissionValues(localValue, cloudItem?.value ?? null);
+      if (mergedValue !== localValue) {
+        localValue = mergedValue;
+        localStorage.setItem(key, localValue);
+      }
+      if (cloudItem && mergedValue === cloudItem.value) {
+        completePendingWrite(key, pending, mergedValue, cloudItem.updated_at || '');
+        return;
+      }
+
+      const updatedAt = nextCloudUpdatedAt(cloudItem?.updated_at);
+      try {
+        const result = cloudItem
+          ? await supabaseRequest(
+            'app_data', 'PATCH',
+            { value: mergedValue, updated_at: updatedAt },
+            `?key=eq.${encodeURIComponent(key)}&updated_at=eq.${encodeURIComponent(cloudItem.updated_at)}&select=key,value,updated_at`,
+            false, false, true
+          )
+          : await supabaseRequest(
+            'app_data', 'POST',
+            { key, value: mergedValue, updated_at: updatedAt },
+            undefined, false, false, true
+          );
+        const savedItem = Array.isArray(result)
+          ? result.find((item: any) => item.key === key && item.value === mergedValue)
+          : null;
+        if (!savedItem) {
+          if (cloudItem) continue;
+          throw new Error(`Cloud did not confirm saving ${key}.`);
+        }
+        invalidateAppDataKeyCache(key);
+        completePendingWrite(key, pending, mergedValue, savedItem.updated_at || updatedAt);
+        return;
+      } catch (error: any) {
+        if (error?.status === 409) continue;
+        throw error;
+      }
+    }
+    throw new Error('Exam submissions changed repeatedly while saving. It will retry automatically.');
   }
 
   if (key === 'sms_students') {

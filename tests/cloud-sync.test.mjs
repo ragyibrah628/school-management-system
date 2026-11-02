@@ -271,3 +271,35 @@ test('teacher refresh applies newer cloud assignments without an upload and visi
   t.diagnostic(`Three unchanged visibility syncs: ${JSON.stringify(requests.map(request => ({ method: request.method, table: 'app_data', keys: request.keys.length, select: request.select })))}`);
   window.removeEventListener('cloud-sync-complete', onSync);
 });
+
+test('class-scoped exam submissions sync without replacing other classes', async () => {
+  setSession('teacher');
+  const formOne = [{
+    exam_id: 'exam-E',
+    class_name: 'Form 1',
+    subject: 'Mathematics',
+    teacher_id: 'teacher-1',
+    submitted_at: '2026-10-30T07:57:19.000Z'
+  }];
+  setMockCloud([{
+    key: 'sms_exam_submissions',
+    value: JSON.stringify(formOne),
+    updated_at: '2026-10-30T07:57:19.000Z'
+  }]);
+
+  const formThree = {
+    exam_id: 'exam-E',
+    class_name: 'Form 3',
+    subject: 'Mathematics',
+    teacher_id: 'teacher-3',
+    submitted_at: '2026-11-02T10:00:00.000Z'
+  };
+  localStorage.setItem('sms_exam_submissions', JSON.stringify([formThree]));
+  cloud.markAppDataKeyDirty('sms_exam_submissions', JSON.stringify([formThree]));
+  await cloud.syncToCloud();
+
+  const bothClasses = [formOne[0], formThree];
+  assert.deepEqual(valueFor('sms_exam_submissions'), bothClasses);
+  assert.deepEqual(JSON.parse(localStorage.getItem('sms_exam_submissions')), bothClasses);
+  assert.equal(localStorage.getItem('sms_exam_submissions_cloud_pending'), null);
+});
