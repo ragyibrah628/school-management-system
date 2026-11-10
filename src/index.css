@@ -93,6 +93,7 @@
     overflow: visible !important;
     transform: none !important;
     zoom: 1 !important;
+    border: 0 !important;
     box-shadow: none !important;
   }
 
@@ -373,6 +374,18 @@
   font-size: var(--fs);
   line-height: 1.25;
   overflow-wrap: anywhere;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.lesson-plan-remark-lines {
+  margin-top: 1mm;
+}
+
+.lesson-plan-remark-lines span {
+  display: block;
+  height: 6.5mm;
+  border-bottom: 0.5px dotted #6b7280;
 }
 
 @media print and (min-height: 290mm) {

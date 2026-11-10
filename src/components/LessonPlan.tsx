@@ -61,8 +61,11 @@ function useFitToPage(
       return;
     }
 
-    const letterTargetHeight = (279 - 9) * 96 / 25.4;
-    const fits = () => sheet.scrollHeight <= letterTargetHeight;
+    // Letter pages are 279.4 mm tall (fit to 268 mm); A4 pages are 297 mm tall (fit to 286 mm).
+    // The exact (non-rounded) height is used so the last millimetre cannot be cut off.
+    const tallPage = window.matchMedia('(min-height: 290mm)').matches;
+    const targetHeight = (tallPage ? 286 : 268) * 96 / 25.4;
+    const fits = () => sheet.getBoundingClientRect().height <= targetHeight;
 
     sheet.style.removeProperty('--cell-padding-y');
     sheet.style.removeProperty('--block-gap');
@@ -72,7 +75,6 @@ function useFitToPage(
       if (fits()) return;
     }
 
-    const tallPage = window.matchMedia('(min-height: 290mm)').matches;
     const compactSpacing = tallPage
       ? [[1.75, 4], [1.5, 3.5], [1.25, 3], [1, 2.5]]
       : [[1, 3], [0.75, 2.5], [0.5, 2]];
@@ -313,6 +315,9 @@ export function LessonPlan({
       ]
     : [];
   const replacePart = (text: string) => text.split('{part}').join(selectedPart?.part ?? '');
+  const printedRemark = selectedRemark && selectedRemark !== 'No remark (leave blank lines)'
+    ? selectedRemark
+    : '';
   const fitToPage = useFitToPage(printSheetRef, [
     className,
     date,
@@ -785,11 +790,18 @@ export function LessonPlan({
               </table>
             </section>
 
-            {selectedRemark && selectedRemark !== 'No remark (leave blank lines)' && (
-              <p className="lesson-plan-remarks">
-                <strong>REMARKS:</strong> {selectedRemark}
-              </p>
-            )}
+            {/* REMARKS is always printed, last on the page: the chosen remark, or blank lines to write on. */}
+            <div className="lesson-plan-remarks">
+              <strong>REMARKS:</strong>
+              {printedRemark ? (
+                <span className="lesson-plan-remarks-text"> {printedRemark}</span>
+              ) : (
+                <div className="lesson-plan-remark-lines" aria-hidden="true">
+                  <span />
+                  <span />
+                </div>
+              )}
+            </div>
           </article>
           </div>
           </div>
