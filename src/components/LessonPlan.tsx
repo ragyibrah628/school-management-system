@@ -45,6 +45,38 @@ interface RegisteredCounts {
 
 type PeriodType = '' | 'single' | 'double';
 
+// A lesson plan must print on ONE page. Letter (279 mm) is the shortest paper we print on, and some
+// browsers/printers shrink the printable area, so the sheet is fitted to PRINT_TARGET_MM (a safe margin).
+// The fit is measured on screen with the same width/padding as the printout, so it does not depend on
+// the browser reporting the "print" media state correctly.
+const PRINT_TARGET_MM = 245;
+const PRINT_HIDE_ATTR = 'data-lp-print-hide';
+const PRINT_PATH_ATTR = 'data-lp-print-path';
+
+function clearPrintTree() {
+  document.querySelectorAll(`[${PRINT_HIDE_ATTR}], [${PRINT_PATH_ATTR}]`).forEach(element => {
+    element.removeAttribute(PRINT_HIDE_ATTR);
+    element.removeAttribute(PRINT_PATH_ATTR);
+  });
+}
+
+// When printing, everything in the app except the lesson plan sheet must not take any space.
+// Elements that only had "visibility: hidden" still made the document longer than one page, which
+// printed a second, duplicate page. The marked elements are hidden/neutralised by CSS in @media print only.
+function markPrintTree(sheet: HTMLElement) {
+  clearPrintTree();
+  let node: HTMLElement = sheet;
+  while (node.parentElement) {
+    const parent: HTMLElement = node.parentElement;
+    Array.from(parent.children).forEach(child => {
+      if (child !== node) child.setAttribute(PRINT_HIDE_ATTR, '');
+    });
+    if (parent === document.body || parent === document.documentElement) break;
+    parent.setAttribute(PRINT_PATH_ATTR, '');
+    node = parent;
+  }
+}
+
 function useFitToPage(
   sheetRef: RefObject<HTMLElement | null>,
   dependencies: readonly unknown[],
@@ -53,62 +85,51 @@ function useFitToPage(
     const sheet = sheetRef.current;
     if (!sheet) return;
 
-    if (!window.matchMedia('print').matches) {
-      sheet.style.setProperty('--fs', '13pt');
+    const limit = PRINT_TARGET_MM * 96 / 25.4;
+    // offsetHeight is the real layout height (the on-screen preview is scaled with a transform).
+    const fits = () => sheet.offsetHeight <= limit;
+
+    const fit = () => {
       sheet.style.removeProperty('--cell-padding-y');
       sheet.style.removeProperty('--block-gap');
       sheet.style.removeProperty('--process-row-padding-y');
-      return;
-    }
+      for (let fontSize = 11; fontSize >= 10.5; fontSize -= 0.25) {
+        sheet.style.setProperty('--fs', `${fontSize}pt`);
+        if (fits()) return;
+      }
 
-    // Letter pages are 279.4 mm tall (fit to 268 mm); A4 pages are 297 mm tall (fit to 286 mm).
-    // The exact (non-rounded) height is used so the last millimetre cannot be cut off.
-    const tallPage = window.matchMedia('(min-height: 290mm)').matches;
-    const targetHeight = (tallPage ? 286 : 268) * 96 / 25.4;
-    const fits = () => sheet.getBoundingClientRect().height <= targetHeight;
+      const compactSpacing = [[1, 3], [0.75, 2.5], [0.5, 2]];
+      for (const [padding, gap] of compactSpacing) {
+        sheet.style.setProperty('--cell-padding-y', `${padding}mm`);
+        sheet.style.setProperty('--process-row-padding-y', `${padding}mm`);
+        sheet.style.setProperty('--block-gap', `${gap}mm`);
+        if (fits()) return;
+      }
 
-    sheet.style.removeProperty('--cell-padding-y');
-    sheet.style.removeProperty('--block-gap');
-    sheet.style.removeProperty('--process-row-padding-y');
-    for (let fontSize = 11; fontSize >= 10.5; fontSize -= 0.25) {
-      sheet.style.setProperty('--fs', `${fontSize}pt`);
-      if (fits()) return;
-    }
+      for (let fontSize = 10.25; fontSize >= 8; fontSize -= 0.25) {
+        sheet.style.setProperty('--fs', `${fontSize}pt`);
+        if (fits()) return;
+      }
+    };
 
-    const compactSpacing = tallPage
-      ? [[1.75, 4], [1.5, 3.5], [1.25, 3], [1, 2.5]]
-      : [[1, 3], [0.75, 2.5], [0.5, 2]];
-    for (const [padding, gap] of compactSpacing) {
-      sheet.style.setProperty('--cell-padding-y', `${padding}mm`);
-      sheet.style.setProperty('--process-row-padding-y', `${padding}mm`);
-      sheet.style.setProperty('--block-gap', `${gap}mm`);
-      if (fits()) return;
-    }
-
-    for (let fontSize = 10.25; fontSize >= 8; fontSize -= 0.25) {
-      sheet.style.setProperty('--fs', `${fontSize}pt`);
-      if (fits()) return;
-    }
+    fit();
+    markPrintTree(sheet);
   }, [sheetRef]);
 
   useLayoutEffect(() => {
     let active = true;
-    const measureWhenFontsReady = () => {
-      void document.fonts.ready.then(() => {
-        if (active) fitToPage();
-      });
-    };
     fitToPage();
-    measureWhenFontsReady();
-    const printMedia = window.matchMedia('print');
-    printMedia.addEventListener('change', fitToPage);
+    void document.fonts.ready.then(() => {
+      if (active) fitToPage();
+    });
     window.addEventListener('beforeprint', fitToPage);
     return () => {
       active = false;
-      printMedia.removeEventListener('change', fitToPage);
       window.removeEventListener('beforeprint', fitToPage);
     };
   }, [fitToPage, ...dependencies]);
+
+  useEffect(() => clearPrintTree, []);
 
   return fitToPage;
 }
