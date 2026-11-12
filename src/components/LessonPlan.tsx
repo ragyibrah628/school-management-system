@@ -803,7 +803,7 @@ export function LessonPlan({
                 <tbody>
                   <tr><th>MAIN COMPETENCE</th><td>{unit?.mainCompetence}</td></tr>
                   <tr><th>SPECIFIC COMPETENCE</th><td>{unit?.specificCompetence}</td></tr>
-                  <tr><th>MAIN ACTIVITY</th><td>{unit?.mainActivity}</td></tr>
+                  <tr><th>MAIN ACTIVITY</th><td>{unit && selectedPart ? `${unit.mainActivity} – focus: ${selectedPart.part}` : unit?.mainActivity}</td></tr>
                   <tr>
                     <th>SPECIFIC ACTIVITIES</th>
                     <td>{selectedPart && <ol>{selectedPart.specificActivities.map(activity => <li key={activity}>{activity}</li>)}</ol>}</td>

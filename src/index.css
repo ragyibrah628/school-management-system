@@ -160,6 +160,11 @@
   color: #111;
   background: #fff;
   font-family: Arial, Helvetica, Calibri, "Segoe UI", sans-serif;
+  /* Stops the printer driver from "snapping" thin letters such as l and I to thicker stems (looked bold). */
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  font-synthesis: none;
+  font-kerning: normal;
   font-size: var(--fs);
   line-height: 1.25;
 }
