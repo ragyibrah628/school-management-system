@@ -49,7 +49,7 @@ type PeriodType = '' | 'single' | 'double';
 // browsers/printers shrink the printable area, so the sheet is fitted to PRINT_TARGET_MM (a safe margin).
 // The fit is measured on screen with the same width/padding as the printout, so it does not depend on
 // the browser reporting the "print" media state correctly.
-const PRINT_TARGET_MM = 262;
+const PRINT_TARGET_MM = 268;
 const PRINT_HIDE_ATTR = 'data-lp-print-hide';
 const PRINT_PATH_ATTR = 'data-lp-print-path';
 
@@ -93,22 +93,20 @@ function useFitToPage(
       sheet.style.removeProperty('--cell-padding-y');
       sheet.style.removeProperty('--block-gap');
       sheet.style.removeProperty('--process-row-padding-y');
-      // Roomy layout first: if the lesson is short, spread it over the page instead of leaving blank space.
-      const roomySpacing = [[3.5, 8, 4], [3, 6.5, 3.5], [2.4, 5.5, 2.8], [1.8, 4.5, 2]];
-      for (const [padding, gap, rowPadding] of roomySpacing) {
-        sheet.style.setProperty('--fs', '13pt');
-        sheet.style.setProperty('--cell-padding-y', `${padding}mm`);
-        sheet.style.setProperty('--block-gap', `${gap}mm`);
-        sheet.style.setProperty('--process-row-padding-y', `${rowPadding}mm`);
-        if (fits()) return;
+      // Use the page: try the biggest text with the roomiest spacing first, and step down until the sheet fits.
+      const spacingLevels = [[3.5, 8, 4], [3, 6.5, 3.5], [2.4, 5.5, 2.8], [1.8, 4.5, 2], [1.35, 3.5, 1.2]];
+      for (let fontSize = 13; fontSize >= 10.5; fontSize -= 0.25) {
+        sheet.style.setProperty('--fs', `${fontSize}pt`);
+        for (const [padding, gap, rowPadding] of spacingLevels) {
+          sheet.style.setProperty('--cell-padding-y', `${padding}mm`);
+          sheet.style.setProperty('--block-gap', `${gap}mm`);
+          sheet.style.setProperty('--process-row-padding-y', `${rowPadding}mm`);
+          if (fits()) return;
+        }
       }
       sheet.style.removeProperty('--cell-padding-y');
       sheet.style.removeProperty('--block-gap');
       sheet.style.removeProperty('--process-row-padding-y');
-      for (let fontSize = 13; fontSize >= 10.5; fontSize -= 0.25) {
-        sheet.style.setProperty('--fs', `${fontSize}pt`);
-        if (fits()) return;
-      }
 
       const compactSpacing = [[1, 3], [0.75, 2.5], [0.5, 2]];
       for (const [padding, gap] of compactSpacing) {
