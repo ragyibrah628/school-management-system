@@ -93,16 +93,15 @@ function useFitToPage(
       sheet.style.removeProperty('--cell-padding-y');
       sheet.style.removeProperty('--block-gap');
       sheet.style.removeProperty('--process-row-padding-y');
-      // Use the page: try the biggest text with the roomiest spacing first, and step down until the sheet fits.
-      const spacingLevels = [[3.5, 8, 4], [3, 6.5, 3.5], [2.4, 5.5, 2.8], [1.8, 4.5, 2], [1.35, 3.5, 1.2]];
-      for (let fontSize = 13; fontSize >= 10.5; fontSize -= 0.25) {
-        sheet.style.setProperty('--fs', `${fontSize}pt`);
-        for (const [padding, gap, rowPadding] of spacingLevels) {
-          sheet.style.setProperty('--cell-padding-y', `${padding}mm`);
-          sheet.style.setProperty('--block-gap', `${gap}mm`);
-          sheet.style.setProperty('--process-row-padding-y', `${rowPadding}mm`);
-          if (fits()) return;
-        }
+      // Use the page: one smooth "size" knob (0 = compact, 1 = roomy) that scales the text and the spacing
+      // together. Take the largest value that still fits on one page, so short lessons fill the page.
+      for (let step = 50; step >= 0; step -= 1) {
+        const t = step / 50;
+        sheet.style.setProperty('--fs', `${(10.5 + 2.5 * t).toFixed(2)}pt`);
+        sheet.style.setProperty('--cell-padding-y', `${(1 + 2.5 * t).toFixed(2)}mm`);
+        sheet.style.setProperty('--block-gap', `${(3 + 5 * t).toFixed(2)}mm`);
+        sheet.style.setProperty('--process-row-padding-y', `${(1 + 3 * t).toFixed(2)}mm`);
+        if (fits()) return;
       }
       sheet.style.removeProperty('--cell-padding-y');
       sheet.style.removeProperty('--block-gap');
