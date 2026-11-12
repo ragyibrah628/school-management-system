@@ -93,14 +93,17 @@ function useFitToPage(
       sheet.style.removeProperty('--cell-padding-y');
       sheet.style.removeProperty('--block-gap');
       sheet.style.removeProperty('--process-row-padding-y');
-      // Use the page: one smooth "size" knob (0 = compact, 1 = roomy) that scales the text and the spacing
-      // together. Take the largest value that still fits on one page, so short lessons fill the page.
-      for (let step = 50; step >= 0; step -= 1) {
+      // Use the page: one smooth "size" knob t (-1 = very compact, 0 = normal, 1 = roomy) that scales the text
+      // and the spacing together. Take the largest t that still fits on one page, so short lessons fill the
+      // page and long ones are squeezed just enough.
+      for (let step = 50; step >= -50; step -= 1) {
         const t = step / 50;
-        sheet.style.setProperty('--fs', `${(10.5 + 2.5 * t).toFixed(2)}pt`);
-        sheet.style.setProperty('--cell-padding-y', `${(1 + 2.5 * t).toFixed(2)}mm`);
-        sheet.style.setProperty('--block-gap', `${(3 + 5 * t).toFixed(2)}mm`);
-        sheet.style.setProperty('--process-row-padding-y', `${(1 + 3 * t).toFixed(2)}mm`);
+        const roomy = Math.max(t, 0);
+        const tight = Math.min(t, 0);
+        sheet.style.setProperty('--fs', `${(10.5 + 2.5 * roomy).toFixed(2)}pt`);
+        sheet.style.setProperty('--cell-padding-y', `${(1 + 2.5 * roomy + 0.5 * tight).toFixed(2)}mm`);
+        sheet.style.setProperty('--block-gap', `${(3 + 5 * roomy + 1 * tight).toFixed(2)}mm`);
+        sheet.style.setProperty('--process-row-padding-y', `${(1 + 3 * roomy + 0.5 * tight).toFixed(2)}mm`);
         if (fits()) return;
       }
       sheet.style.removeProperty('--cell-padding-y');
