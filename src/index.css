@@ -316,6 +316,12 @@
 .lesson-plan-details ol {
   margin: 0;
   padding-left: 5mm;
+  list-style: decimal outside;
+}
+
+.lesson-plan-details li {
+  display: list-item;
+  padding-left: 1mm;
 }
 
 .lesson-plan-process-section {

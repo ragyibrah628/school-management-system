@@ -49,7 +49,7 @@ type PeriodType = '' | 'single' | 'double';
 // browsers/printers shrink the printable area, so the sheet is fitted to PRINT_TARGET_MM (a safe margin).
 // The fit is measured on screen with the same width/padding as the printout, so it does not depend on
 // the browser reporting the "print" media state correctly.
-const PRINT_TARGET_MM = 245;
+const PRINT_TARGET_MM = 262;
 const PRINT_HIDE_ATTR = 'data-lp-print-hide';
 const PRINT_PATH_ATTR = 'data-lp-print-path';
 
@@ -93,7 +93,19 @@ function useFitToPage(
       sheet.style.removeProperty('--cell-padding-y');
       sheet.style.removeProperty('--block-gap');
       sheet.style.removeProperty('--process-row-padding-y');
-      for (let fontSize = 11; fontSize >= 10.5; fontSize -= 0.25) {
+      // Roomy layout first: if the lesson is short, spread it over the page instead of leaving blank space.
+      const roomySpacing = [[3.5, 8, 4], [3, 6.5, 3.5], [2.4, 5.5, 2.8], [1.8, 4.5, 2]];
+      for (const [padding, gap, rowPadding] of roomySpacing) {
+        sheet.style.setProperty('--fs', '13pt');
+        sheet.style.setProperty('--cell-padding-y', `${padding}mm`);
+        sheet.style.setProperty('--block-gap', `${gap}mm`);
+        sheet.style.setProperty('--process-row-padding-y', `${rowPadding}mm`);
+        if (fits()) return;
+      }
+      sheet.style.removeProperty('--cell-padding-y');
+      sheet.style.removeProperty('--block-gap');
+      sheet.style.removeProperty('--process-row-padding-y');
+      for (let fontSize = 13; fontSize >= 10.5; fontSize -= 0.25) {
         sheet.style.setProperty('--fs', `${fontSize}pt`);
         if (fits()) return;
       }
@@ -298,8 +310,16 @@ export function LessonPlan({
     if (periodType !== 'double') return true;
     const slotIndex = storedTimeSlots.findIndex(candidate => candidate.id === slot.id);
     const nextSlot = storedTimeSlots[slotIndex + 1];
-    return !!nextSlot && !nextSlot.isBreak && !nextSlot.isActivity &&
-      typeof nextSlot.endTime === 'string';
+    if (!nextSlot || nextSlot.isBreak || nextSlot.isActivity || typeof nextSlot.endTime !== 'string') return false;
+    // Double periods are fixed blocks that never overlap: within each run of lessons (between breaks)
+    // they are Period 1+2, 3+4, ... so only the 1st, 3rd, 5th... lesson of a run can start one.
+    let positionInRun = 0;
+    for (let i = slotIndex - 1; i >= 0; i -= 1) {
+      const previous = storedTimeSlots[i];
+      if (previous.isBreak || previous.isActivity) break;
+      positionInRun += 1;
+    }
+    return positionInRun % 2 === 0;
   };
   const printedTime = selectedSlot && periodType
     ? `${selectedSlot.startTime} - ${periodType === 'double' && secondSlot ? secondSlot.endTime : selectedSlot.endTime}`
@@ -521,7 +541,9 @@ export function LessonPlan({
                       const end = periodType === 'double'
                         ? storedTimeSlots[slotIndex + 1]?.endTime
                         : slot.endTime;
-                      return <option key={slot.id} value={slot.id}>{slot.name}: {slot.startTime} - {end}</option>;
+                      const nextName = periodType === 'double' ? storedTimeSlots[slotIndex + 1]?.name : '';
+                      const label = nextName ? `${slot.name} + ${nextName}` : slot.name;
+                      return <option key={slot.id} value={slot.id}>{label}: {slot.startTime} - {end}</option>;
                     })}
                   </select>
                 </label>
