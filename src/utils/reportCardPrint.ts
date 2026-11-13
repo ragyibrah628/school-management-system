@@ -2,6 +2,87 @@ export function formatReportCardPosition(rank: number, classTotal: number): stri
   return `${rank} kati ya ${classTotal}`;
 }
 
+type TrimImage = {
+  src: string;
+  onload: (() => void) | null;
+  onerror: (() => void) | null;
+  naturalWidth: number;
+  naturalHeight: number;
+};
+
+type TrimCanvasContext = {
+  getImageData(x: number, y: number, width: number, height: number): { data: Uint8ClampedArray };
+  drawImage(image: TrimImage, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number): void;
+};
+
+type TrimCanvas = {
+  width: number;
+  height: number;
+  getContext(type: string): TrimCanvasContext | null;
+  toDataURL(type?: string): string;
+};
+
+export type SignatureTrimEnvironment = {
+  createImage(): TrimImage;
+  createCanvas(): TrimCanvas;
+};
+
+export async function trimSignatureDataUrl(
+  source: string,
+  environment: SignatureTrimEnvironment = {
+    createImage: () => new Image(),
+    createCanvas: () => document.createElement('canvas')
+  }
+): Promise<string> {
+  if (!source) return source;
+
+  try {
+    const image = environment.createImage();
+    const loaded = new Promise<boolean>(resolve => {
+      image.onload = () => resolve(true);
+      image.onerror = () => resolve(false);
+      image.src = source;
+    });
+    if (!await loaded || image.naturalWidth === 0 || image.naturalHeight === 0) return source;
+
+    const canvas = environment.createCanvas();
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d');
+    if (!context) return source;
+
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let left = canvas.width;
+    let top = canvas.height;
+    let right = -1;
+    let bottom = -1;
+
+    for (let y = 0; y < canvas.height; y++) {
+      for (let x = 0; x < canvas.width; x++) {
+        if (pixels[(y * canvas.width + x) * 4 + 3] > 10) {
+          left = Math.min(left, x);
+          top = Math.min(top, y);
+          right = Math.max(right, x);
+          bottom = Math.max(bottom, y);
+        }
+      }
+    }
+
+    if (right < left || bottom < top) return '';
+
+    const cropWidth = right - left + 1;
+    const cropHeight = bottom - top + 1;
+    canvas.width = cropWidth;
+    canvas.height = cropHeight;
+    const croppedContext = canvas.getContext('2d');
+    if (!croppedContext) return source;
+    croppedContext.drawImage(image, left, top, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+    return canvas.toDataURL('image/png');
+  } catch {
+    return source;
+  }
+}
+
 export function createReportCardPrintDocument(cardsHtml: string): string {
   return `<!DOCTYPE html>
 <html lang="sw">
@@ -15,7 +96,7 @@ export function createReportCardPrintDocument(cardsHtml: string): string {
   html, body { width: 100%; margin: 0; padding: 0; }
   body {
     color: #111827;
-    background: #e8eee9;
+    background: #fff;
     font-family: Arial, "Segoe UI", Helvetica, sans-serif;
     font-size: 10.5pt;
     -webkit-print-color-adjust: exact;
@@ -123,15 +204,35 @@ export function createReportCardPrintDocument(cardsHtml: string): string {
     text-align: center;
   }
   .behavior-table { margin-top: 3mm; }
+  .behavior-table thead tr:nth-child(2) th {
+    width: 10%;
+    padding: 0.8mm 0.2mm !important;
+    font-size: 8pt !important;
+    line-height: 1.05;
+    letter-spacing: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    vertical-align: middle;
+  }
   .behavior-table th {
     border: 1px solid #374151;
-    padding: 1.5mm 0.2mm !important;
+    padding: 1mm 0.2mm !important;
     color: #374151 !important;
     background: #fff7d6 !important;
-    font-size: 9.5pt !important;
+    font-size: 8pt !important;
     font-family: inherit;
   }
-  .behavior-table td { padding: 1.7mm 0.7mm !important; font-size: 9.5pt !important; font-weight: 700; text-align: center; }
+  .behavior-table th strong { font-family: inherit !important; }
+  .behavior-table td {
+    height: 8mm;
+    padding: 0.5mm 0.2mm !important;
+    font-size: 8pt !important;
+    line-height: 1.05;
+    font-weight: 700;
+    text-align: center;
+    vertical-align: middle;
+    overflow-wrap: anywhere;
+  }
   .comments-row { display: flex; width: 100%; gap: 3mm; margin-top: 4mm; align-items: stretch; }
   .comment-box {
     display: flex;
@@ -172,12 +273,12 @@ export function createReportCardPrintDocument(cardsHtml: string): string {
   .sig-img {
     display: block;
     width: auto;
-    height: 15mm;
-    max-width: 48mm;
-    max-height: 15mm;
+    height: 13mm;
+    max-width: 38mm;
+    max-height: 13mm;
     object-fit: contain;
     object-position: bottom right;
-    margin-bottom: -1mm;
+    margin-bottom: 0;
     border: 0 !important;
     padding: 0 !important;
     background: transparent !important;
@@ -222,13 +323,13 @@ export function createReportCardPrintDocument(cardsHtml: string): string {
     .page-break { break-after: page; page-break-after: always; }
     .subjects-table { margin: 2mm 0; }
     .subjects-table th, .subjects-table td { padding: 1.5mm 1.1mm; }
-    .behavior-table th { overflow-wrap: normal; word-break: normal; hyphens: none; }
+    .behavior-table th { overflow-wrap: anywhere; word-break: normal; hyphens: none; }
     .info-cell { padding: 2mm 2.5mm; }
     .grade-box { margin: 2.5mm 0; padding: 2.5mm; }
     .comment-title { padding-top: 1.8mm; padding-bottom: 1.5mm; }
     .comment-text { font-size: 9.5pt; line-height: 1.25; }
     .sig-row { min-height: 16mm; }
-    .sig-img { max-height: 15mm; }
+    .sig-img { max-height: 13mm; }
     .footer { margin-top: 3mm; padding-top: 2mm; }
     .report-card--compact .header { margin-bottom: 2mm; padding-bottom: 2mm; }
     .report-card--compact .school-name { font-size: 16pt !important; }
@@ -240,7 +341,7 @@ export function createReportCardPrintDocument(cardsHtml: string): string {
     .report-card--compact .comment-box { padding-bottom: 1.5mm; }
     .report-card--compact .comment-text { font-size: 9pt; line-height: 1.15; }
     .report-card--compact .sig-row { min-height: 16mm; font-size: 9pt; }
-    .report-card--compact .sig-img { max-height: 15mm; }
+    .report-card--compact .sig-img { max-height: 13mm; }
     .report-card--long-comments .header { margin-bottom: 1mm; padding-bottom: 1mm; }
     .report-card--long-comments .info-cell { padding: 1mm 2mm; }
     .report-card--long-comments .subjects-table { margin: 1mm 0; }

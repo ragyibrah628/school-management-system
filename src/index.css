@@ -57,27 +57,31 @@
     zoom: 1 !important;
   }
 
-  html.lesson-plan-print-mode body * {
-    visibility: hidden !important;
+  /* Everything except the lesson plan sheet takes no space (see markPrintTree in LessonPlan.tsx). */
+  html.lesson-plan-print-mode [data-lp-print-hide] {
+    display: none !important;
+  }
+
+  html.lesson-plan-print-mode [data-lp-print-path] {
+    display: block !important;
+    position: static !important;
+    float: none !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+    zoom: 1 !important;
+    box-shadow: none !important;
+    background: none !important;
   }
 
   html.lesson-plan-print-mode .lesson-plan-page {
-    display: block !important;
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
     width: 210mm !important;
-    height: auto !important;
-    min-height: auto !important;
-    max-width: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: visible !important;
-  }
-
-  html.lesson-plan-print-mode .lesson-plan-print,
-  html.lesson-plan-print-mode .lesson-plan-print * {
-    visibility: visible !important;
   }
 
   html.lesson-plan-print-mode .lesson-plan-print {
@@ -93,6 +97,7 @@
     overflow: visible !important;
     transform: none !important;
     zoom: 1 !important;
+    border: 0 !important;
     box-shadow: none !important;
   }
 
@@ -149,12 +154,17 @@
   height: auto;
   min-width: 0;
   max-width: none;
-  padding: 12mm;
-  border: 0.5px solid #bbb;
-  box-shadow: 0 4px 20px rgb(15 23 42 / 0.12);
+  padding: 10mm;
+  border: 0;
+  box-shadow: 0 0 0 0.5px #bbb, 0 4px 20px rgb(15 23 42 / 0.12);
   color: #111;
   background: #fff;
   font-family: Arial, Helvetica, Calibri, "Segoe UI", sans-serif;
+  /* Stops the printer driver from "snapping" thin letters such as l and I to thicker stems (looked bold). */
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  font-synthesis: none;
+  font-kerning: normal;
   font-size: var(--fs);
   line-height: 1.25;
 }
@@ -311,6 +321,12 @@
 .lesson-plan-details ol {
   margin: 0;
   padding-left: 5mm;
+  list-style: decimal outside;
+}
+
+.lesson-plan-details li {
+  display: list-item;
+  padding-left: 1mm;
 }
 
 .lesson-plan-process-section {
@@ -373,14 +389,18 @@
   font-size: var(--fs);
   line-height: 1.25;
   overflow-wrap: anywhere;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
-@media print and (min-height: 290mm) {
-  .lesson-plan-print {
-    --cell-padding-y: 2mm;
-    --block-gap: 5mm;
-    --process-row-padding-y: 1.8mm;
-  }
+.lesson-plan-remark-lines {
+  margin-top: 1mm;
+}
+
+.lesson-plan-remark-lines span {
+  display: block;
+  height: 6mm;
+  border-bottom: 0.5px dotted #6b7280;
 }
 
 .lesson-plan-preview-scroll {

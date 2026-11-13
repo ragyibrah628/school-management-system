@@ -12,10 +12,12 @@ import {
 import {
   buildRemarkOptions,
   COMMON_RESOURCES,
+  getReference,
+  MATH_COMMON_RESOURCES,
+  MATH_REFERENCES,
   INTRODUCTION,
   LESSON_PARTS,
   METHOD_TEMPLATES,
-  REFERENCES,
   STAGE_MINUTES_DOUBLE,
   STAGE_MINUTES_SINGLE,
   UNITS,
@@ -45,6 +47,38 @@ interface RegisteredCounts {
 
 type PeriodType = '' | 'single' | 'double';
 
+// A lesson plan must print on ONE page. Letter (279 mm) is the shortest paper we print on, and some
+// browsers/printers shrink the printable area, so the sheet is fitted to PRINT_TARGET_MM (a safe margin).
+// The fit is measured on screen with the same width/padding as the printout, so it does not depend on
+// the browser reporting the "print" media state correctly.
+const PRINT_TARGET_MM = 268;
+const PRINT_HIDE_ATTR = 'data-lp-print-hide';
+const PRINT_PATH_ATTR = 'data-lp-print-path';
+
+function clearPrintTree() {
+  document.querySelectorAll(`[${PRINT_HIDE_ATTR}], [${PRINT_PATH_ATTR}]`).forEach(element => {
+    element.removeAttribute(PRINT_HIDE_ATTR);
+    element.removeAttribute(PRINT_PATH_ATTR);
+  });
+}
+
+// When printing, everything in the app except the lesson plan sheet must not take any space.
+// Elements that only had "visibility: hidden" still made the document longer than one page, which
+// printed a second, duplicate page. The marked elements are hidden/neutralised by CSS in @media print only.
+function markPrintTree(sheet: HTMLElement) {
+  clearPrintTree();
+  let node: HTMLElement = sheet;
+  while (node.parentElement) {
+    const parent: HTMLElement = node.parentElement;
+    Array.from(parent.children).forEach(child => {
+      if (child !== node) child.setAttribute(PRINT_HIDE_ATTR, '');
+    });
+    if (parent === document.body || parent === document.documentElement) break;
+    parent.setAttribute(PRINT_PATH_ATTR, '');
+    node = parent;
+  }
+}
+
 function useFitToPage(
   sheetRef: RefObject<HTMLElement | null>,
   dependencies: readonly unknown[],
@@ -53,60 +87,63 @@ function useFitToPage(
     const sheet = sheetRef.current;
     if (!sheet) return;
 
-    if (!window.matchMedia('print').matches) {
-      sheet.style.setProperty('--fs', '13pt');
+    const limit = PRINT_TARGET_MM * 96 / 25.4;
+    // offsetHeight is the real layout height (the on-screen preview is scaled with a transform).
+    const fits = () => sheet.offsetHeight <= limit;
+
+    const fit = () => {
       sheet.style.removeProperty('--cell-padding-y');
       sheet.style.removeProperty('--block-gap');
       sheet.style.removeProperty('--process-row-padding-y');
-      return;
-    }
+      // Use the page: one smooth "size" knob t (-1 = very compact, 0 = normal, 1 = roomy) that scales the text
+      // and the spacing together. Take the largest t that still fits on one page, so short lessons fill the
+      // page and long ones are squeezed just enough.
+      for (let step = 50; step >= -50; step -= 1) {
+        const t = step / 50;
+        const roomy = Math.max(t, 0);
+        const tight = Math.min(t, 0);
+        sheet.style.setProperty('--fs', `${(10.5 + 2.5 * roomy).toFixed(2)}pt`);
+        sheet.style.setProperty('--cell-padding-y', `${(1 + 2.5 * roomy + 0.5 * tight).toFixed(2)}mm`);
+        sheet.style.setProperty('--block-gap', `${(3 + 5 * roomy + 1 * tight).toFixed(2)}mm`);
+        sheet.style.setProperty('--process-row-padding-y', `${(1 + 3 * roomy + 0.5 * tight).toFixed(2)}mm`);
+        if (fits()) return;
+      }
+      sheet.style.removeProperty('--cell-padding-y');
+      sheet.style.removeProperty('--block-gap');
+      sheet.style.removeProperty('--process-row-padding-y');
 
-    const letterTargetHeight = (279 - 9) * 96 / 25.4;
-    const fits = () => sheet.scrollHeight <= letterTargetHeight;
+      const compactSpacing = [[1, 3], [0.75, 2.5], [0.5, 2]];
+      for (const [padding, gap] of compactSpacing) {
+        sheet.style.setProperty('--cell-padding-y', `${padding}mm`);
+        sheet.style.setProperty('--process-row-padding-y', `${padding}mm`);
+        sheet.style.setProperty('--block-gap', `${gap}mm`);
+        if (fits()) return;
+      }
 
-    sheet.style.removeProperty('--cell-padding-y');
-    sheet.style.removeProperty('--block-gap');
-    sheet.style.removeProperty('--process-row-padding-y');
-    for (let fontSize = 11; fontSize >= 10.5; fontSize -= 0.25) {
-      sheet.style.setProperty('--fs', `${fontSize}pt`);
-      if (fits()) return;
-    }
+      for (let fontSize = 10.25; fontSize >= 8; fontSize -= 0.25) {
+        sheet.style.setProperty('--fs', `${fontSize}pt`);
+        if (fits()) return;
+      }
+    };
 
-    const tallPage = window.matchMedia('(min-height: 290mm)').matches;
-    const compactSpacing = tallPage
-      ? [[1.75, 4], [1.5, 3.5], [1.25, 3], [1, 2.5]]
-      : [[1, 3], [0.75, 2.5], [0.5, 2]];
-    for (const [padding, gap] of compactSpacing) {
-      sheet.style.setProperty('--cell-padding-y', `${padding}mm`);
-      sheet.style.setProperty('--process-row-padding-y', `${padding}mm`);
-      sheet.style.setProperty('--block-gap', `${gap}mm`);
-      if (fits()) return;
-    }
-
-    for (let fontSize = 10.25; fontSize >= 8; fontSize -= 0.25) {
-      sheet.style.setProperty('--fs', `${fontSize}pt`);
-      if (fits()) return;
-    }
+    fit();
+    markPrintTree(sheet);
   }, [sheetRef]);
 
   useLayoutEffect(() => {
     let active = true;
-    const measureWhenFontsReady = () => {
-      void document.fonts.ready.then(() => {
-        if (active) fitToPage();
-      });
-    };
     fitToPage();
-    measureWhenFontsReady();
-    const printMedia = window.matchMedia('print');
-    printMedia.addEventListener('change', fitToPage);
+    void document.fonts.ready.then(() => {
+      if (active) fitToPage();
+    });
     window.addEventListener('beforeprint', fitToPage);
     return () => {
       active = false;
-      printMedia.removeEventListener('change', fitToPage);
       window.removeEventListener('beforeprint', fitToPage);
     };
   }, [fitToPage, ...dependencies]);
+
+  useEffect(() => clearPrintTree, []);
 
   return fitToPage;
 }
@@ -217,17 +254,23 @@ export function LessonPlan({
   )];
   const selectedForm = normalizeForm(className);
   const isComputerScience = subject.toLowerCase().includes('computer');
-  const isSupportedClass = isComputerScience && (selectedForm === 1 || selectedForm === 2);
-  const unsupportedSubject = subject && !isComputerScience
+  const isMathematics = /math/i.test(subject);
+  const lessonSubject = isComputerScience ? 'Computer Science' : isMathematics ? 'Mathematics' : null;
+  // Forms that already have lesson-plan data: Computer Science Form 1-2, Mathematics Form 1.
+  const supportedForms: number[] = isMathematics
+    ? Object.keys(MATH_REFERENCES).map(Number)
+    : isComputerScience ? [1, 2] : [];
+  const isSupportedClass = !!lessonSubject && !!selectedForm && supportedForms.includes(selectedForm);
+  const unsupportedSubject = subject && !lessonSubject
     ? subject
-    : subject && selectedForm && selectedForm >= 3
-      ? `Computer Science (Form ${selectedForm})`
+    : subject && selectedForm && !isSupportedClass
+      ? `${lessonSubject} (Form ${selectedForm})`
       : subject && className && !isSupportedClass
-        ? `Computer Science (${className})`
+        ? `${lessonSubject} (${className})`
         : '';
 
-  const formParts = selectedForm === 1 || selectedForm === 2
-    ? LESSON_PARTS.filter(lessonPart => lessonPart.form === selectedForm)
+  const formParts = isSupportedClass
+    ? LESSON_PARTS.filter(lessonPart => lessonPart.subject === lessonSubject && lessonPart.form === selectedForm)
     : [];
   const topics = [...new Set(formParts.map(lessonPart => lessonPart.topic))];
   const subtopics = [...new Set(formParts.filter(lessonPart => lessonPart.topic === topic).map(lessonPart => lessonPart.subtopic))];
@@ -237,7 +280,7 @@ export function LessonPlan({
   const selectedPart = matchingParts.find(lessonPart => lessonPart.id === partId);
   const unit = selectedPart ? UNITS[selectedPart.unit] : undefined;
   const availableResources = selectedPart
-    ? [...new Set([...(unit?.resources ?? []), ...COMMON_RESOURCES])]
+    ? [...new Set([...(unit?.resources ?? []), ...(isMathematics ? MATH_COMMON_RESOURCES : COMMON_RESOURCES)])]
     : [];
   const availableMethods = unit?.methods ?? [];
   const selectedMethod = availableMethods[0];
@@ -275,8 +318,16 @@ export function LessonPlan({
     if (periodType !== 'double') return true;
     const slotIndex = storedTimeSlots.findIndex(candidate => candidate.id === slot.id);
     const nextSlot = storedTimeSlots[slotIndex + 1];
-    return !!nextSlot && !nextSlot.isBreak && !nextSlot.isActivity &&
-      typeof nextSlot.endTime === 'string';
+    if (!nextSlot || nextSlot.isBreak || nextSlot.isActivity || typeof nextSlot.endTime !== 'string') return false;
+    // Double periods are fixed blocks that never overlap: within each run of lessons (between breaks)
+    // they are Period 1+2, 3+4, ... so only the 1st, 3rd, 5th... lesson of a run can start one.
+    let positionInRun = 0;
+    for (let i = slotIndex - 1; i >= 0; i -= 1) {
+      const previous = storedTimeSlots[i];
+      if (previous.isBreak || previous.isActivity) break;
+      positionInRun += 1;
+    }
+    return positionInRun % 2 === 0;
   };
   const printedTime = selectedSlot && periodType
     ? `${selectedSlot.startTime} - ${periodType === 'double' && secondSlot ? secondSlot.endTime : selectedSlot.endTime}`
@@ -313,6 +364,9 @@ export function LessonPlan({
       ]
     : [];
   const replacePart = (text: string) => text.split('{part}').join(selectedPart?.part ?? '');
+  const printedRemark = selectedRemark && selectedRemark !== 'No remark (leave blank lines)'
+    ? selectedRemark
+    : '';
   const fitToPage = useFitToPage(printSheetRef, [
     className,
     date,
@@ -495,7 +549,9 @@ export function LessonPlan({
                       const end = periodType === 'double'
                         ? storedTimeSlots[slotIndex + 1]?.endTime
                         : slot.endTime;
-                      return <option key={slot.id} value={slot.id}>{slot.name}: {slot.startTime} - {end}</option>;
+                      const nextName = periodType === 'double' ? storedTimeSlots[slotIndex + 1]?.name : '';
+                      const label = nextName ? `${slot.name} + ${nextName}` : slot.name;
+                      return <option key={slot.id} value={slot.id}>{label}: {slot.startTime} - {end}</option>;
                     })}
                   </select>
                 </label>
@@ -755,13 +811,13 @@ export function LessonPlan({
                 <tbody>
                   <tr><th>MAIN COMPETENCE</th><td>{unit?.mainCompetence}</td></tr>
                   <tr><th>SPECIFIC COMPETENCE</th><td>{unit?.specificCompetence}</td></tr>
-                  <tr><th>MAIN ACTIVITY</th><td>{unit?.mainActivity}</td></tr>
+                  <tr><th>MAIN ACTIVITY</th><td>{unit && selectedPart ? `${unit.mainActivity} – focus: ${selectedPart.part}` : unit?.mainActivity}</td></tr>
                   <tr>
                     <th>SPECIFIC ACTIVITIES</th>
                     <td>{selectedPart && <ol>{selectedPart.specificActivities.map(activity => <li key={activity}>{activity}</li>)}</ol>}</td>
                   </tr>
                   <tr><th>TEACHING &amp; LEARNING RESOURCES</th><td>{selectedResources.join(', ')}</td></tr>
-                  <tr><th>REFERENCES</th><td>{selectedForm ? REFERENCES[selectedForm as 1 | 2] : ''}</td></tr>
+                  <tr><th>REFERENCES</th><td>{selectedForm && lessonSubject ? getReference(lessonSubject, selectedForm) : ''}</td></tr>
                 </tbody>
               </table>
             </section>
@@ -785,11 +841,18 @@ export function LessonPlan({
               </table>
             </section>
 
-            {selectedRemark && selectedRemark !== 'No remark (leave blank lines)' && (
-              <p className="lesson-plan-remarks">
-                <strong>REMARKS:</strong> {selectedRemark}
-              </p>
-            )}
+            {/* REMARKS is always printed, last on the page: the chosen remark, or blank lines to write on. */}
+            <div className="lesson-plan-remarks">
+              <strong>REMARKS:</strong>
+              {printedRemark ? (
+                <span className="lesson-plan-remarks-text"> {printedRemark}</span>
+              ) : (
+                <div className="lesson-plan-remark-lines" aria-hidden="true">
+                  <span />
+                  <span />
+                </div>
+              )}
+            </div>
           </article>
           </div>
           </div>

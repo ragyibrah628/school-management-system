@@ -28,7 +28,7 @@ import { evaluateMark, gradeForPercentage, remarkForPercentage, sortStudentsForM
 import { rankResultsByAverage } from './utils/resultsRanking';
 import { assignedSubjectTeacherName, buildScoreSheetData, createScoreSheetsHtml, type ScoreSheetData } from './utils/scoreSheet';
 import { getAcademicReportCardComment, getHeadmasterReportCardComment } from './utils/reportCardComments';
-import { createReportCardPrintDocument, formatReportCardPosition } from './utils/reportCardPrint';
+import { createReportCardPrintDocument, formatReportCardPosition, trimSignatureDataUrl } from './utils/reportCardPrint';
 import { classLevel, isPracticalSubject, practicalFinalPercentage, practicalModeFromScores, PRACTICAL_MAX, THEORY_MAX } from './utils/practical';
 import { hasUnsavedExamScoreChanges, subjectsForClass } from './utils/teachingAssignments';
 import { offeredSubjectsForClass, submittedSubjectsForClass, upsertClassSubjectSubmission, type ExamSubjectSubmission } from './utils/resultSubmissions';
@@ -2344,12 +2344,22 @@ function AppInner() {
                 return reportHtml;
               };
 
-              const printReportCards = (rows: typeof allStudentRows, skippedNames: string[] = []) => {
+              const printReportCards = async (rows: typeof allStudentRows, skippedNames: string[] = []) => {
                 const printWindow = window.open('', '', 'width=800,height=1000');
                 if (!printWindow) {
                   alert('Print window imezuiwa na browser. Ruhusu pop-ups kisha ujaribu tena.');
                   return;
                 }
+
+                const signatureSources = [...new Set([
+                  localStorage.getItem('sms_academic_sig') || '',
+                  localStorage.getItem('sms_headmaster_sig') || ''
+                ].filter(Boolean))];
+                const trimmedSignatures = new Map(await Promise.all(
+                  signatureSources.map(async source => [source, await trimSignatureDataUrl(source)] as const)
+                ));
+                const academicSignature = trimmedSignatures.get(localStorage.getItem('sms_academic_sig') || '') || '';
+                const headmasterSignature = trimmedSignatures.get(localStorage.getItem('sms_headmaster_sig') || '') || '';
 
                 const objectUrls: string[] = [];
                 const toObjectUrl = (dataUrl: string): string => {
@@ -2366,8 +2376,8 @@ function AppInner() {
                 };
                 const imageUrls = {
                   logo: toObjectUrl(localStorage.getItem('sms_school_logo') || ''),
-                  acSig: toObjectUrl(localStorage.getItem('sms_academic_sig') || ''),
-                  hmSig: toObjectUrl(localStorage.getItem('sms_headmaster_sig') || '')
+                  acSig: toObjectUrl(academicSignature),
+                  hmSig: toObjectUrl(headmasterSignature)
                 };
                 let cleaned = false;
                 const cleanup = () => {
@@ -2388,12 +2398,19 @@ function AppInner() {
                 ).join('');
                 printWindow.document.write(createReportCardPrintDocument(cardsHtml));
                 printWindow.document.close();
-                const imageLoads = Array.from(printWindow.document.images).map((image: any) =>
-                  image.complete ? Promise.resolve() : new Promise(resolve => {
+                const imageLoads = Array.from(printWindow.document.images).map((image: HTMLImageElement) => {
+                  if (image.complete) {
+                    if (image.classList.contains('sig-img') && image.naturalWidth === 0) image.style.display = 'none';
+                    return Promise.resolve();
+                  }
+                  return new Promise<void>(resolve => {
                     image.onload = resolve;
-                    image.onerror = resolve;
-                  })
-                );
+                    image.onerror = () => {
+                      if (image.classList.contains('sig-img')) image.style.display = 'none';
+                      resolve();
+                    };
+                  });
+                });
                 void Promise.all(imageLoads).then(() => {
                   setTimeout(() => { printWindow.focus(); printWindow.print(); }, 100);
                 });

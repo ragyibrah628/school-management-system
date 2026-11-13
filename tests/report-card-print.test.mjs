@@ -9,7 +9,11 @@ const vite = await createServer({
 });
 after(() => vite.close());
 
-const { createReportCardPrintDocument, formatReportCardPosition } = await vite.ssrLoadModule('/src/utils/reportCardPrint.ts');
+const {
+  createReportCardPrintDocument,
+  formatReportCardPosition,
+  trimSignatureDataUrl
+} = await vite.ssrLoadModule('/src/utils/reportCardPrint.ts');
 const {
   getAcademicReportCardComment,
   getHeadmasterReportCardComment
@@ -47,6 +51,47 @@ function visibleText(html) {
     .trim();
 }
 
+function signatureEnvironment({ width, height, inkPixels = [], failed = false }) {
+  return {
+    createImage() {
+      const image = {
+        onload: null,
+        onerror: null,
+        naturalWidth: width,
+        naturalHeight: height
+      };
+      Object.defineProperty(image, 'src', {
+        set() {
+          queueMicrotask(() => (failed ? image.onerror : image.onload)?.());
+        }
+      });
+      return image;
+    },
+    createCanvas() {
+      const canvas = {
+        width: 0,
+        height: 0,
+        getContext() {
+          return {
+            getImageData() {
+              const data = new Uint8ClampedArray(canvas.width * canvas.height * 4);
+              for (const [x, y, alpha = 255] of inkPixels) {
+                data[(y * canvas.width + x) * 4 + 3] = alpha;
+              }
+              return { data };
+            },
+            drawImage() {}
+          };
+        },
+        toDataURL() {
+          return `data:image/png;base64,cropped-${canvas.width}x${canvas.height}`;
+        }
+      };
+      return canvas;
+    }
+  };
+}
+
 test('print styling preserves the report card text and values verbatim', () => {
   const document = createReportCardPrintDocument(reportCardBody);
   const bodyMarkup = document.match(/<body>([\s\S]*)<\/body>/)?.[1];
@@ -62,15 +107,19 @@ test('report cards use full-width zero-margin pages and consistent page-break la
   assert.match(document, /font-family:\s*Arial,\s*"Segoe UI",\s*Helvetica,\s*sans-serif/);
   assert.match(document, /table-layout:\s*fixed/);
   assert.match(document, /width:\s*100%/);
+  assert.match(document, /background:\s*#fff;/);
   assert.match(document, /print-color-adjust:\s*exact/);
   assert.match(document, /mix-blend-mode:\s*multiply/);
   assert.match(document, /font-size:\s*9pt !important/);
-  assert.doesNotMatch(document, /font-size:\s*8(?:\.5)?pt/);
+  assert.match(document, /font-size:\s*8pt !important/);
   assert.doesNotMatch(document, /color:\s*#fff\b/i);
   assert.match(document, /\.subjects-table th \{[^}]*white-space:\s*nowrap/);
-  assert.match(document, /\.behavior-table th \{[^}]*overflow-wrap:\s*normal;[^}]*word-break:\s*normal/);
+  assert.match(document, /\.behavior-table thead tr:nth-child\(2\) th \{[^}]*width:\s*10%;[^}]*font-size:\s*8pt !important/);
+  assert.match(document, /\.behavior-table td \{[^}]*height:\s*8mm;[^}]*font-size:\s*8pt !important/);
+  assert.match(document, /\.behavior-table th strong \{ font-family:\s*inherit !important; \}/);
   assert.match(document, /\.sig-row \{[^}]*flex-wrap:\s*nowrap/);
-  assert.match(document, /\.sig-img \{[^}]*height:\s*15mm;[^}]*max-width:\s*48mm;[^}]*max-height:\s*15mm/);
+  assert.match(document, /\.sig-img \{[^}]*height:\s*13mm;[^}]*max-width:\s*38mm;[^}]*max-height:\s*13mm/);
+  assert.match(document, /\.sig-img \{[^}]*margin-bottom:\s*0;/);
   assert.match(document, /\.grade-low \{[^}]*text-decoration:\s*underline/);
   assert.match(document, /\.report-title \{[^}]*border:\s*2px solid #14532d;[^}]*color:\s*#14532d/);
   assert.match(document, /\.subjects-table th \{[^}]*color:\s*#14532d !important/);
@@ -80,6 +129,36 @@ test('report cards use full-width zero-margin pages and consistent page-break la
   assert.match(document, /break-after:\s*page/);
   assert.match(document, /\.report-card--compact/);
   assert.match(document, /\.report-card--long-comments/);
+});
+
+test('signature trimming crops transparent padding from 600x300 PNGs', async () => {
+  const source = 'data:image/png;base64,valid-padded-png';
+  const middleInk = Array.from({ length: 5 }, (_, y) =>
+    Array.from({ length: 7 }, (_, x) => [296 + x, 146 + y, 255])
+  ).flat();
+  const topLeftInk = [[2, 3, 255], [6, 8, 255]];
+
+  assert.equal(
+    await trimSignatureDataUrl(source, signatureEnvironment({ width: 600, height: 300, inkPixels: middleInk })),
+    'data:image/png;base64,cropped-7x5'
+  );
+  assert.equal(
+    await trimSignatureDataUrl(source, signatureEnvironment({ width: 600, height: 300, inkPixels: topLeftInk })),
+    'data:image/png;base64,cropped-5x6'
+  );
+});
+
+test('signature trimming omits fully transparent PNGs and falls back on load failure', async () => {
+  const source = 'data:image/png;base64,valid-transparent-png';
+
+  assert.equal(
+    await trimSignatureDataUrl(source, signatureEnvironment({ width: 600, height: 300 })),
+    ''
+  );
+  assert.equal(
+    await trimSignatureDataUrl(source, signatureEnvironment({ width: 0, height: 0, failed: true })),
+    source
+  );
 });
 
 test('report card positions use the Swahili info and summary formats', () => {
