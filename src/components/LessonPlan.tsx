@@ -12,10 +12,12 @@ import {
 import {
   buildRemarkOptions,
   COMMON_RESOURCES,
+  getReference,
+  MATH_COMMON_RESOURCES,
+  MATH_REFERENCES,
   INTRODUCTION,
   LESSON_PARTS,
   METHOD_TEMPLATES,
-  REFERENCES,
   STAGE_MINUTES_DOUBLE,
   STAGE_MINUTES_SINGLE,
   UNITS,
@@ -252,17 +254,23 @@ export function LessonPlan({
   )];
   const selectedForm = normalizeForm(className);
   const isComputerScience = subject.toLowerCase().includes('computer');
-  const isSupportedClass = isComputerScience && (selectedForm === 1 || selectedForm === 2);
-  const unsupportedSubject = subject && !isComputerScience
+  const isMathematics = /math/i.test(subject);
+  const lessonSubject = isComputerScience ? 'Computer Science' : isMathematics ? 'Mathematics' : null;
+  // Forms that already have lesson-plan data: Computer Science Form 1-2, Mathematics Form 1.
+  const supportedForms: number[] = isMathematics
+    ? Object.keys(MATH_REFERENCES).map(Number)
+    : isComputerScience ? [1, 2] : [];
+  const isSupportedClass = !!lessonSubject && !!selectedForm && supportedForms.includes(selectedForm);
+  const unsupportedSubject = subject && !lessonSubject
     ? subject
-    : subject && selectedForm && selectedForm >= 3
-      ? `Computer Science (Form ${selectedForm})`
+    : subject && selectedForm && !isSupportedClass
+      ? `${lessonSubject} (Form ${selectedForm})`
       : subject && className && !isSupportedClass
-        ? `Computer Science (${className})`
+        ? `${lessonSubject} (${className})`
         : '';
 
-  const formParts = selectedForm === 1 || selectedForm === 2
-    ? LESSON_PARTS.filter(lessonPart => lessonPart.form === selectedForm)
+  const formParts = isSupportedClass
+    ? LESSON_PARTS.filter(lessonPart => lessonPart.subject === lessonSubject && lessonPart.form === selectedForm)
     : [];
   const topics = [...new Set(formParts.map(lessonPart => lessonPart.topic))];
   const subtopics = [...new Set(formParts.filter(lessonPart => lessonPart.topic === topic).map(lessonPart => lessonPart.subtopic))];
@@ -272,7 +280,7 @@ export function LessonPlan({
   const selectedPart = matchingParts.find(lessonPart => lessonPart.id === partId);
   const unit = selectedPart ? UNITS[selectedPart.unit] : undefined;
   const availableResources = selectedPart
-    ? [...new Set([...(unit?.resources ?? []), ...COMMON_RESOURCES])]
+    ? [...new Set([...(unit?.resources ?? []), ...(isMathematics ? MATH_COMMON_RESOURCES : COMMON_RESOURCES)])]
     : [];
   const availableMethods = unit?.methods ?? [];
   const selectedMethod = availableMethods[0];
@@ -809,7 +817,7 @@ export function LessonPlan({
                     <td>{selectedPart && <ol>{selectedPart.specificActivities.map(activity => <li key={activity}>{activity}</li>)}</ol>}</td>
                   </tr>
                   <tr><th>TEACHING &amp; LEARNING RESOURCES</th><td>{selectedResources.join(', ')}</td></tr>
-                  <tr><th>REFERENCES</th><td>{selectedForm ? REFERENCES[selectedForm as 1 | 2] : ''}</td></tr>
+                  <tr><th>REFERENCES</th><td>{selectedForm && lessonSubject ? getReference(lessonSubject, selectedForm) : ''}</td></tr>
                 </tbody>
               </table>
             </section>
