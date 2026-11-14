@@ -14,7 +14,13 @@ export type MethodKey =
   | 'caseStudy'
   | 'jigsaw'
   | 'visual'
-  | 'problemSolving';
+  | 'problemSolving'
+  | 'scenario'
+  | 'guestSpeaker'
+  | 'projectActivity'
+  | 'skillsLab'
+  | 'fieldTrip'
+  | 'rolePlay';
 
 export const METHOD_LABELS: Record<MethodKey, string> = {
   brainstorming: 'Brainstorming',
@@ -28,6 +34,12 @@ export const METHOD_LABELS: Record<MethodKey, string> = {
   jigsaw: 'Jigsaw',
   visual: 'Observation / visual aids',
   problemSolving: 'Problem solving',
+  scenario: 'Scenario',
+  guestSpeaker: 'Guest speaker (resourceful person)',
+  projectActivity: 'Project activity',
+  skillsLab: 'Skills lab',
+  fieldTrip: 'Field trip',
+  rolePlay: 'Role play / simulation',
 };
 
 export interface SyllabusUnit {
@@ -95,7 +107,7 @@ export const UNITS: Record<string, SyllabusUnit> = {
 
 export interface LessonPart {
   id: string;
-  subject: 'Computer Science' | 'Mathematics';
+  subject: 'Computer Science' | 'Mathematics' | 'Business Studies';
   form: 1 | 2 | 3 | 4;
   topic: string;      // Chapter title from the Student's Book
   subtopic: string;   // Section title from the Student's Book
@@ -536,6 +548,153 @@ LESSON_PARTS.push(
   PM3('Circles', 'Tangent properties of circles', 'Tangents from an external point and the alternate segment theorem', 'M3-2.1', 'State the tangent-secant and alternate segment theorems', 'Solve problems using these theorems'),
 );
 
+// =====================================================================================
+// BUSINESS STUDIES (TIE 2023 syllabus + Student's Books Form One/Two/Three). Kept separate from other subjects.
+// Lesson-sized parts are PROPOSED (one 40-minute period each) and can be edited.
+// =====================================================================================
+
+export const BUSINESS_COMMON_RESOURCES = [
+  'Chalkboard / whiteboard',
+  'Markers and chalk',
+  "Student's book (Business Studies, Form One/Two/Three as applicable)",
+  'Handouts',
+  'Flip chart',
+  'Charts and pictures',
+  'Real objects',
+  'Calculator',
+  'Smart board',
+  'Projector',
+  'Computer',
+  'Smart phone',
+  'Syllabus',
+];
+
+const MB1 = 'Demonstrate mastery of business knowledge';
+const MB2 = 'Solve social challenges using business skills';
+const MB3 = 'Apply business knowledge in various contexts';
+const SB11 = 'Demonstrate mastery of the concepts, theories and principles of Business Education';
+const SB21 = 'Demonstrate mastery of the basic skills of operating a small-scale business';
+const SB31 = 'Apply business theories into practice';
+const SB32 = 'Demonstrate mastery of basic business ethics';
+
+const BUS_SOURCES = ['Online/offline sources', 'Video clips showing various business activities', 'Business club guidelines'];
+const CAPITAL_RESOURCES = ['Online/offline sources', 'Charts of sources of capital', 'Video clips of small businesses', 'Loan application forms'];
+const MGMT_RESOURCES = ['Calculator', 'Business documents (receipts, invoices, cash book)', 'Sample records of a small business', 'Charts of budgets', 'Spreadsheet software'];
+const STOCK_RESOURCES = ['Stock cards', 'Goods received and delivery notes', 'Calculator', 'Charts of warehouse layouts', 'Video clips of warehouses'];
+const MARKET_RESOURCES = ['Product samples', 'Advertisements and posters', 'Smart phone', 'Social media platforms', 'Online/offline sources'];
+const REG_RESOURCES = ['Business registration guide (BRELA)', 'Sample licences and certificates', 'Online/offline sources', 'Guest speaker from a government agency'];
+const PLAN_RESOURCES = ['Sample business plans', 'Business plan templates', 'Calculator', 'Online/offline sources'];
+const ETHICS_RESOURCES = ['Case studies', 'Video clips on business ethics', 'Charts of norms and values', 'Online/offline sources'];
+
+Object.assign(UNITS, {
+  'B1-1.1a': { mainCompetence: MB1, specificCompetence: SB11, mainActivity: 'Describe the concept and scope of Business Studies and its relationship with other disciplines (including the school business club)', methods: ['scenario', 'jigsaw', 'brainstorming'], resources: BUS_SOURCES },
+  'B1-1.1b': { mainCompetence: MB1, specificCompetence: SB11, mainActivity: 'Describe the concept and theories of entrepreneurship (meaning, characteristics, skills and importance)', methods: ['brainstorming', 'fieldTrip', 'rolePlay'], resources: BUS_SOURCES },
+  'B1-1.1c': { mainCompetence: MB1, specificCompetence: SB11, mainActivity: 'Describe sole proprietorship (meaning, features, advantages and disadvantages and start-up)', methods: ['brainstorming', 'guestSpeaker', 'caseStudy'], resources: ['Online/offline sources', 'Business Registration and Licensing Agency (BRELA) guides', 'Video clips of small businesses'] },
+  'B2-1.1a': { mainCompetence: MB1, specificCompetence: SB11, mainActivity: 'Explain the concept of production (meaning, types, factors and importance)', methods: ['visual', 'groupDiscussion'], resources: ['Real objects (bottles, shoes, books, furniture)', 'Charts of factors of production', 'Video clips of production activities'] },
+  'B2-1.1b': { mainCompetence: MB1, specificCompetence: SB11, mainActivity: 'Describe sources of capital for small businesses (loans, savings, deferred payments, funds from family and friends)', methods: ['tips', 'caseStudy'], resources: CAPITAL_RESOURCES },
+  'B2-1.1c': { mainCompetence: MB1, specificCompetence: SB11, mainActivity: 'Describe the role of microfinancing and cooperatives in facilitating business formation and operations', methods: ['brainstorming', 'guestSpeaker'], resources: CAPITAL_RESOURCES },
+  'B2-2.1a': { mainCompetence: MB2, specificCompetence: SB21, mainActivity: 'Describe the basic aspects of management for small businesses (meaning, financial and other records keeping, calculation of profit and loss, budgeting, control and administration)', methods: ['groupDiscussion', 'problemSolving'], resources: MGMT_RESOURCES },
+  'B2-2.1b': { mainCompetence: MB2, specificCompetence: SB21, mainActivity: 'Describe the basic aspects of warehousing and inventorying for small businesses (meaning, functions, documents and methods)', methods: ['groupDiscussion', 'visual'], resources: STOCK_RESOURCES },
+  'B2-3.1a': { mainCompetence: MB3, specificCompetence: SB31, mainActivity: 'Identify business opportunities available in the local environment', methods: ['brainstorming', 'fieldTrip'], resources: ['Online/offline sources', 'Charts of economic sectors', 'Maps of the local area', 'Smart phone'] },
+  'B3-1.1a': { mainCompetence: MB1, specificCompetence: SB11, mainActivity: 'Describe the basic aspects of marketing for small businesses (meaning and importance, product, price, place/distribution, promotion)', methods: ['groupDiscussion', 'caseStudy'], resources: MARKET_RESOURCES },
+  'B3-1.1b': { mainCompetence: MB1, specificCompetence: SB11, mainActivity: 'Describe the basic aspects of e-marketing for small businesses (uploading a business biography in social media)', methods: ['practical', 'groupDiscussion'], resources: MARKET_RESOURCES },
+  'B3-2.1a': { mainCompetence: MB2, specificCompetence: SB21, mainActivity: 'Explore the basic aspects of the policy and regulatory environment governing small businesses in Tanzania (roles of government agencies, policies, laws and by-laws)', methods: ['groupDiscussion', 'guestSpeaker', 'projectActivity'], resources: REG_RESOURCES },
+  'B3-2.1b': { mainCompetence: MB2, specificCompetence: SB21, mainActivity: 'Describe procedures for registering small businesses in Tanzania (types of licences, importance of registration and sanctions for non-compliance)', methods: ['groupDiscussion', 'skillsLab'], resources: REG_RESOURCES },
+  'B3-3.1a': { mainCompetence: MB3, specificCompetence: SB31, mainActivity: 'Develop a plan for a small business (identification, financing, production and distribution, and marketing)', methods: ['brainstorming', 'projectActivity'], resources: PLAN_RESOURCES },
+  'B3-3.2a': { mainCompetence: MB3, specificCompetence: SB32, mainActivity: 'Describe the basic tenets of ethics for small businesses (meaning, norms and values)', methods: ['brainstorming', 'caseStudy'], resources: ETHICS_RESOURCES },
+});
+
+const PBF = (form: 1 | 2 | 3) => (topic: string, subtopic: string, part: string, unit: string, ...specificActivities: string[]): LessonPart =>
+  ({ id: `b${form}-${++_n}`, subject: 'Business Studies', form, topic, subtopic, part, unit, specificActivities });
+const PB1 = PBF(1);
+const PB2 = PBF(2);
+const PB3 = PBF(3);
+
+LESSON_PARTS.push(
+  // ===== BUSINESS STUDIES FORM I =====
+  PB1('Introduction to Business Studies', 'The concept of a business', 'Meaning and importance of business', 'B1-1.1a', 'Explain the meaning of a business', 'State why business is important to individuals and the community'),
+  PB1('Introduction to Business Studies', 'The concept of a business', 'Business activities: production, distribution and consumption', 'B1-1.1a', 'Describe production, distribution and consumption activities', 'Give examples of business activities in the community'),
+  PB1('Introduction to Business Studies', 'Terminologies used in Business Studies', 'Basic business terms (capital, profit, loss, income and expenses)', 'B1-1.1a', 'Define common business terms', 'Use the terms correctly in simple examples'),
+  PB1('Introduction to Business Studies', 'Terminologies used in Business Studies', 'Other business terms (goods, services, customer, supplier and market)', 'B1-1.1a', 'Define terms such as goods, services, customer, supplier and market', 'Give examples of each term from their surroundings'),
+  PB1('Introduction to Business Studies', 'The concept of Business Studies', 'Meaning and scope of Business Studies', 'B1-1.1a', 'Explain the meaning of Business Studies', 'Describe the scope of Business Studies'),
+  PB1('Introduction to Business Studies', 'The concept of Business Studies', 'Relationship between Business Studies and other subjects', 'B1-1.1a', 'Show how Business Studies is related to other subjects', 'Give examples of the link with Mathematics, Geography and Civics'),
+  PB1('Introduction to Business Studies', 'The concept of Business Studies', 'Importance of Business Studies', 'B1-1.1a', 'State the importance of Business Studies in the community', 'Explain how it helps learners to become self-employed'),
+  PB1('Introduction to Business Studies', 'The concept of Business Studies', 'The school business club', 'B1-1.1a', 'Explain the meaning and importance of a school business club', 'Outline the components of a simple club constitution'),
+
+  PB1('Entrepreneurship', 'The concept of entrepreneurship', 'Meaning and characteristics of an entrepreneur', 'B1-1.1b', 'Explain the meaning of entrepreneurship and an entrepreneur', 'State the characteristics of a good entrepreneur'),
+  PB1('Entrepreneurship', 'The concept of entrepreneurship', 'Skills of an entrepreneur', 'B1-1.1b', 'Identify skills needed by an entrepreneur', 'Explain how the skills help a business to succeed'),
+  PB1('Entrepreneurship', 'The concept of entrepreneurship', 'Importance of entrepreneurship', 'B1-1.1b', 'State the importance of entrepreneurship to the individual and the nation', 'Give examples of local entrepreneurs and their contribution'),
+  PB1('Entrepreneurship', 'Theories of entrepreneurship', 'Innovation and economic theories', 'B1-1.1b', 'Explain the innovation theory of entrepreneurship', 'Explain the economic theory of entrepreneurship'),
+  PB1('Entrepreneurship', 'Theories of entrepreneurship', 'Sociological, opportunity and resource-based theories', 'B1-1.1b', 'Explain the sociological theory of entrepreneurship', 'Explain the opportunity and resource-based theories'),
+
+  PB1('Sole proprietorship', 'The concept of sole proprietorship', 'Meaning and features of a sole proprietorship', 'B1-1.1c', 'Explain the meaning of a sole proprietorship', 'State the features of a sole proprietorship'),
+  PB1('Sole proprietorship', 'The concept of sole proprietorship', 'Advantages and disadvantages of a sole proprietorship', 'B1-1.1c', 'State the advantages of a sole proprietorship', 'State the disadvantages of a sole proprietorship'),
+  PB1('Sole proprietorship', 'Formation of a sole proprietorship', 'Start-up and registration of a sole proprietorship', 'B1-1.1c', 'Outline the steps of starting a sole proprietorship', 'Describe how to register a sole proprietorship in Tanzania'),
+  PB1('Sole proprietorship', 'Ways of solving challenges facing sole proprietorship', 'Challenges facing sole proprietors', 'B1-1.1c', 'Identify challenges facing sole proprietors', 'Explain the effects of the challenges on the business'),
+  PB1('Sole proprietorship', 'Ways of solving challenges facing sole proprietorship', 'Ways of solving the challenges', 'B1-1.1c', 'Suggest ways of solving challenges facing sole proprietors', 'Apply the suggestions to a given case'),
+
+  // ===== BUSINESS STUDIES FORM II =====
+  PB2('Production', 'The concept of production', 'Meaning and types of production', 'B2-1.1a', 'Explain the meaning of production', 'Distinguish primary, secondary and tertiary production'),
+  PB2('Production', 'The concept of production', 'Importance of production', 'B2-1.1a', 'State the importance of production', 'Give examples of production activities in the community'),
+  PB2('Production', 'Factors of production', 'Land and labour', 'B2-1.1a', 'Explain land and labour as factors of production', 'State the rewards of land and labour'),
+  PB2('Production', 'Factors of production', 'Capital and entrepreneurship', 'B2-1.1a', 'Explain capital and entrepreneurship as factors of production', 'State the rewards of capital and entrepreneurship'),
+
+  PB2('Financing small-sized businesses', 'The concept of small-sized businesses', 'Meaning and characteristics of small-sized businesses', 'B2-1.1b', 'Explain the meaning of a small-sized business', 'State the characteristics of small-sized businesses'),
+  PB2('Financing small-sized businesses', 'The concept of small-sized businesses', 'Importance of small-sized businesses', 'B2-1.1b', 'State the importance of small-sized businesses', 'Give examples of small businesses in the community'),
+  PB2('Financing small-sized businesses', 'The sources of funds for small businesses', 'Loans', 'B2-1.1b', 'Explain loans as a source of capital', 'State the advantages and disadvantages of loans'),
+  PB2('Financing small-sized businesses', 'The sources of funds for small businesses', 'Savings and deferred payments', 'B2-1.1b', 'Explain savings and deferred payments as sources of capital', 'State their advantages and disadvantages'),
+  PB2('Financing small-sized businesses', 'The sources of funds for small businesses', 'Funds from family and friends', 'B2-1.1b', 'Explain funds from family and friends as a source of capital', 'Choose a suitable source of capital for a given business'),
+  PB2('Financing small-sized businesses', 'Microfinancing and cooperatives in facilitating business formation and operations', 'Microfinancing', 'B2-1.1c', 'Explain the meaning of microfinancing', 'Describe how microfinance institutions help small businesses'),
+  PB2('Financing small-sized businesses', 'Microfinancing and cooperatives in facilitating business formation and operations', 'Cooperatives', 'B2-1.1c', 'Explain the meaning of a cooperative society', 'Describe how cooperatives help small businesses'),
+
+  PB2('Small business management', 'The concept of small business management', 'Meaning and functions of small business management', 'B2-2.1a', 'Explain the meaning of small business management', 'State the functions of management in a small business'),
+  PB2('Small business management', 'Financial and other record-keeping for a small business', 'Importance of record-keeping', 'B2-2.1a', 'Explain the importance of keeping business records', 'List the records kept in a small business'),
+  PB2('Small business management', 'Financial and other record-keeping for a small business', 'Keeping simple financial records', 'B2-2.1a', 'Record sales and purchases in a simple cash book', 'Balance a simple cash book'),
+  PB2('Small business management', 'Profit and loss calculation for a small business', 'Calculating profit and loss', 'B2-2.1a', 'Calculate profit and loss from given figures', 'Explain the meaning of revenue, cost and profit'),
+  PB2('Small business management', 'Profit and loss calculation for a small business', 'Profit and loss problems for a small business', 'B2-2.1a', 'Calculate profit and loss percentages', 'Solve simple profit and loss problems for a small business'),
+  PB2('Small business management', 'Budgeting, control and administration', 'Budgeting for a small business', 'B2-2.1a', 'Explain the meaning and importance of a budget', 'Prepare a simple budget'),
+  PB2('Small business management', 'Budgeting, control and administration', 'Control and administration', 'B2-2.1a', 'Explain how a small business is controlled', 'Describe the administrative duties of a small business owner'),
+
+  PB2('Warehousing and inventorying for small businesses', 'The concept of warehousing', 'Meaning and functions of warehousing', 'B2-2.1b', 'Explain the meaning of warehousing', 'State the functions of a warehouse'),
+  PB2('Warehousing and inventorying for small businesses', 'The concept of inventorying', 'Meaning and functions of inventorying', 'B2-2.1b', 'Explain the meaning of inventory', 'State the functions of inventorying'),
+  PB2('Warehousing and inventorying for small businesses', 'Essential documents for warehouse and inventory management', 'Documents for warehouse and inventory management', 'B2-2.1b', 'Identify documents used in warehouses and inventory management', 'Explain the use of each document'),
+  PB2('Warehousing and inventorying for small businesses', 'Methods for inventory management', 'Methods of inventory management', 'B2-2.1b', 'Describe methods of inventory management such as FIFO and LIFO', 'Choose a suitable method for a given business'),
+
+  PB2('Business opportunity identification', 'The concept of business opportunity', 'Meaning of a business opportunity', 'B2-3.1a', 'Explain the meaning of a business opportunity', 'Differentiate a business idea from a business opportunity'),
+  PB2('Business opportunity identification', 'Ways of identifying business opportunities', 'Ways of identifying business opportunities', 'B2-3.1a', 'Describe ways of identifying business opportunities', 'Explain how a need in the community can become an opportunity'),
+  PB2('Business opportunity identification', 'Ways of identifying business opportunities', 'Identifying opportunities in the local environment', 'B2-3.1a', 'Identify business opportunities in different economic sectors', 'Choose a viable business opportunity from the local environment'),
+
+  // ===== BUSINESS STUDIES FORM III =====
+  PB3('Marketing', 'The concept of marketing', 'Meaning and importance of marketing', 'B3-1.1a', 'Explain the meaning of marketing', 'State the importance of marketing for small businesses'),
+  PB3('Marketing', 'The concept of marketing mix', 'Product', 'B3-1.1a', 'Explain the product element of the marketing mix', 'Describe product features, branding and packaging'),
+  PB3('Marketing', 'The concept of marketing mix', 'Price', 'B3-1.1a', 'Explain the price element of the marketing mix', 'State factors that affect the price of a product'),
+  PB3('Marketing', 'The concept of marketing mix', 'Place (distribution)', 'B3-1.1a', 'Explain the place element of the marketing mix', 'Describe channels of distribution for small businesses'),
+  PB3('Marketing', 'The concept of marketing mix', 'Promotion', 'B3-1.1a', 'Explain the promotion element of the marketing mix', 'Describe methods of promoting a product'),
+  PB3('Marketing', 'E-marketing for small businesses', 'Meaning and importance of e-marketing', 'B3-1.1b', 'Explain the meaning of e-marketing', 'State the importance of e-marketing for small businesses'),
+  PB3('Marketing', 'E-marketing for small businesses', 'Using social media to market a business', 'B3-1.1b', 'Write a business biography for social media', 'Upload a business biography on a social media platform'),
+
+  PB3('The policy and regulatory environment governing small businesses in Tanzania', 'Roles of government and non-government agencies in governing small businesses in Tanzania', 'Government agencies and their roles', 'B3-2.1a', 'Identify government agencies that deal with businesses', 'Explain the roles of each agency'),
+  PB3('The policy and regulatory environment governing small businesses in Tanzania', 'Roles of government and non-government agencies in governing small businesses in Tanzania', 'Non-government agencies and their roles', 'B3-2.1a', 'Identify non-government agencies that support small businesses', 'Explain the roles of each agency'),
+  PB3('The policy and regulatory environment governing small businesses in Tanzania', 'Policies that promote small businesses', 'Policies that promote small businesses', 'B3-2.1a', 'Describe policies that promote small businesses in Tanzania', 'Explain how the policies help small businesses'),
+  PB3('The policy and regulatory environment governing small businesses in Tanzania', 'Laws and by-laws guiding small businesses', 'Laws and by-laws guiding small businesses', 'B3-2.1a', 'Describe laws and by-laws that guide small businesses', 'Explain the importance of complying with business regulations'),
+
+  PB3('Small business registration in Tanzania', 'The concept of business registration', 'Meaning and importance of business registration', 'B3-2.1b', 'Explain the meaning of business registration', 'State the importance of registering a business'),
+  PB3('Small business registration in Tanzania', 'Types of licences and certificates for small businesses', 'Types of licences', 'B3-2.1b', 'Identify types of business licences', 'Explain the purpose of each licence'),
+  PB3('Small business registration in Tanzania', 'Types of licences and certificates for small businesses', 'Certificates for small businesses', 'B3-2.1b', 'Identify certificates needed by small businesses', 'Explain how each certificate is obtained'),
+  PB3('Small business registration in Tanzania', 'Procedures for registering a small business', 'Procedures for registering a small business', 'B3-2.1b', 'Outline the steps of registering a small business', 'Prepare an action plan for registering a business'),
+  PB3('Small business registration in Tanzania', 'Sanctions for non-compliance', 'Sanctions for non-compliance', 'B3-2.1b', 'State the sanctions for not complying with registration rules', 'Explain the effects of the sanctions on a business'),
+
+  PB3('Business planning', 'The concept of business planning', 'Meaning and importance of business planning', 'B3-3.1a', 'Explain the meaning of business planning', 'State the importance of a business plan'),
+  PB3('Business planning', 'Components of a business plan', 'Business idea, identification and executive summary', 'B3-3.1a', 'Describe the business idea and the executive summary', 'Write the business identification part of a plan'),
+  PB3('Business planning', 'Components of a business plan', 'Production and marketing plans', 'B3-3.1a', 'Prepare the production and distribution plan', 'Prepare the marketing plan'),
+  PB3('Business planning', 'Components of a business plan', 'Financial plan', 'B3-3.1a', 'Prepare a financial plan with start-up costs', 'Estimate expected income and expenses'),
+  PB3('Business planning', 'Components of a business plan', 'Preparing a simple business plan', 'B3-3.1a', 'Put the components together into a simple business plan', 'Present the business plan to the class'),
+
+  PB3('Business ethics', 'The concept of business ethics', 'Meaning of business ethics', 'B3-3.2a', 'Explain the meaning of business ethics', 'Differentiate ethical from unethical business practices'),
+  PB3('Business ethics', 'The concept of business ethics', 'Norms and values in business', 'B3-3.2a', 'Describe norms and values that guide a business', 'Give examples of norms and values in the community'),
+  PB3('Business ethics', 'The concept of business ethics', 'Importance of business ethics', 'B3-3.2a', 'State the importance of ethics in running a business', 'Analyse a case of a business that kept or broke ethics'),
+);
+
 // References: fill from the copyright page of each book.
 export const REFERENCES: Record<1 | 2, string> = {
   1: "Tanzania Institute of Education. (2023). Computer Science for secondary schools student's book, form one. Tanzania Institute of Education.",
@@ -549,10 +708,38 @@ export const MATH_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
   3: "Tanzania Institute of Education. (2023). Mathematics for secondary schools student's book, form three. Tanzania Institute of Education.",
 };
 
+// TODO (Mr. Kijida): check the exact book titles on the copyright page of the Business Studies books.
+export const BUSINESS_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
+  1: "Tanzania Institute of Education. (2023). Business studies for secondary schools student's book, form one. Tanzania Institute of Education.",
+  2: "Tanzania Institute of Education. (2024). Business studies for secondary schools student's book, form two. Tanzania Institute of Education.",
+  3: "Tanzania Institute of Education. (2025). Business studies for secondary schools student's book, form three. Tanzania Institute of Education.",
+};
+
 export const getReference = (subject: LessonPart['subject'], form: number): string => {
   if (subject === 'Mathematics') return MATH_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
+  if (subject === 'Business Studies') return BUSINESS_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   return REFERENCES[form as 1 | 2] ?? '';
 };
+
+// Maps the subject name used in the timetable to the subject of the lesson-plan data.
+export const resolveLessonSubject = (name: string): LessonPart['subject'] | null => {
+  const value = name.toLowerCase();
+  if (value.includes('computer')) return 'Computer Science';
+  if (/math/.test(value)) return 'Mathematics';
+  if (/business/.test(value)) return 'Business Studies';
+  return null;
+};
+
+// Forms that already have lesson-plan data for each subject.
+export const supportedFormsFor = (subject: LessonPart['subject']): number[] => {
+  const forms = new Set(LESSON_PARTS.filter(part => part.subject === subject).map(part => part.form));
+  return [...forms];
+};
+
+export const getCommonResources = (subject: LessonPart['subject']): string[] =>
+  subject === 'Mathematics' ? MATH_COMMON_RESOURCES
+    : subject === 'Business Studies' ? BUSINESS_COMMON_RESOURCES
+      : COMMON_RESOURCES;
 
 // Stage text templates per method. {part} is replaced with LessonPart.part.
 export interface StageText { teacher: string; learners: string }
@@ -613,6 +800,36 @@ export const METHOD_TEMPLATES: Record<MethodKey, MethodTemplate> = {
     development: { teacher: 'Works out a model example on "{part}" and gives learners problems to solve', learners: 'Learners follow the example and note the steps' },
     design: { teacher: 'Guides learners to solve the problems in pairs or groups', learners: 'Learners solve the problems and compare answers' },
     realization: { teacher: 'Discusses the solutions, corrects mistakes and summarises the lesson', learners: 'Learners present solutions and state the main points' },
+  },
+  scenario: {
+    development: { teacher: 'Presents a short scenario related to "{part}" and gives guiding questions', learners: 'Learners read the scenario and discuss the questions in groups' },
+    design: { teacher: 'Guides groups to relate the scenario to the concepts in "{part}"', learners: 'Learners link the scenario to the concepts and record their findings' },
+    realization: { teacher: 'Invites groups to share and summarises the lesson', learners: 'Groups share what they learned and note the main points' },
+  },
+  guestSpeaker: {
+    development: { teacher: 'Introduces the guest speaker (or a recorded talk) on "{part}" and guides learners to prepare questions', learners: 'Learners listen and note key points' },
+    design: { teacher: 'Guides learners to ask questions and discuss what they heard', learners: 'Learners ask questions and discuss the answers' },
+    realization: { teacher: 'Guides learners to summarise the talk and links it to the topic', learners: 'Learners summarise what they learned' },
+  },
+  projectActivity: {
+    development: { teacher: 'Explains the project task on "{part}" and forms groups', learners: 'Learners join groups and plan the project' },
+    design: { teacher: 'Guides groups as they work on the project', learners: 'Learners work on the project and prepare a short report' },
+    realization: { teacher: 'Invites groups to present and gives feedback', learners: 'Groups present their work and reflect on what they learned' },
+  },
+  skillsLab: {
+    development: { teacher: 'Gives the guide and the task on "{part}" and organises groups', learners: 'Learners read the guide and share the work in groups' },
+    design: { teacher: 'Guides groups as they complete the task step by step', learners: 'Learners complete their part of the task' },
+    realization: { teacher: 'Invites groups to share and summarises the lesson', learners: 'Groups share their work and state the main points' },
+  },
+  fieldTrip: {
+    development: { teacher: 'Assigns groups a place to visit (or observe) related to "{part}" and gives guiding questions', learners: 'Learners prepare their questions and observation sheets' },
+    design: { teacher: 'Guides learners to record findings from the visit', learners: 'Learners record what they observe and discuss it' },
+    realization: { teacher: 'Invites groups to present their findings and summarises the lesson', learners: 'Groups present findings and relate them to "{part}"' },
+  },
+  rolePlay: {
+    development: { teacher: 'Explains the situation on "{part}" and assigns roles', learners: 'Learners prepare their roles in groups' },
+    design: { teacher: 'Guides groups as they act out the situation', learners: 'Learners act out the situation' },
+    realization: { teacher: 'Leads a discussion of what was learned and summarises the lesson', learners: 'Learners discuss lessons learned and state the main points' },
   },
 };
 

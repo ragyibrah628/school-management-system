@@ -11,10 +11,10 @@ import {
 } from 'react';
 import {
   buildRemarkOptions,
-  COMMON_RESOURCES,
+  getCommonResources,
   getReference,
-  MATH_COMMON_RESOURCES,
-  MATH_REFERENCES,
+  resolveLessonSubject,
+  supportedFormsFor,
   INTRODUCTION,
   LESSON_PARTS,
   METHOD_TEMPLATES,
@@ -253,13 +253,9 @@ export function LessonPlan({
     assignments.filter(assignment => assignment.sub === subject).map(assignment => assignment.cls),
   )];
   const selectedForm = normalizeForm(className);
-  const isComputerScience = subject.toLowerCase().includes('computer');
-  const isMathematics = /math/i.test(subject);
-  const lessonSubject = isComputerScience ? 'Computer Science' : isMathematics ? 'Mathematics' : null;
-  // Forms that already have lesson-plan data: Computer Science Form 1-2, Mathematics Form 1.
-  const supportedForms: number[] = isMathematics
-    ? Object.keys(MATH_REFERENCES).map(Number)
-    : isComputerScience ? [1, 2] : [];
+  const lessonSubject = resolveLessonSubject(subject);
+  // Forms that already have lesson-plan data for this subject.
+  const supportedForms: number[] = lessonSubject ? supportedFormsFor(lessonSubject) : [];
   const isSupportedClass = !!lessonSubject && !!selectedForm && supportedForms.includes(selectedForm);
   const unsupportedSubject = subject && !lessonSubject
     ? subject
@@ -280,7 +276,7 @@ export function LessonPlan({
   const selectedPart = matchingParts.find(lessonPart => lessonPart.id === partId);
   const unit = selectedPart ? UNITS[selectedPart.unit] : undefined;
   const availableResources = selectedPart
-    ? [...new Set([...(unit?.resources ?? []), ...(isMathematics ? MATH_COMMON_RESOURCES : COMMON_RESOURCES)])]
+    ? [...new Set([...(unit?.resources ?? []), ...(lessonSubject ? getCommonResources(lessonSubject) : [])])]
     : [];
   const availableMethods = unit?.methods ?? [];
   const selectedMethod = availableMethods[0];
