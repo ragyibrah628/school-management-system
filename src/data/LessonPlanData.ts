@@ -107,7 +107,7 @@ export const UNITS: Record<string, SyllabusUnit> = {
 
 export interface LessonPart {
   id: string;
-  subject: 'Computer Science' | 'Mathematics' | 'Business Studies';
+  subject: 'Computer Science' | 'Mathematics' | 'Business Studies' | 'English Language';
   form: 1 | 2 | 3 | 4;
   topic: string;      // Chapter title from the Student's Book
   subtopic: string;   // Section title from the Student's Book
@@ -695,6 +695,243 @@ LESSON_PARTS.push(
   PB3('Business ethics', 'The concept of business ethics', 'Importance of business ethics', 'B3-3.2a', 'State the importance of ethics in running a business', 'Analyse a case of a business that kept or broke ethics'),
 );
 
+// ===================== ENGLISH LANGUAGE (Form I-III) =====================
+// Source: TIE English Language syllabus (Form I-IV) + Student's Books (Form I 2023, Form II 2024, Form III 2025).
+// Form I and Form III books list chapter titles only, so subtopics/parts below follow the syllabus learning activities (proposed, editable).
+export const ENGLISH_COMMON_RESOURCES = [
+  'Chalkboard / whiteboard',
+  'Markers and chalk',
+  'Handouts',
+  'Manila cards / flash cards',
+  'Dictionary',
+  "Student's book (English, as applicable)",
+  'Charts',
+  'Audio / video recordings',
+  'Radio / smartphone / speaker',
+  'Reading texts',
+];
+
+const EN1 = 'Manage information search from different sources';
+const EN2 = 'Demonstrate mastery of English language skills';
+const EN3 = 'Comprehend oral and written information';
+const EN4 = 'Communicate effectively in different contexts';
+const EN5 = 'Provide basic English language services to the community';
+const EN6 = 'Appreciate and create literary works';
+
+const LISTEN_RES = ['Audio recordings', 'Radio / smartphone / speaker', 'Video clips', 'Scripts of oral texts'];
+const SPEAK_RES = ['Audio / video recordings', 'Pronunciation charts', 'Dictionary', 'Flash cards'];
+const VOCAB_RES = ['Dictionary', 'Flash cards', 'Word charts', 'Vocabulary games', 'Reading texts'];
+const GRAM_RES = ['Charts of grammar rules', 'Reading texts', 'Flash cards', 'Dictionary', 'Pictures and maps'];
+const READ_RES = ['Reading texts (stories, articles)', 'Dictionary', 'Newspapers and magazines', 'Charts'];
+const WRITE_RES = ['Samples of letters, e-mails and reports', 'Writing frames / templates', 'Dictionary', 'Manila cards'];
+const LIT_RES = ['Selected poems and plays', 'Audio / video recordings of performances', 'Dictionary', 'Charts of literary devices'];
+const SERVICE_RES = ['Short texts for practice', 'Dictionary (English-Kiswahili)', 'Samples of edited texts', 'Charts'];
+
+Object.assign(UNITS, {
+  // ---- Form I ----
+  'E1-1.1': { mainCompetence: EN1, specificCompetence: 'Use ICT tools to search for information', mainActivity: 'Use search engines and ICT search tools to find information', methods: ['demonstration', 'practical', 'brainstorming'], resources: ['Computer / smartphone / tablet with internet', 'Search engines', 'Projector', 'Online/offline sources'] },
+  'E1-2.1': { mainCompetence: EN2, specificCompetence: 'Develop listening skills', mainActivity: 'Listen to presentations and audio, answer questions, write words heard and reproduce oral messages', methods: ['qa', 'groupDiscussion', 'practical'], resources: LISTEN_RES },
+  'E1-2.2': { mainCompetence: EN2, specificCompetence: 'Produce short and coherent oral messages', mainActivity: 'Practise pronunciation, word stress and vowel sounds', methods: ['demonstration', 'practical', 'groupDiscussion'], resources: SPEAK_RES },
+  'E1-2.3': { mainCompetence: EN2, specificCompetence: 'Develop vocabulary from conversations and written texts', mainActivity: 'Write new vocabulary, construct sentences and play vocabulary games', methods: ['brainstorming', 'tips', 'smallGroups'], resources: VOCAB_RES },
+  'E1-2.4': { mainCompetence: EN2, specificCompetence: 'Use appropriate grammar and vocabulary in oral and written contexts', mainActivity: 'Express ideas using correct grammar, construct sentences and take part in debates', methods: ['groupDiscussion', 'qa', 'smallGroups'], resources: GRAM_RES },
+  'E1-3.1': { mainCompetence: EN3, specificCompetence: 'Read texts for comprehension', mainActivity: 'Read texts, sequence events, summarise and retell', methods: ['tips', 'groupDiscussion', 'qa'], resources: READ_RES },
+  'E1-3.2': { mainCompetence: EN3, specificCompetence: 'Comprehend oral messages', mainActivity: 'Paraphrase and respond to oral messages and questions', methods: ['qa', 'rolePlay', 'groupDiscussion'], resources: LISTEN_RES },
+  'E1-3.3': { mainCompetence: EN3, specificCompetence: 'Respond appropriately in oral and written communication', mainActivity: 'Express ideas, use non-verbal cues and suitable language for different audiences', methods: ['rolePlay', 'groupDiscussion', 'scenario'], resources: SPEAK_RES },
+  'E1-4.1': { mainCompetence: EN4, specificCompetence: 'Use appropriate grammar and vocabulary for oral communication', mainActivity: 'Describe routines, ongoing activities, family, ownership and give directions', methods: ['rolePlay', 'practical', 'qa'], resources: GRAM_RES },
+  'E1-4.2': { mainCompetence: EN4, specificCompetence: 'Create a variety of texts using appropriate tone and register', mainActivity: 'Write using the stages of writing: friendly letters, invitations, dialogues and timetables', methods: ['practical', 'tips', 'smallGroups'], resources: WRITE_RES },
+  // ---- Form II ----
+  'E2-1.1a': { mainCompetence: EN2, specificCompetence: 'Develop listening skills', mainActivity: 'Participate in various conversations', methods: ['rolePlay', 'groupDiscussion'], resources: LISTEN_RES },
+  'E2-1.1b': { mainCompetence: EN2, specificCompetence: 'Develop listening skills', mainActivity: 'Summarise information from oral presentations', methods: ['tips', 'qa'], resources: LISTEN_RES },
+  'E2-1.1c': { mainCompetence: EN2, specificCompetence: 'Develop listening skills', mainActivity: 'Paraphrase information presented orally', methods: ['tips', 'smallGroups'], resources: LISTEN_RES },
+  'E2-1.2a': { mainCompetence: EN2, specificCompetence: 'Produce short and coherent oral messages', mainActivity: 'Construct sentences with proper intonation', methods: ['demonstration', 'practical'], resources: SPEAK_RES },
+  'E2-1.2b': { mainCompetence: EN2, specificCompetence: 'Produce short and coherent oral messages', mainActivity: 'Use cohesive devices to deliver oral presentations', methods: ['demonstration', 'smallGroups'], resources: SPEAK_RES },
+  'E2-1.3a': { mainCompetence: EN2, specificCompetence: 'Develop vocabulary from conversations and written texts', mainActivity: 'Recognise words with opposite meanings', methods: ['brainstorming', 'smallGroups'], resources: VOCAB_RES },
+  'E2-1.3b': { mainCompetence: EN2, specificCompetence: 'Develop vocabulary from conversations and written texts', mainActivity: 'Produce new words using prefixes and suffixes', methods: ['demonstration', 'smallGroups'], resources: VOCAB_RES },
+  'E2-1.4a': { mainCompetence: EN2, specificCompetence: 'Use appropriate grammar and vocabulary in oral and written contexts', mainActivity: 'Produce contextualised oral and written descriptions of personal experiences', methods: ['tips', 'groupDiscussion'], resources: GRAM_RES },
+  'E2-1.4b': { mainCompetence: EN2, specificCompetence: 'Use appropriate grammar and vocabulary in oral and written contexts', mainActivity: 'Compose passages on specific contexts', methods: ['practical', 'tips'], resources: GRAM_RES },
+  'E2-1.4c': { mainCompetence: EN2, specificCompetence: 'Use appropriate grammar and vocabulary in oral and written contexts', mainActivity: 'Present messages in formal and informal settings using correct grammar and vocabulary', methods: ['rolePlay', 'groupDiscussion'], resources: GRAM_RES },
+  'E2-2.1a': { mainCompetence: EN3, specificCompetence: 'Read texts for comprehension', mainActivity: 'Express the main ideas from a text', methods: ['groupDiscussion', 'qa'], resources: READ_RES },
+  'E2-2.1b': { mainCompetence: EN3, specificCompetence: 'Read texts for comprehension', mainActivity: 'Infer meanings of unfamiliar words and idiomatic expressions', methods: ['brainstorming', 'smallGroups'], resources: READ_RES },
+  'E2-2.1c': { mainCompetence: EN3, specificCompetence: 'Read texts for comprehension', mainActivity: 'Relate the core messages of a text to real life', methods: ['tips', 'groupDiscussion'], resources: READ_RES },
+  'E2-2.2a': { mainCompetence: EN3, specificCompetence: 'Comprehend oral messages', mainActivity: 'Synthesise ideas from a variety of oral sources', methods: ['groupDiscussion', 'jigsaw'], resources: LISTEN_RES },
+  'E2-2.2b': { mainCompetence: EN3, specificCompetence: 'Comprehend oral messages', mainActivity: 'Summarise information from a variety of oral sources', methods: ['tips', 'qa'], resources: LISTEN_RES },
+  'E2-2.2c': { mainCompetence: EN3, specificCompetence: 'Comprehend oral messages', mainActivity: 'Participate in contextualised oral conversations', methods: ['rolePlay', 'scenario'], resources: LISTEN_RES },
+  'E2-2.3a': { mainCompetence: EN3, specificCompetence: 'Respond appropriately in oral and written communication', mainActivity: 'Express ideas and opinions in different group settings', methods: ['groupDiscussion', 'rolePlay'], resources: SPEAK_RES },
+  'E2-2.3b': { mainCompetence: EN3, specificCompetence: 'Respond appropriately in oral and written communication', mainActivity: 'Use appropriate non-verbal cues in group communication', methods: ['rolePlay', 'visual'], resources: SPEAK_RES },
+  'E2-2.3c': { mainCompetence: EN3, specificCompetence: 'Respond appropriately in oral and written communication', mainActivity: 'Use appropriate language to respond to oral communication in a variety of contexts', methods: ['scenario', 'rolePlay'], resources: SPEAK_RES },
+  'E2-3.2': { mainCompetence: EN4, specificCompetence: 'Create a variety of texts for different communicative purposes', mainActivity: 'Write claim and request letters, e-mails and short stories using appropriate tone and register', methods: ['practical', 'tips', 'smallGroups'], resources: WRITE_RES },
+  // ---- Form III ----
+  'E3-1.1': { mainCompetence: EN1, specificCompetence: 'Organise information obtained from different sources', mainActivity: 'Identify strategies for organising information, sort, categorise and compile it', methods: ['groupDiscussion', 'practical', 'smallGroups'], resources: ['Computer / smartphone with internet', 'Reference books', 'Manila cards', 'Online/offline sources'] },
+  'E3-2.1': { mainCompetence: EN2, specificCompetence: 'Use appropriate grammar and vocabulary', mainActivity: 'Hold conversations, compose stories and describe events using proper grammar and vocabulary', methods: ['rolePlay', 'tips', 'groupDiscussion'], resources: GRAM_RES },
+  'E3-3.1': { mainCompetence: EN3, specificCompetence: 'Read texts for comprehension', mainActivity: 'Distinguish facts from opinions, express connotative meanings and paraphrase texts', methods: ['brainstorming', 'groupDiscussion', 'tips'], resources: READ_RES },
+  'E3-3.2': { mainCompetence: EN3, specificCompetence: 'Comprehend oral messages with increasing complexity', mainActivity: 'Discuss, respond to and comment on information from oral sources', methods: ['rolePlay', 'groupDiscussion', 'qa'], resources: LISTEN_RES },
+  'E3-3.3': { mainCompetence: EN3, specificCompetence: 'Respond appropriately in a variety of communicative situations', mainActivity: 'Express ideas, use non-verbal cues and evaluate information in mass and public communication', methods: ['rolePlay', 'groupDiscussion', 'scenario'], resources: SPEAK_RES },
+  'E3-3.4': { mainCompetence: EN3, specificCompetence: 'Construct meaning from a variety of texts', mainActivity: 'Read, generate meanings and paraphrase textual information from multiple sources', methods: ['jigsaw', 'groupDiscussion', 'tips'], resources: READ_RES },
+  'E3-4.1': { mainCompetence: EN4, specificCompetence: 'Use appropriate grammar and vocabulary in oral communication', mainActivity: 'Hold debates, dialogues and interviews and present facts logically', methods: ['rolePlay', 'groupDiscussion', 'scenario'], resources: SPEAK_RES },
+  'E3-4.2': { mainCompetence: EN4, specificCompetence: 'Create a variety of texts for different purposes', mainActivity: 'Write formal texts such as reports and biographies', methods: ['practical', 'tips', 'smallGroups'], resources: WRITE_RES },
+  'E3-5.1': { mainCompetence: EN5, specificCompetence: 'Apply principles of editing and proofreading', mainActivity: 'Describe and apply the steps of editing and proofreading', methods: ['demonstration', 'practical', 'smallGroups'], resources: SERVICE_RES },
+  'E3-5.2': { mainCompetence: EN5, specificCompetence: 'Apply principles of interpretation', mainActivity: 'Explain interpretation and interpret a short simple text in a school context', methods: ['brainstorming', 'rolePlay', 'practical'], resources: SERVICE_RES },
+  'E3-5.3': { mainCompetence: EN5, specificCompetence: 'Apply principles of translation', mainActivity: 'Explain translation and translate a simple short text in a school context', methods: ['brainstorming', 'practical', 'smallGroups'], resources: SERVICE_RES },
+  'E3-6.1': { mainCompetence: EN6, specificCompetence: 'Appreciate the aesthetics and value of literature', mainActivity: 'Assess the language used in selected poems and plays and compare own values with those implied', methods: ['groupDiscussion', 'tips', 'qa'], resources: LIT_RES },
+  'E3-6.2': { mainCompetence: EN6, specificCompetence: 'Evaluate the context in which literary texts are produced', mainActivity: 'Assess the socio-political and cultural contexts of selected poems and plays', methods: ['groupDiscussion', 'caseStudy', 'jigsaw'], resources: LIT_RES },
+  'E3-6.3': { mainCompetence: EN6, specificCompetence: 'Analyse genres of literature and appreciate their features', mainActivity: 'Describe genres of written literature and critique selected poems and plays', methods: ['groupDiscussion', 'jigsaw', 'qa'], resources: LIT_RES },
+  'E3-6.4': { mainCompetence: EN6, specificCompetence: 'Create simple literary works', mainActivity: 'Compose free verse poems and publish them on various platforms', methods: ['practical', 'projectActivity', 'tips'], resources: LIT_RES },
+});
+
+const PEF = (form: 1 | 2 | 3) => (topic: string, subtopic: string, part: string, unit: string, ...specificActivities: string[]): LessonPart =>
+  ({ id: `e${form}-${++_n}`, subject: 'English Language', form, topic, subtopic, part, unit, specificActivities });
+const PE1 = PEF(1);
+const PE2 = PEF(2);
+const PE3 = PEF(3);
+
+LESSON_PARTS.push(
+  // ===== ENGLISH FORM I =====
+  PE1('Using ICT tools to search for information', 'Search engines', 'Meaning and examples of search engines', 'E1-1.1', 'Explain what a search engine is', 'Name common search engines'),
+  PE1('Using ICT tools to search for information', 'Search engines', 'Searching for information using a search engine', 'E1-1.1', 'Search for information using keywords', 'Record the information found'),
+  PE1('Using ICT tools to search for information', 'ICT search tools', 'Other ICT tools for searching (e-libraries, dictionaries and apps)', 'E1-1.1', 'Identify ICT tools used to search for information', 'Use one tool to find the meaning of words'),
+  PE1('Using ICT tools to search for information', 'ICT search tools', 'Evaluating information found online', 'E1-1.1', 'Check whether online information is reliable', 'Report the findings to the class'),
+
+  PE1('Listening to various types of information', 'Listening to presentations', 'Listening to a presentation and answering questions', 'E1-2.1', 'Listen attentively to a short presentation', 'Answer questions about what was heard'),
+  PE1('Listening to various types of information', 'Listening to audio', 'Listening to audio to identify pronunciation', 'E1-2.1', 'Identify the pronunciation of words from audio', 'Repeat the words correctly'),
+  PE1('Listening to various types of information', 'Dictation', 'Writing words heard (dictation)', 'E1-2.1', 'Write words correctly as they are heard', 'Correct spelling mistakes'),
+  PE1('Listening to various types of information', 'Oral messages', 'Reproducing oral messages', 'E1-2.1', 'Listen to a short oral message', 'Reproduce the message in own words'),
+
+  PE1('Producing short and coherent oral messages', 'Pronunciation', 'Minimal pairs', 'E1-2.2', 'Pronounce minimal pairs correctly', 'Differentiate words that sound similar'),
+  PE1('Producing short and coherent oral messages', 'Pronunciation', 'Word stress', 'E1-2.2', 'Identify the stressed syllable in words', 'Pronounce words with correct stress'),
+  PE1('Producing short and coherent oral messages', 'Pronunciation', 'Short and long vowel sounds', 'E1-2.2', 'Distinguish short and long vowel sounds', 'Pronounce words with short and long vowels'),
+  PE1('Producing short and coherent oral messages', 'Pronunciation', 'Unfamiliar sounds and similar sounds with different spellings', 'E1-2.2', 'Pronounce unfamiliar English sounds', 'Pronounce words that sound alike but are spelt differently'),
+
+  PE1('Developing vocabulary from conversations and written texts', 'New vocabulary', 'Writing new vocabulary from conversations and texts', 'E1-2.3', 'Identify new words from a conversation or text', 'Write the meanings of the new words'),
+  PE1('Developing vocabulary from conversations and written texts', 'Using vocabulary in sentences', 'Constructing sentences using new vocabulary', 'E1-2.3', 'Construct correct sentences using new words', 'Use the new words in short passages'),
+  PE1('Developing vocabulary from conversations and written texts', 'Vocabulary games', 'Playing vocabulary games', 'E1-2.3', 'Take part in vocabulary games', 'Recall and use new words correctly'),
+
+  PE1('Using appropriate grammar and vocabulary in oral and written contexts', 'Expressing ideas', 'Expressing ideas using correct grammar', 'E1-2.4', 'Express ideas using correct sentences', 'Correct grammar mistakes in own sentences'),
+  PE1('Using appropriate grammar and vocabulary in oral and written contexts', 'Constructing sentences', 'Constructing sentences in different contexts', 'E1-2.4', 'Construct sentences suitable for a given context', 'Use appropriate vocabulary in the sentences'),
+  PE1('Using appropriate grammar and vocabulary in oral and written contexts', 'Debate', 'Debating on a simple topic', 'E1-2.4', 'Present points in a simple debate', 'Respond politely to opposing views'),
+
+  PE1('Reading texts for comprehension', 'Sequencing events', 'Reading a text and sequencing events', 'E1-3.1', 'Read a text and identify the events', 'Arrange the events in the correct order'),
+  PE1('Reading texts for comprehension', 'Summarising', 'Summarising a text', 'E1-3.1', 'Identify the main points in a text', 'Write a short summary'),
+  PE1('Reading texts for comprehension', 'Retelling', 'Retelling a text', 'E1-3.1', 'Retell a text in own words', 'Keep the main ideas of the text'),
+
+  PE1('Comprehending oral messages', 'Paraphrasing oral messages', 'Paraphrasing oral messages', 'E1-3.2', 'Listen to an oral message', 'Paraphrase the message in own words'),
+  PE1('Comprehending oral messages', 'Responding to oral messages', 'Responding to oral messages', 'E1-3.2', 'Respond appropriately to an oral message', 'Ask for clarification where needed'),
+  PE1('Comprehending oral messages', 'Responding to questions', 'Responding to questions', 'E1-3.2', 'Answer oral questions correctly', 'Ask relevant questions'),
+
+  PE1('Responding through oral and written communication', 'Expressing ideas', 'Expressing ideas in interpersonal communication', 'E1-3.3', 'Express ideas clearly to another person', 'Use polite expressions'),
+  PE1('Responding through oral and written communication', 'Non-verbal cues', 'Using non-verbal cues', 'E1-3.3', 'Identify common non-verbal cues', 'Use gestures and facial expressions appropriately'),
+  PE1('Responding through oral and written communication', 'Grammar and vocabulary in context', 'Using grammar and vocabulary in different contexts', 'E1-3.3', 'Use suitable grammar for a given situation', 'Choose vocabulary appropriate to the context'),
+  PE1('Responding through oral and written communication', 'Language for different audiences', 'Using language suitable for different age groups', 'E1-3.3', 'Adjust language for different age groups', 'Give examples of formal and informal language'),
+
+  PE1('Using appropriate grammar and vocabulary for oral communication', 'Daily routines', 'Describing daily routines (present simple tense)', 'E1-4.1', 'Describe daily routines using the present simple tense', 'Ask and answer questions about routines'),
+  PE1('Using appropriate grammar and vocabulary for oral communication', 'Ongoing activities', 'Describing ongoing activities (present progressive tense)', 'E1-4.1', 'Describe ongoing activities using the present progressive tense', 'Ask and answer questions about what is happening'),
+  PE1('Using appropriate grammar and vocabulary for oral communication', 'Family and occupations', 'Talking about family relationships and occupations', 'E1-4.1', 'Name family members and occupations', 'Talk about own family'),
+  PE1('Using appropriate grammar and vocabulary for oral communication', 'Ownership', 'Expressing ownership and possession', 'E1-4.1', 'Express ownership using possessive forms', 'Ask and answer questions about possession'),
+  PE1('Using appropriate grammar and vocabulary for oral communication', 'Giving directions', 'Giving directions', 'E1-4.1', 'Give directions using prepositions and landmarks', 'Follow directions given by others'),
+
+  PE1('Creating a variety of texts using appropriate tone and register', 'Stages of writing', 'Stages of writing (planning, drafting, revising, editing and publishing)', 'E1-4.2', 'Describe the stages of writing', 'Apply the stages to a short text'),
+  PE1('Creating a variety of texts using appropriate tone and register', 'Friendly letters and invitations', 'Writing a friendly letter', 'E1-4.2', 'State the format of a friendly letter', 'Write a friendly letter'),
+  PE1('Creating a variety of texts using appropriate tone and register', 'Friendly letters and invitations', 'Writing an invitation', 'E1-4.2', 'State the parts of an invitation', 'Write an invitation'),
+  PE1('Creating a variety of texts using appropriate tone and register', 'Dialogues', 'Writing dialogues', 'E1-4.2', 'Write a short dialogue using correct punctuation', 'Perform the dialogue in pairs'),
+  PE1('Creating a variety of texts using appropriate tone and register', 'Timetables for routines', 'Writing a timetable of daily routines', 'E1-4.2', 'Prepare a timetable of own routines', 'Describe the timetable in sentences'),
+
+  // ===== ENGLISH FORM II =====
+  PE2('Listening', 'Act 1: Participating in different conversations', 'Participating in different conversations', 'E2-1.1a', 'Listen and take turns in conversation', 'Respond appropriately to what others say'),
+  PE2('Listening', 'Act 2: Summarising information from oral presentations', 'Summarising information from oral presentations', 'E2-1.1b', 'Note main points from an oral presentation', 'Summarise the presentation orally or in writing'),
+  PE2('Listening', 'Act 3: Paraphrasing oral information', 'Paraphrasing oral information', 'E2-1.1c', 'Listen to oral information', 'Paraphrase it using own words'),
+
+  PE2('Producing oral messages', 'Act 1: Constructing sentences with proper intonation', 'Intonation in statements, questions and commands', 'E2-1.2a', 'Identify rising and falling intonation', 'Construct sentences with proper intonation'),
+  PE2('Producing oral messages', 'Act 2: Using cohesive devices in oral presentations', 'Cohesive devices in oral presentations', 'E2-1.2b', 'Identify cohesive devices (e.g. firstly, however, finally)', 'Use cohesive devices in a short oral presentation'),
+
+  PE2('Vocabulary', 'Act 1: Recognising words with opposite meanings', 'Words with opposite meanings (antonyms)', 'E2-1.3a', 'Identify words with opposite meanings', 'Use antonyms in sentences'),
+  PE2('Vocabulary', 'Act 2: Producing new vocabulary by attaching prefixes and suffixes', 'Prefixes', 'E2-1.3b', 'Form new words by adding prefixes', 'Use the new words in sentences'),
+  PE2('Vocabulary', 'Act 2: Producing new vocabulary by attaching prefixes and suffixes', 'Suffixes', 'E2-1.3b', 'Form new words by adding suffixes', 'Use the new words in sentences'),
+
+  PE2('Grammar and vocabulary', 'Act 1: Producing contextualised descriptions of personal experiences', 'Describing personal experiences (past tenses)', 'E2-1.4a', 'Describe personal experiences using past tenses', 'Share an experience orally and in writing'),
+  PE2('Grammar and vocabulary', 'Act 2: Composing a passage from a specific context', 'Composing a passage on a given context', 'E2-1.4b', 'Plan a passage on a given context', 'Write a passage with correct grammar and vocabulary'),
+  PE2('Grammar and vocabulary', 'Act 3: Presenting messages using correct grammar and vocabulary', 'Presenting messages in formal and informal situations', 'E2-1.4c', 'Present a message using suitable grammar and vocabulary', 'Distinguish formal from informal language'),
+
+  PE2('Reading for comprehension', 'Act 1: Expressing the main ideas from texts', 'Identifying the main ideas in a text', 'E2-2.1a', 'Read a text and identify its main ideas', 'Express the main ideas in own words'),
+  PE2('Reading for comprehension', 'Act 2: Inferring meanings', 'Inferring meanings of unfamiliar words and idiomatic expressions', 'E2-2.1b', 'Infer the meaning of words from context', 'Explain common idiomatic expressions'),
+  PE2('Reading for comprehension', 'Act 3: Relating messages from the text to real-life experiences', 'Relating text messages to real life', 'E2-2.1c', 'Identify the core message of a text', 'Relate the message to real-life experiences'),
+
+  PE2('Comprehending oral messages', 'Act 1: Synthesising ideas from a variety of oral sources', 'Synthesising ideas from oral sources', 'E2-2.2a', 'Listen to different oral sources', 'Combine ideas from the sources'),
+  PE2('Comprehending oral messages', 'Act 2: Summarising information from oral sources', 'Summarising information from oral sources', 'E2-2.2b', 'Identify key information from oral sources', 'Summarise the information'),
+  PE2('Comprehending oral messages', 'Act 3: Participating in contextualised oral conversation', 'Participating in contextualised oral conversations', 'E2-2.2c', 'Take part in a conversation on a given context', 'Respond appropriately to other speakers'),
+
+  PE2('Responding to oral and written communication', 'Act 1: Expressing ideas and opinions in communicative settings', 'Expressing ideas and opinions in group settings', 'E2-2.3a', 'Express ideas and opinions clearly', 'Respect other people\'s opinions'),
+  PE2('Responding to oral and written communication', 'Act 2: Using appropriate non-verbal cues in group communication', 'Non-verbal cues in group communication', 'E2-2.3b', 'Identify non-verbal cues used in groups', 'Use non-verbal cues appropriately'),
+  PE2('Responding to oral and written communication', 'Act 3: Using appropriate grammar and vocabulary for oral communication in a variety of contexts', 'Using suitable grammar and vocabulary in different contexts', 'E2-2.3c', 'Use suitable language for different contexts', 'Respond to oral messages appropriately'),
+  PE2('Responding to oral and written communication', 'Act 4: Creating a variety of texts for different communicative purposes', 'Writing claim and request letters', 'E2-3.2', 'State the format of claim and request letters', 'Write a claim or request letter'),
+  PE2('Responding to oral and written communication', 'Act 4: Creating a variety of texts for different communicative purposes', 'Writing e-mails', 'E2-3.2', 'State the parts of an e-mail', 'Write an e-mail using appropriate tone'),
+  PE2('Responding to oral and written communication', 'Act 4: Creating a variety of texts for different communicative purposes', 'Writing short stories', 'E2-3.2', 'Identify the structure of a short story', 'Write a short story on a given topic'),
+
+  // ===== ENGLISH FORM III =====
+  PE3('Organising information', 'Strategies for organising information', 'Ways of organising information', 'E3-1.1', 'Identify ways of organising information', 'Choose a suitable way for a given task'),
+  PE3('Organising information', 'Sorting and categorising information', 'Sorting and categorising information from various sources', 'E3-1.1', 'Sort information into categories', 'Label the categories correctly'),
+  PE3('Organising information', 'Compiling information', 'Compiling information searched from various sources', 'E3-1.1', 'Compile information from different sources', 'Present the compiled information'),
+
+  PE3('Using grammar and vocabulary in communication', 'Conversations', 'Holding conversations on various contexts', 'E3-2.1', 'Hold a conversation using suitable grammar', 'Use vocabulary appropriate to the context'),
+  PE3('Using grammar and vocabulary in communication', 'Composing stories', 'Composing stories using proper grammar', 'E3-2.1', 'Plan a story', 'Write a story using proper grammar'),
+  PE3('Using grammar and vocabulary in communication', 'Describing events', 'Describing events (e.g. elections, sports, ceremonies)', 'E3-2.1', 'Describe an event in correct sequence', 'Use descriptive vocabulary'),
+
+  PE3('Reading for comprehension', 'Facts and opinions', 'Distinguishing facts from opinions', 'E3-3.1', 'Differentiate facts from opinions in a text', 'Give reasons for the choice'),
+  PE3('Reading for comprehension', 'Connotative meanings', 'Expressing connotative meanings of words', 'E3-3.1', 'Differentiate denotative from connotative meaning', 'Explain connotative meanings in a text'),
+  PE3('Reading for comprehension', 'Paraphrasing', 'Paraphrasing a given text', 'E3-3.1', 'Identify the key ideas of a text', 'Paraphrase the text in own words'),
+
+  PE3('Listening for comprehension', 'Discussing oral information', 'Discussing information from oral sources', 'E3-3.2', 'Listen to an oral source', 'Discuss the information in groups'),
+  PE3('Listening for comprehension', 'Responding to oral messages', 'Responding to oral messages', 'E3-3.2', 'Respond appropriately to oral messages', 'Role-play a response to a message'),
+  PE3('Listening for comprehension', 'Commenting on oral messages', 'Commenting on oral messages', 'E3-3.2', 'Give relevant comments on an oral message', 'Support comments with reasons'),
+
+  PE3('Responding to messages appropriately', 'Mass communication', 'Expressing ideas, opinions and facts in mass communication', 'E3-3.3', 'Identify forms of mass communication', 'Express ideas and facts suitable for mass media'),
+  PE3('Responding to messages appropriately', 'Non-verbal cues', 'Using and interpreting non-verbal cues in mass communication', 'E3-3.3', 'Interpret non-verbal cues', 'Use them appropriately'),
+  PE3('Responding to messages appropriately', 'Public communication', 'Using appropriate language in public communication', 'E3-3.3', 'Use suitable language in public speaking', 'Appreciate other people\'s ideas'),
+  PE3('Responding to messages appropriately', 'Evaluating information', 'Evaluating information from mass communication', 'E3-3.3', 'Evaluate the accuracy of information received', 'Give reasons for the evaluation'),
+
+  PE3('Constructing meanings', 'Generating meanings', 'Reading and generating meanings from a variety of texts', 'E3-3.4', 'Read different types of texts', 'Generate meanings from the texts'),
+  PE3('Constructing meanings', 'Paraphrasing multiple sources', 'Paraphrasing textual information from multiple sources', 'E3-3.4', 'Compare information from different sources', 'Paraphrase the information'),
+
+  PE3('Communicating orally', 'Debates and dialogues', 'Expressing opinions through debates and dialogues', 'E3-4.1', 'Present arguments in a debate', 'Hold a dialogue on a given topic'),
+  PE3('Communicating orally', 'Presenting facts', 'Presenting facts logically', 'E3-4.1', 'Present facts in a logical order', 'Use appropriate linking words'),
+  PE3('Communicating orally', 'Conditions and situations', 'Describing conditions about various situations (conditional sentences)', 'E3-4.1', 'Use conditional sentences to describe situations', 'Give examples from daily life'),
+  PE3('Communicating orally', 'Interviews', 'Asking and responding to questions in interviews', 'E3-4.1', 'Ask relevant interview questions', 'Respond appropriately in an interview'),
+  PE3('Communicating orally', 'Social and cultural events', 'Describing activities and events of a social or cultural nature', 'E3-4.1', 'Describe a social or cultural event', 'Use appropriate tenses and vocabulary'),
+
+  PE3('Writing formal texts', 'Reports', 'Writing reports on various events', 'E3-4.2', 'State the format of a report', 'Write a report on an event'),
+  PE3('Writing formal texts', 'Biographies', 'Writing biographies', 'E3-4.2', 'Identify the features of a biography', 'Write a short biography using correct tenses'),
+
+  PE3('Editing and proofreading', 'Principles of editing and proofreading', 'Basic principles of editing and proofreading', 'E3-5.1', 'Recognise the basic principles of editing and proofreading', 'Differentiate editing from proofreading'),
+  PE3('Editing and proofreading', 'Steps of editing and proofreading', 'Main steps of editing and proofreading', 'E3-5.1', 'Describe the main steps of editing and proofreading', 'Use proofreading marks'),
+  PE3('Editing and proofreading', 'Applying editing and proofreading', 'Editing and proofreading a given text', 'E3-5.1', 'Edit a text for grammar and spelling', 'Proofread the text and produce a clean copy'),
+
+  PE3('Interpreting oral texts', 'Concept of interpretation', 'Meaning of interpretation', 'E3-5.2', 'Explain the concept of interpretation', 'Give situations where interpretation is needed'),
+  PE3('Interpreting oral texts', 'Principles of interpretation', 'Principles of interpretation', 'E3-5.2', 'Explain the principles of interpretation', 'Give examples of good interpretation practice'),
+  PE3('Interpreting oral texts', 'Practising interpretation', 'Interpreting a short simple text in a school context', 'E3-5.2', 'Interpret a short oral text', 'Evaluate each other\'s interpretation'),
+
+  PE3('Translating written texts', 'Concept of translation', 'Meaning of translation', 'E3-5.3', 'Explain the concept of translation', 'Differentiate translation from interpretation'),
+  PE3('Translating written texts', 'Principles of translation', 'Principles of translation', 'E3-5.3', 'Explain the principles of translation', 'Give examples of common translation challenges'),
+  PE3('Translating written texts', 'Practising translation', 'Translating a simple short text in a school context', 'E3-5.3', 'Translate a short written text', 'Check the translation for accuracy'),
+
+  PE3('Genres of written literature', 'Genres of literature', 'Genres of written literature and their features', 'E3-6.3', 'Name the genres of written literature', 'Describe the features of each genre'),
+  PE3('Genres of written literature', 'Critiquing poems and plays', 'Techniques of critiquing poems and plays', 'E3-6.3', 'Describe techniques of critiquing', 'Apply them to a short extract'),
+  PE3('Genres of written literature', 'Critiquing poems and plays', 'Critiquing selected poems and plays based on form and content', 'E3-6.3', 'Critique a poem based on form and content', 'Critique a play extract based on form and content'),
+
+  PE3('Aesthetics and values in literature', 'Language in literary works', 'Assessing the language used in selected poems and plays', 'E3-6.1', 'Identify literary language in a poem or play', 'Explain its effect on the reader'),
+  PE3('Aesthetics and values in literature', 'Values in literary works', 'Comparing own values with those implied in literary works', 'E3-6.1', 'Identify values implied in a literary work', 'Compare them with own values'),
+
+  PE3('Contexts in literature', 'Socio-political and cultural contexts', 'Socio-political and cultural contexts of selected poems and plays', 'E3-6.2', 'Describe the context of a literary work', 'Explain how context shapes the work'),
+  PE3('Contexts in literature', 'Issues in literary works', 'Socio-political, economic and cultural issues in literary works', 'E3-6.2', 'Identify issues raised in a literary work', 'Discuss the issues in groups'),
+  PE3('Contexts in literature', 'Relating context to real life', 'Relating the context of selected poems and plays to real life', 'E3-6.2', 'Relate the context of a literary work to real life', 'Give examples from the community'),
+
+  PE3('Creating simple literary works', 'Composing free verse poems', 'Composing free verse poems on various topics', 'E3-6.4', 'Identify the features of free verse', 'Compose a free verse poem using literary devices'),
+  PE3('Creating simple literary works', 'Publishing poems', 'Publishing poems on various platforms (notice boards, school magazine)', 'E3-6.4', 'Select and polish a poem for publishing', 'Publish the poem on a suitable platform'),
+);
+
+export const ENGLISH_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
+  1: "Tanzania Institute of Education. (2023). English for secondary schools student's book, form one. Tanzania Institute of Education.",
+  2: "Tanzania Institute of Education. (2024). English for secondary schools student's book, form two. Tanzania Institute of Education.",
+  3: "Tanzania Institute of Education. (2025). English for secondary schools student's book, form three. Tanzania Institute of Education.",
+};
+
 // References: fill from the copyright page of each book.
 export const REFERENCES: Record<1 | 2, string> = {
   1: "Tanzania Institute of Education. (2023). Computer Science for secondary schools student's book, form one. Tanzania Institute of Education.",
@@ -718,6 +955,7 @@ export const BUSINESS_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
 export const getReference = (subject: LessonPart['subject'], form: number): string => {
   if (subject === 'Mathematics') return MATH_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   if (subject === 'Business Studies') return BUSINESS_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
+  if (subject === 'English Language') return ENGLISH_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   return REFERENCES[form as 1 | 2] ?? '';
 };
 
@@ -727,6 +965,7 @@ export const resolveLessonSubject = (name: string): LessonPart['subject'] | null
   if (value.includes('computer')) return 'Computer Science';
   if (/math/.test(value)) return 'Mathematics';
   if (/business/.test(value)) return 'Business Studies';
+  if (/english/.test(value)) return 'English Language';
   return null;
 };
 
@@ -739,6 +978,7 @@ export const supportedFormsFor = (subject: LessonPart['subject']): number[] => {
 export const getCommonResources = (subject: LessonPart['subject']): string[] =>
   subject === 'Mathematics' ? MATH_COMMON_RESOURCES
     : subject === 'Business Studies' ? BUSINESS_COMMON_RESOURCES
+      : subject === 'English Language' ? ENGLISH_COMMON_RESOURCES
       : COMMON_RESOURCES;
 
 // Stage text templates per method. {part} is replaced with LessonPart.part.
