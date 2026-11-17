@@ -107,7 +107,7 @@ export const UNITS: Record<string, SyllabusUnit> = {
 
 export interface LessonPart {
   id: string;
-  subject: 'Computer Science' | 'Mathematics' | 'Business Studies' | 'English Language';
+  subject: 'Computer Science' | 'Mathematics' | 'Business Studies' | 'English Language' | 'Geography';
   form: 1 | 2 | 3 | 4;
   topic: string;      // Chapter title from the Student's Book
   subtopic: string;   // Section title from the Student's Book
@@ -932,6 +932,146 @@ export const ENGLISH_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
   3: "Tanzania Institute of Education. (2025). English for secondary schools student's book, form three. Tanzania Institute of Education.",
 };
 
+// ===================== GEOGRAPHY (Form I-II) =====================
+// Source: TIE Geography O-Level syllabus + Student's Books (Form I 2023, Form II 2025). Form III-IV not yet given.
+export const GEOGRAPHY_COMMON_RESOURCES = [
+  'Chalkboard / whiteboard',
+  'Markers and chalk',
+  'Handouts',
+  'Globe',
+  'Wall maps and charts',
+  'Atlas',
+  'Pictures and photographs',
+  'Projector / smartphone (videos and simulations)',
+  "Student's book (Geography, as applicable)",
+];
+
+const GM1 = 'Demonstrate mastery of the structure of the Earth';
+const GM2 = 'Demonstrate mastery of basic skills and techniques in Geography';
+const GS11 = 'Demonstrate an understanding of the origin and the structure of the Earth and Earth systems';
+const GS12 = 'Demonstrate an understanding of the major features of the Earth surface';
+const GS21 = 'Demonstrate an understanding of the basic techniques of map and photograph interpretation';
+
+const GEO_BASIC = ['Relevant books', 'Charts', 'Pictures of landforms', 'ICT simulation tools'];
+const EARTH_RES = ['Globe', 'Pictures of the solar system', 'Models of planets', 'ICT simulation tools', 'Relevant books'];
+const FEATURE_RES = ['World map', 'Atlas', 'Globe', 'Pictures of landforms and water bodies', 'Charts of vegetation zones', 'Video clips'];
+const INTERNAL_RES = ['Charts of the Earth\'s interior', 'Models (clay, plasticine)', 'Rock samples', 'Video clips of volcanoes and earthquakes', 'ICT simulation tools'];
+const EXTERNAL_RES = ['Rock samples', 'Pictures of weathering and mass wasting', 'Charts and diagrams of rivers and coasts', 'Video clips', 'Models'];
+const MAP_RES = ['Topographical maps', 'Atlas', 'Ruler and pencils', 'Tracing paper', 'Graph paper', 'Models of landforms'];
+const PHOTO_RES = ['Ground photographs', 'Aerial photographs', 'Satellite images', 'Topographical maps', 'Smartphone / projector'];
+
+Object.assign(UNITS, {
+  // ---- Form I ----
+  'G1-1.1a': { mainCompetence: GM1, specificCompetence: GS11, mainActivity: 'Explain the concept and scope of Geography (branches, importance and relationship with other disciplines)', methods: ['brainstorming', 'fieldTrip', 'groupDiscussion'], resources: GEO_BASIC },
+  'G1-1.1b': { mainCompetence: GM1, specificCompetence: GS11, mainActivity: 'Describe the Earth (origin, shape, size, position and movements in the solar system, parallels and meridians)', methods: ['brainstorming', 'projectActivity', 'visual'], resources: EARTH_RES },
+  'G1-1.2a': { mainCompetence: GM1, specificCompetence: GS12, mainActivity: 'Describe major features of the Earth\'s surface (continents, oceans, relief features, inland water bodies and vegetation zones)', methods: ['qa', 'fieldTrip', 'groupDiscussion'], resources: FEATURE_RES },
+  // ---- Form II ----
+  'G2-1.1a': { mainCompetence: GM1, specificCompetence: GS11, mainActivity: 'Describe the internal structure of the Earth (crust, mantle, core) and their characteristics', methods: ['brainstorming', 'projectActivity', 'visual'], resources: INTERNAL_RES },
+  'G2-1.1b': { mainCompetence: GM1, specificCompetence: GS11, mainActivity: 'Explain the internal forces of the Earth, vulcanicity and earthquakes', methods: ['groupDiscussion', 'caseStudy', 'visual'], resources: INTERNAL_RES },
+  'G2-1.1c': { mainCompetence: GM1, specificCompetence: GS11, mainActivity: 'Describe the external structure of the Earth and the external forces that shape the Earth\'s surface (weathering, mass wasting, running water, waves)', methods: ['qa', 'fieldTrip', 'groupDiscussion'], resources: EXTERNAL_RES },
+  'G2-2.1a': { mainCompetence: GM2, specificCompetence: GS21, mainActivity: 'Describe the basic principles of reading and interpreting maps (key, symbols, direction, margin, title, scale)', methods: ['demonstration', 'practical', 'brainstorming'], resources: MAP_RES },
+  'G2-2.1b': { mainCompetence: GM2, specificCompetence: GS21, mainActivity: 'Read and interpret maps: represent relief by contours, draw cross-sections and interpret topographical maps', methods: ['practical', 'demonstration', 'groupDiscussion'], resources: MAP_RES },
+  'G2-2.1c': { mainCompetence: GM2, specificCompetence: GS21, mainActivity: 'Describe the basic concept of photographs in Geography (meaning, types, satellite images and uses)', methods: ['brainstorming', 'groupDiscussion', 'visual'], resources: PHOTO_RES },
+  'G2-2.1d': { mainCompetence: GM2, specificCompetence: GS21, mainActivity: 'Interpret photographs (foreground, middle ground, background) and compare photographs with maps', methods: ['qa', 'practical', 'groupDiscussion'], resources: PHOTO_RES },
+});
+
+const PGF = (form: 1 | 2) => (topic: string, subtopic: string, part: string, unit: string, ...specificActivities: string[]): LessonPart =>
+  ({ id: `g${form}-${++_n}`, subject: 'Geography', form, topic, subtopic, part, unit, specificActivities });
+const PG1 = PGF(1);
+const PG2 = PGF(2);
+
+LESSON_PARTS.push(
+  // ===== GEOGRAPHY FORM I =====
+  PG1('Introduction to Geography', 'Concept of Geography', 'Meaning of Geography', 'G1-1.1a', 'Explain the meaning of Geography', 'Give examples of geographical features in the surroundings'),
+  PG1('Introduction to Geography', 'Concept of Geography', 'Scope of Geography (physical and human)', 'G1-1.1a', 'Describe the scope of Geography', 'Differentiate physical from human geography'),
+  PG1('Introduction to Geography', 'Branches of Geography', 'Physical Geography and its sub-branches', 'G1-1.1a', 'Name the branches of physical geography', 'Describe what each branch studies'),
+  PG1('Introduction to Geography', 'Branches of Geography', 'Human Geography and its sub-branches', 'G1-1.1a', 'Name the branches of human geography', 'Describe what each branch studies'),
+  PG1('Introduction to Geography', 'Importance of studying Geography', 'Importance of studying Geography', 'G1-1.1a', 'State the importance of studying Geography', 'Explain how Geography helps in daily life and careers'),
+  PG1('Introduction to Geography', 'The relationship between Geography and other disciplines', 'Relationship between Geography and other subjects', 'G1-1.1a', 'Show how Geography is related to other subjects', 'Give examples from Biology, History, Mathematics and Economics'),
+
+  PG1('The planet Earth', 'Origin of the Earth', 'Theories of the origin of the Earth', 'G1-1.1b', 'Describe theories of the origin of the Earth', 'Compare the theories'),
+  PG1('The planet Earth', 'Position of the Earth in the Solar system', 'The Solar system and the planets', 'G1-1.1b', 'Name the components of the Solar system', 'Describe the position of the Earth among the planets'),
+  PG1('The planet Earth', 'Position of the Earth in the Solar system', 'Making a model of the Solar system', 'G1-1.1b', 'Design a simple model of the Solar system', 'Present the model to the class'),
+  PG1('The planet Earth', 'Shape and size of the Earth', 'Shape of the Earth and evidence', 'G1-1.1b', 'Describe the shape of the Earth', 'Give evidence that the Earth is spherical'),
+  PG1('The planet Earth', 'Shape and size of the Earth', 'Size of the Earth', 'G1-1.1b', 'State the size of the Earth (diameter and circumference)', 'Explain why the Earth is slightly flattened at the poles'),
+  PG1('The planet Earth', 'Earth\'s curved horizon', 'The Earth\'s curved horizon', 'G1-1.1b', 'Explain what the curved horizon is', 'Show how it proves the Earth is curved'),
+
+  PG1('Movements of the Earth in the Solar system', 'Rotation of the Earth', 'Rotation of the Earth', 'G1-1.1b', 'Explain what rotation is', 'State the direction and period of rotation'),
+  PG1('Movements of the Earth in the Solar system', 'Evidences of the earth\'s rotation', 'Evidences of the Earth\'s rotation', 'G1-1.1b', 'Give evidence of the Earth\'s rotation', 'Explain each evidence'),
+  PG1('Movements of the Earth in the Solar system', 'The effects of rotation', 'Effects of rotation (day and night, time, tides and deflection of winds)', 'G1-1.1b', 'Describe the effects of rotation', 'Explain how rotation causes day and night'),
+  PG1('Movements of the Earth in the Solar system', 'Revolution of the Earth', 'Revolution of the Earth', 'G1-1.1b', 'Explain what revolution is', 'State the period of revolution and the inclination of the axis'),
+  PG1('Movements of the Earth in the Solar system', 'Revolution of the Earth', 'Effects of revolution (seasons and length of day)', 'G1-1.1b', 'Describe the effects of revolution', 'Explain how seasons occur'),
+  PG1('Movements of the Earth in the Solar system', 'Parallels and meridians', 'Parallels of latitude', 'G1-1.1b', 'Define parallels of latitude and name the major ones', 'Locate places using latitude'),
+  PG1('Movements of the Earth in the Solar system', 'Parallels and meridians', 'Meridians of longitude and time', 'G1-1.1b', 'Define meridians of longitude and the Prime Meridian', 'Calculate local time differences using longitude'),
+
+  PG1('Major features of the Earth\'s surface', 'Earth\'s surface', 'Land and water on the Earth\'s surface', 'G1-1.2a', 'Describe the distribution of land and water', 'Explain why the Earth is called the water planet'),
+  PG1('Major features of the Earth\'s surface', 'Continents and oceans of the world', 'Continents and oceans of the world', 'G1-1.2a', 'Name and locate the continents and oceans', 'Describe their size and distribution'),
+  PG1('Major features of the Earth\'s surface', 'Interaction between continental landmasses and water bodies', 'Interaction between landmasses and water bodies', 'G1-1.2a', 'Describe the interaction between land and water bodies', 'Explain its effect on climate and human activities'),
+  PG1('Major features of the Earth\'s surface', 'Major relief features of the continents', 'Mountains and plateaus', 'G1-1.2a', 'Describe mountains and plateaus', 'Give examples from Tanzania and the world'),
+  PG1('Major features of the Earth\'s surface', 'Major relief features of the continents', 'Plains and valleys', 'G1-1.2a', 'Describe plains and valleys', 'Give examples from Tanzania and the world'),
+  PG1('Major features of the Earth\'s surface', 'Water bodies on the earth\'s surface', 'Large inland water bodies (lakes and rivers)', 'G1-1.2a', 'Describe major inland water bodies', 'Locate the main lakes and rivers on a map'),
+  PG1('Major features of the Earth\'s surface', 'The ocean floor and its features', 'Features of the ocean floor', 'G1-1.2a', 'Describe the ocean floor features (continental shelf, slope, ridges and trenches)', 'Draw a simple diagram of the ocean floor'),
+  PG1('Major features of the Earth\'s surface', 'Vegetation', 'Vegetation zones of the world', 'G1-1.2a', 'Name the major vegetation zones', 'Locate them on a world map'),
+  PG1('Major features of the Earth\'s surface', 'Vegetation', 'Characteristics and importance of vegetation', 'G1-1.2a', 'Describe the characteristics of each vegetation type', 'State the importance of vegetation'),
+
+  // ===== GEOGRAPHY FORM II =====
+  PG2('The internal structure of the Earth', 'The concept of the internal structure of the Earth', 'Meaning of the internal structure of the Earth', 'G2-1.1a', 'Explain the internal structure of the Earth', 'List its layers'),
+  PG2('The internal structure of the Earth', 'Crust', 'The crust', 'G2-1.1a', 'Describe the crust (location, thickness, density and composition)', 'Differentiate continental from oceanic crust'),
+  PG2('The internal structure of the Earth', 'Mantle', 'The mantle', 'G2-1.1a', 'Describe the mantle (location, thickness, density and composition)', 'Explain its importance'),
+  PG2('The internal structure of the Earth', 'Core', 'The core', 'G2-1.1a', 'Describe the outer and inner core', 'Compare the core with the mantle and crust'),
+  PG2('The internal structure of the Earth', 'The role of Earth\'s internal structure in rock formation', 'Rock formation (igneous, sedimentary and metamorphic)', 'G2-1.1a', 'Describe how the three rock types form', 'Link the internal structure to rock formation'),
+  PG2('The internal structure of the Earth', 'The internal forces of the Earth', 'Internal forces: folding', 'G2-1.1b', 'Describe how folding occurs', 'Name fold mountains and their features'),
+  PG2('The internal structure of the Earth', 'The internal forces of the Earth', 'Internal forces: faulting', 'G2-1.1b', 'Describe how faulting occurs', 'Describe fault features (rift valleys and block mountains)'),
+  PG2('The internal structure of the Earth', 'Vulcanicity', 'Vulcanicity: intrusive features', 'G2-1.1b', 'Describe intrusive volcanic features', 'Draw and label them'),
+  PG2('The internal structure of the Earth', 'Vulcanicity', 'Vulcanicity: extrusive features and types of volcanoes', 'G2-1.1b', 'Describe extrusive volcanic features and types of volcanoes', 'Give examples of volcanoes in Tanzania and the world'),
+  PG2('The internal structure of the Earth', 'The economic importance of volcanic activities', 'Economic importance of volcanic activities', 'G2-1.1b', 'State the economic importance of volcanic activities', 'Give local examples'),
+  PG2('The internal structure of the Earth', 'Negative effects of volcanic eruptions', 'Negative effects of volcanic eruptions', 'G2-1.1b', 'Describe the negative effects of volcanic eruptions', 'Suggest ways of reducing the effects'),
+  PG2('The internal structure of the Earth', 'Earthquakes', 'Earthquakes: meaning and distribution', 'G2-1.1b', 'Explain what an earthquake is', 'Describe where earthquakes occur most'),
+  PG2('The internal structure of the Earth', 'Causes of the earthquake', 'Causes of earthquakes', 'G2-1.1b', 'Explain the causes of earthquakes', 'Differentiate natural from human-induced causes'),
+  PG2('The internal structure of the Earth', 'Effects of earthquakes', 'Effects of earthquakes', 'G2-1.1b', 'Describe the effects of earthquakes', 'Give examples of past earthquakes'),
+  PG2('The internal structure of the Earth', 'Minimising risks caused by earthquake incidents', 'Minimising risks caused by earthquakes', 'G2-1.1b', 'Suggest ways of minimising earthquake risks', 'Explain safety measures before, during and after an earthquake'),
+
+  PG2('The external structure of the Earth', 'Concept of the external structure of the Earth', 'External structure of the Earth (hydrosphere, atmosphere and biosphere)', 'G2-1.1c', 'Describe the external structure of the Earth', 'Explain how the external systems interact'),
+  PG2('The external structure of the Earth', 'External forces affecting the Earth\'s surface', 'External forces and their agents', 'G2-1.1c', 'Identify external forces and their agents', 'Explain how they change the Earth\'s surface'),
+  PG2('The external structure of the Earth', 'Weathering', 'Physical weathering', 'G2-1.1c', 'Describe types of physical weathering', 'Give local examples'),
+  PG2('The external structure of the Earth', 'Weathering', 'Chemical and biological weathering', 'G2-1.1c', 'Describe chemical and biological weathering', 'Give local examples'),
+  PG2('The external structure of the Earth', 'Significance of weathering', 'Significance of weathering', 'G2-1.1c', 'State the significance of weathering', 'Explain how weathering forms soil'),
+  PG2('The external structure of the Earth', 'Mass wasting', 'Types and causes of mass wasting', 'G2-1.1c', 'Describe types of mass wasting (creep, landslide, mudflow)', 'Explain the causes'),
+  PG2('The external structure of the Earth', 'Effects of mass wasting on the environment', 'Effects of mass wasting on the environment', 'G2-1.1c', 'Describe the effects of mass wasting', 'Suggest ways of controlling it'),
+  PG2('The external structure of the Earth', 'The action of running water on the Earth\'s surface', 'Work of running water: erosion, transportation and deposition', 'G2-1.1c', 'Describe the work of running water', 'Name features formed by erosion and deposition'),
+  PG2('The external structure of the Earth', 'The action of running water on the Earth\'s surface', 'River landforms (valleys, waterfalls, meanders, deltas and flood plains)', 'G2-1.1c', 'Describe river landforms', 'Draw and label river landforms'),
+  PG2('The external structure of the Earth', 'Wave action and coastal features', 'Wave action and coastal erosion features', 'G2-1.1c', 'Describe wave action', 'Describe features of coastal erosion (cliffs, caves and arches)'),
+  PG2('The external structure of the Earth', 'Wave action and coastal features', 'Coastal deposition features', 'G2-1.1c', 'Describe features of coastal deposition (beaches, spits and bars)', 'Give examples along the Tanzanian coast'),
+
+  PG2('Map reading and interpretation', 'Concept of map reading and interpretation', 'Meaning of map reading and interpretation', 'G2-2.1a', 'Explain map reading and interpretation', 'State why it is a useful skill'),
+  PG2('Map reading and interpretation', 'Essential elements of a map', 'Essential elements of a map (title, key, scale, direction, frame)', 'G2-2.1a', 'Identify the essential elements of a map', 'Explain the use of each element'),
+  PG2('Map reading and interpretation', 'Characteristics of good maps', 'Characteristics of good maps', 'G2-2.1a', 'Describe the characteristics of a good map', 'Evaluate a given map'),
+  PG2('Map reading and interpretation', 'Importance of maps', 'Importance of maps', 'G2-2.1a', 'State the importance of maps', 'Give examples of the use of maps in daily life'),
+  PG2('Map reading and interpretation', 'Representing relief features on maps', 'Methods of representing relief on maps', 'G2-2.1b', 'Describe methods of showing relief on maps', 'Compare the methods'),
+  PG2('Map reading and interpretation', 'Contours', 'Contours and contour patterns', 'G2-2.1b', 'Define contours and contour interval', 'Identify contour patterns'),
+  PG2('Map reading and interpretation', 'Contours and associated landforms', 'Highland landforms on contour maps', 'G2-2.1b', 'Identify highland landforms from contours', 'Describe their features'),
+  PG2('Map reading and interpretation', 'Contours and associated landforms', 'Lowland landforms on contour maps', 'G2-2.1b', 'Identify lowland landforms from contours', 'Describe their features'),
+  PG2('Map reading and interpretation', 'Contours and associated landforms', 'Coastline landforms on contour maps', 'G2-2.1b', 'Identify coastline landforms from contours', 'Describe their features'),
+  PG2('Map reading and interpretation', 'Cross-section', 'Drawing a cross-section', 'G2-2.1b', 'Draw a cross-section from a contour map', 'Label the main features'),
+  PG2('Map reading and interpretation', 'Vertical exaggeration', 'Vertical exaggeration', 'G2-2.1b', 'Calculate vertical exaggeration', 'Explain its effect on a cross-section'),
+  PG2('Map reading and interpretation', 'Map interpretation', 'Interpreting a topographical map', 'G2-2.1b', 'Describe relief, drainage and settlement on a map', 'Suggest human activities from the map evidence'),
+
+  PG2('Photograph reading and interpretation', 'Concept of photograph reading and interpretation', 'Meaning of photograph reading and interpretation', 'G2-2.1c', 'Explain photograph reading and interpretation', 'State why photographs are used in Geography'),
+  PG2('Photograph reading and interpretation', 'Types of photographs', 'Types of photographs (ground and aerial)', 'G2-2.1c', 'Describe ground and aerial photographs', 'Differentiate vertical from oblique photographs'),
+  PG2('Photograph reading and interpretation', 'Satellite images', 'Satellite images', 'G2-2.1c', 'Explain what satellite images are', 'Describe how they are obtained'),
+  PG2('Photograph reading and interpretation', 'Uses of satellite images', 'Uses of satellite images', 'G2-2.1c', 'State the uses of satellite images', 'Give examples (weather forecasting, mapping and environmental monitoring)'),
+  PG2('Photograph reading and interpretation', 'Similarities and differences between photographs and maps', 'Photographs and maps: similarities and differences', 'G2-2.1d', 'State similarities between photographs and maps', 'State differences between photographs and maps'),
+  PG2('Photograph reading and interpretation', 'Uses of photographs', 'Uses of photographs', 'G2-2.1d', 'State the uses of photographs', 'Give examples from different fields'),
+  PG2('Photograph reading and interpretation', 'Photograph reading and interpretation', 'Foreground, middle ground and background', 'G2-2.1d', 'Identify foreground, middle ground and background', 'Describe features in each part'),
+  PG2('Photograph reading and interpretation', 'Photograph reading and interpretation', 'Interpreting a photograph', 'G2-2.1d', 'Interpret geographical features and activities in a photograph', 'Draw a labelled sketch of the photograph'),
+  PG2('Photograph reading and interpretation', 'Importance of photograph reading and interpretation', 'Importance of photograph reading and interpretation', 'G2-2.1d', 'State the importance of reading photographs', 'Apply the skill to a new photograph'),
+);
+
+export const GEOGRAPHY_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
+  1: "Tanzania Institute of Education. (2023). Geography for secondary schools student's book, form one. Tanzania Institute of Education.",
+  2: "Tanzania Institute of Education. (2025). Geography for secondary schools student's book, form two. Tanzania Institute of Education.",
+};
+
 // References: fill from the copyright page of each book.
 export const REFERENCES: Record<1 | 2, string> = {
   1: "Tanzania Institute of Education. (2023). Computer Science for secondary schools student's book, form one. Tanzania Institute of Education.",
@@ -956,6 +1096,7 @@ export const getReference = (subject: LessonPart['subject'], form: number): stri
   if (subject === 'Mathematics') return MATH_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   if (subject === 'Business Studies') return BUSINESS_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   if (subject === 'English Language') return ENGLISH_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
+  if (subject === 'Geography') return GEOGRAPHY_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   return REFERENCES[form as 1 | 2] ?? '';
 };
 
@@ -966,6 +1107,7 @@ export const resolveLessonSubject = (name: string): LessonPart['subject'] | null
   if (/math/.test(value)) return 'Mathematics';
   if (/business/.test(value)) return 'Business Studies';
   if (/english/.test(value)) return 'English Language';
+  if (/geograph/.test(value)) return 'Geography';
   return null;
 };
 
@@ -979,6 +1121,7 @@ export const getCommonResources = (subject: LessonPart['subject']): string[] =>
   subject === 'Mathematics' ? MATH_COMMON_RESOURCES
     : subject === 'Business Studies' ? BUSINESS_COMMON_RESOURCES
       : subject === 'English Language' ? ENGLISH_COMMON_RESOURCES
+        : subject === 'Geography' ? GEOGRAPHY_COMMON_RESOURCES
       : COMMON_RESOURCES;
 
 // Stage text templates per method. {part} is replaced with LessonPart.part.
