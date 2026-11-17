@@ -107,7 +107,7 @@ export const UNITS: Record<string, SyllabusUnit> = {
 
 export interface LessonPart {
   id: string;
-  subject: 'Computer Science' | 'Mathematics' | 'Business Studies' | 'English Language' | 'Geography';
+  subject: 'Computer Science' | 'Mathematics' | 'Business Studies' | 'English Language' | 'Geography' | 'History';
   form: 1 | 2 | 3 | 4;
   topic: string;      // Chapter title from the Student's Book
   subtopic: string;   // Section title from the Student's Book
@@ -1072,24 +1072,134 @@ export const GEOGRAPHY_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
   2: "Tanzania Institute of Education. (2025). Geography for secondary schools student's book, form two. Tanzania Institute of Education.",
 };
 
+// ===================== HISTORY (Form I-II) =====================
+// Source: TIE History Form I-IV syllabus + Student's Books (Form I 2023, Form II 2025). Form III-IV not yet given.
+export const HISTORY_COMMON_RESOURCES = [
+  'Chalkboard / whiteboard',
+  'Markers and chalk',
+  'Handouts',
+  'Maps of Africa and the world',
+  'Charts and time lines',
+  'Pictures and photographs',
+  'Projector / smartphone (videos and documentaries)',
+  "Student's book (History, as applicable)",
+];
+
+const HM1 = 'Demonstrate mastery of African history before colonialism';
+const HS11 = 'Demonstrate an understanding of the concept of History and sources of historical information';
+const HS12 = 'Demonstrate an understanding of theories of the origin of human beings';
+const HS13 = 'Demonstrate an understanding of the economic, political, social and technological development of pre-colonial Africa';
+const HS14 = 'Demonstrate an understanding of interactions among African societies during the pre-colonial era';
+const HS15 = 'Demonstrate an understanding of the early contacts among the people of Africa, the Middle East, the Far East and Europe from the 1st Century to the 19th Century';
+
+const HIST_BASIC = ['Relevant books', 'Charts and time lines', 'Pictures of historical sources', 'Museum / historical site visit', 'Resource person (elder or historian)'];
+const ORIGIN_RES = ['Pictures of human ancestors and tools', 'Charts of human evolution', 'Replicas of stone tools', 'Video clips', 'Resource person (religious leader, archaeologist)'];
+const ECON_RES = ['Pictures of farming, crafts and mining', 'Samples of crafts (pottery, baskets, iron tools)', 'Charts of modes of production', 'Video clips', 'Resource person (elder, craftsman)'];
+const STATE_RES = ['Maps of pre-colonial African states', 'Charts of state organisation', 'Pictures of historical sites', 'Video clips', 'Resource person (elder)'];
+const CONTACT_RES = ['Maps of trade routes', 'Pictures of commodities and ships', 'Charts and time lines', 'Video clips', 'Relevant books'];
+
+Object.assign(UNITS, {
+  // ---- Form I ----
+  'H1-1.1': { mainCompetence: HM1, specificCompetence: HS11, mainActivity: 'Explain the concept of History, dating of events and sources of historical information', methods: ['brainstorming', 'fieldTrip', 'groupDiscussion'], resources: HIST_BASIC },
+  'H1-1.2a': { mainCompetence: HM1, specificCompetence: HS12, mainActivity: 'Describe the theories of the origin of human beings', methods: ['guestSpeaker', 'groupDiscussion', 'brainstorming'], resources: ORIGIN_RES },
+  'H1-1.2b': { mainCompetence: HM1, specificCompetence: HS12, mainActivity: 'Describe the stages of human evolution and their technological ages', methods: ['rolePlay', 'visual', 'groupDiscussion'], resources: ORIGIN_RES },
+  'H1-1.3a': { mainCompetence: HM1, specificCompetence: HS13, mainActivity: 'Describe pre-colonial modes of production and social organisation in Africa', methods: ['fieldTrip', 'groupDiscussion', 'qa'], resources: ECON_RES },
+  'H1-1.3b': { mainCompetence: HM1, specificCompetence: HS13, mainActivity: 'Explain economic activities (agriculture, handcraft and mining) and their impact on pre-colonial African societies', methods: ['groupDiscussion', 'fieldTrip', 'visual'], resources: ECON_RES },
+  'H1-1.3c': { mainCompetence: HM1, specificCompetence: HS13, mainActivity: 'Describe social, political and education systems in pre-colonial African societies', methods: ['groupDiscussion', 'caseStudy', 'guestSpeaker'], resources: STATE_RES },
+  'H1-1.3d': { mainCompetence: HM1, specificCompetence: HS13, mainActivity: 'Describe the organisation of centralised states in pre-colonial Africa', methods: ['jigsaw', 'groupDiscussion', 'visual'], resources: STATE_RES },
+  // ---- Form II ----
+  'H2-1.4a': { mainCompetence: HM1, specificCompetence: HS14, mainActivity: 'Explain the meaning of interaction and interactions among African societies in different regions', methods: ['jigsaw', 'groupDiscussion', 'visual'], resources: CONTACT_RES },
+  'H2-1.4b': { mainCompetence: HM1, specificCompetence: HS14, mainActivity: 'Assess the effects of interactions among African societies', methods: ['groupDiscussion', 'caseStudy', 'qa'], resources: CONTACT_RES },
+  'H2-1.5a': { mainCompetence: HM1, specificCompetence: HS15, mainActivity: 'Describe the early contacts between African societies, the Middle East and the Far East (motives, conditions, commodities and effects)', methods: ['brainstorming', 'groupDiscussion', 'visual'], resources: CONTACT_RES },
+  'H2-1.5b': { mainCompetence: HM1, specificCompetence: HS15, mainActivity: 'Explain the early contacts between African societies and Europeans (the Portuguese)', methods: ['caseStudy', 'groupDiscussion', 'qa'], resources: CONTACT_RES },
+});
+
+const PHF = (form: 1 | 2) => (topic: string, subtopic: string, part: string, unit: string, ...specificActivities: string[]): LessonPart =>
+  ({ id: `h${form}-${++_n}`, subject: 'History', form, topic, subtopic, part, unit, specificActivities });
+const PH1 = PHF(1);
+const PH2 = PHF(2);
+
+LESSON_PARTS.push(
+  // ===== HISTORY FORM I =====
+  PH1('Introduction to History', 'Meaning of History', 'Meaning of History', 'H1-1.1', 'Explain the meaning of History', 'Give examples of historical events'),
+  PH1('Introduction to History', 'Qualities of historical events', 'Qualities of historical events', 'H1-1.1', 'Describe the qualities of historical events', 'Differentiate historical from non-historical events'),
+  PH1('Introduction to History', 'Ways of dating historical events', 'Ways of dating historical events', 'H1-1.1', 'Describe the ways of dating historical events', 'Date given events using the time line'),
+  PH1('Introduction to History', 'Importance of studying History', 'Importance of studying History', 'H1-1.1', 'State the importance of studying History', 'Explain how History helps in understanding the present'),
+  PH1('Introduction to History', 'Relationship between History and other related subjects', 'Relationship between History and other subjects', 'H1-1.1', 'Show how History is related to other subjects', 'Give examples (Geography, Civics, Archaeology)'),
+  PH1('Introduction to History', 'Concept of sources of historical information', 'Sources of historical information: meaning and types', 'H1-1.1', 'Explain the meaning of sources of historical information', 'Name the types of sources'),
+  PH1('Introduction to History', 'Concept of sources of historical information', 'Oral and written sources', 'H1-1.1', 'Describe oral and written sources', 'State their advantages and limitations'),
+  PH1('Introduction to History', 'Concept of sources of historical information', 'Archaeological, anthropological and other sources', 'H1-1.1', 'Describe archaeological and other sources', 'State their advantages and limitations'),
+
+  PH1('Origin of human beings', 'Theories of the origin of human beings', 'Religious theories of the origin of human beings', 'H1-1.2a', 'Describe religious theories of human origin', 'Discuss them respectfully'),
+  PH1('Origin of human beings', 'Theories of the origin of human beings', 'Scientific theory (evolution)', 'H1-1.2a', 'Describe the scientific theory of human origin', 'Compare it with religious theories'),
+  PH1('Origin of human beings', 'Major groups of human ancestors', 'Major groups of human ancestors', 'H1-1.2b', 'Name the major groups of human ancestors', 'Describe their characteristics'),
+  PH1('Origin of human beings', 'Human technology', 'Stone Age technology', 'H1-1.2b', 'Describe Early, Middle and Late Stone Age technology', 'Explain the tools and way of life of each age'),
+  PH1('Origin of human beings', 'Human technology', 'Iron Age technology', 'H1-1.2b', 'Describe Iron Age technology', 'Explain its impact on societies'),
+
+  PH1('Production and social organisation in pre-colonial Africa', 'Concepts of social organisation and economic production', 'Social organisation and economic production', 'H1-1.3a', 'Explain social organisation and economic production', 'Give examples from pre-colonial societies'),
+  PH1('Production and social organisation in pre-colonial Africa', 'Pre-colonial modes of production', 'Communal mode of production', 'H1-1.3a', 'Describe the communal mode of production', 'State its characteristics'),
+  PH1('Production and social organisation in pre-colonial Africa', 'Pre-colonial modes of production', 'Slave and feudal modes of production', 'H1-1.3a', 'Describe slave and feudal modes of production', 'Compare them with the communal mode'),
+
+  PH1('Development of agriculture in pre-colonial African societies', 'Agriculture', 'Meaning, origin and importance of agriculture', 'H1-1.3b', 'Explain the origin and importance of agriculture', 'Describe its effect on societies'),
+  PH1('Development of agriculture in pre-colonial African societies', 'Types of agricultural practices in pre-colonial Africa', 'Types of agricultural practices', 'H1-1.3b', 'Describe types of agricultural practices (shifting cultivation, pastoralism and irrigation)', 'Give examples of societies that practised them'),
+
+  PH1('Handcraft and mining industries in pre-colonial Africa', 'Handcraft industries', 'Handcraft industries', 'H1-1.3b', 'Describe handcraft industries (pottery, weaving and carving)', 'Explain their importance'),
+  PH1('Handcraft and mining industries in pre-colonial Africa', 'Mining industry', 'Mining and iron working', 'H1-1.3b', 'Describe mining and iron working', 'Explain the importance of mining industries'),
+
+  PH1('Social, political and education systems in pre-colonial Africa', 'Concepts of social, political and education systems', 'Concepts of social, political and education systems', 'H1-1.3c', 'Explain social, political and education systems', 'Give examples from the community'),
+  PH1('Social, political and education systems in pre-colonial Africa', 'Non-centralised political system', 'Non-centralised (stateless) political systems', 'H1-1.3c', 'Describe non-centralised political systems', 'Give examples of societies that used them'),
+  PH1('Social, political and education systems in pre-colonial Africa', 'Education system in pre-colonial African societies', 'Education in pre-colonial African societies', 'H1-1.3c', 'Describe the content and methods of education', 'Compare it with education today'),
+
+  PH1('State organisation in pre-colonial Africa', 'Meaning of a state', 'Meaning and features of a state', 'H1-1.3d', 'Explain the meaning of a state', 'State the features of a state'),
+  PH1('State organisation in pre-colonial Africa', 'Centralised states in East Africa', 'Centralised states in East Africa', 'H1-1.3d', 'Describe centralised states in East Africa (e.g. Buganda and Bunyoro)', 'Explain their political and economic organisation'),
+  PH1('State organisation in pre-colonial Africa', 'Western Sudanic states', 'Western Sudanic states', 'H1-1.3d', 'Describe Ghana, Mali and Songhai', 'Explain their rise and decline'),
+  PH1('State organisation in pre-colonial Africa', 'Forest states of West Africa', 'Forest states of West Africa', 'H1-1.3d', 'Describe forest states such as Asante and Benin', 'Explain their organisation'),
+  PH1('State organisation in pre-colonial Africa', 'Central African kingdoms', 'Central African kingdoms', 'H1-1.3d', 'Describe Central African kingdoms such as Kongo and Luba', 'Explain their organisation'),
+  PH1('State organisation in pre-colonial Africa', 'Southern African kingdoms', 'Southern African kingdoms', 'H1-1.3d', 'Describe Southern African kingdoms such as Zulu and Great Zimbabwe', 'Explain their organisation'),
+
+  // ===== HISTORY FORM II =====
+  PH2('Interactions in pre-colonial Africa', 'Meaning of interaction', 'Meaning of interaction', 'H2-1.4a', 'Explain the meaning of interaction', 'Give examples of interaction among societies'),
+  PH2('Interactions in pre-colonial Africa', 'Interactions in different regions', 'Interactions in different regions: overview', 'H2-1.4a', 'Describe how African societies interacted in different regions', 'Identify the forms of interaction (trade, migration and wars)'),
+  PH2('Interactions in pre-colonial Africa', 'Interactions on the Indian Ocean islands', 'Interactions on the Indian Ocean islands', 'H2-1.4a', 'Describe interactions on the Indian Ocean islands', 'Locate the islands on a map'),
+  PH2('Interactions in pre-colonial Africa', 'Interactions in Southern Africa', 'Interactions in Southern Africa', 'H2-1.4a', 'Describe interactions in Southern Africa', 'Explain their causes'),
+  PH2('Interactions in pre-colonial Africa', 'Interactions in Eastern Africa', 'Interactions in Eastern Africa', 'H2-1.4a', 'Describe interactions in Eastern Africa', 'Explain their causes'),
+  PH2('Interactions in pre-colonial Africa', 'Interactions in Western Africa', 'Interactions in Western Africa', 'H2-1.4a', 'Describe interactions in Western Africa', 'Explain their causes'),
+  PH2('Interactions in pre-colonial Africa', 'Interactions in Northern Africa', 'Interactions in Northern Africa', 'H2-1.4a', 'Describe interactions in Northern Africa', 'Explain their causes'),
+  PH2('Interactions in pre-colonial Africa', 'Effects of the interactions', 'Effects of the interactions', 'H2-1.4b', 'Describe the effects of interactions among African societies', 'Assess positive and negative effects'),
+
+  PH2('Early contacts between Africa, the Middle East and the Far East', 'Early contacts between Africans and people of the Middle and Far East', 'Early contacts with the Middle and Far East', 'H2-1.5a', 'Describe early contacts between Africa, the Middle East and the Far East', 'Locate the trade routes on a map'),
+  PH2('Early contacts between Africa, the Middle East and the Far East', 'Motives for the early contacts', 'Motives for the early contacts', 'H2-1.5a', 'Explain the motives for early contacts', 'Differentiate economic from other motives'),
+  PH2('Early contacts between Africa, the Middle East and the Far East', 'Conditions that facilitated the early contacts', 'Conditions that facilitated the early contacts', 'H2-1.5a', 'Describe the conditions that facilitated contacts', 'Explain the role of monsoon winds and navigation'),
+  PH2('Early contacts between Africa, the Middle East and the Far East', 'Major commodities exchanged', 'Major commodities exchanged', 'H2-1.5a', 'Name the major commodities exchanged', 'Explain the importance of each commodity'),
+  PH2('Early contacts between Africa, the Middle East and the Far East', 'Effects of the early contacts', 'Effects of the early contacts', 'H2-1.5a', 'Describe the effects of early contacts', 'Assess positive and negative effects'),
+
+  PH2('Early contacts between Africa and Europe', 'Background to the contacts between Africa and Europe', 'Background to the contacts between Africa and Europe', 'H2-1.5b', 'Explain the background to contacts between Africa and Europe', 'Describe the factors that led Europeans to explore Africa'),
+  PH2('Early contacts between Africa and Europe', 'Early contacts between Africans and the Portuguese', 'Early contacts between Africans and the Portuguese', 'H2-1.5b', 'Describe early contacts between Africans and the Portuguese', 'Explain the results of the contacts'),
+);
+
+export const HISTORY_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
+  1: "Tanzania Institute of Education. (2023). History for secondary schools student's book, form one. Tanzania Institute of Education.",
+  2: "Tanzania Institute of Education. (2025). History for secondary schools student's book, form two. Tanzania Institute of Education.",
+};
+
 // References: fill from the copyright page of each book.
 export const REFERENCES: Record<1 | 2, string> = {
   1: "Tanzania Institute of Education. (2023). Computer Science for secondary schools student's book, form one. Tanzania Institute of Education.",
-  2: "Tanzania Institute of Education. (2023). Computer Science for secondary schools student's book, form two. Tanzania Institute of Education.",
+  2: "Tanzania Institute of Education. (2025). Computer Science for secondary schools student's book, form two. Tanzania Institute of Education.",
 };
 
 // TODO (Mr. Kijida): check the exact book title and year on the copyright page of the Mathematics book.
 export const MATH_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
   1: "Tanzania Institute of Education. (2023). Mathematics for secondary schools student's book, form one. Tanzania Institute of Education.",
-  2: "Tanzania Institute of Education. (2023). Mathematics for secondary schools student's book, form two. Tanzania Institute of Education.",
-  3: "Tanzania Institute of Education. (2023). Mathematics for secondary schools student's book, form three. Tanzania Institute of Education.",
+  2: "Tanzania Institute of Education. (2024). Mathematics for secondary schools student's book, form two. Tanzania Institute of Education.",
+  3: "Tanzania Institute of Education. (2025). Mathematics for secondary schools student's book, form three. Tanzania Institute of Education.",
 };
 
 // TODO (Mr. Kijida): check the exact book titles on the copyright page of the Business Studies books.
 export const BUSINESS_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
-  1: "Tanzania Institute of Education. (2023). Business studies for secondary schools student's book, form one. Tanzania Institute of Education.",
-  2: "Tanzania Institute of Education. (2024). Business studies for secondary schools student's book, form two. Tanzania Institute of Education.",
-  3: "Tanzania Institute of Education. (2025). Business studies for secondary schools student's book, form three. Tanzania Institute of Education.",
+  1: "Tanzania Institute of Education. (2023). Business Studies for secondary schools student's book, form one. Tanzania Institute of Education.",
+  2: "Tanzania Institute of Education. (2024). Business Studies for secondary schools student's book, form two. Tanzania Institute of Education.",
+  3: "Tanzania Institute of Education. (2025). Business Studies for secondary schools student's book, form three. Tanzania Institute of Education.",
 };
 
 export const getReference = (subject: LessonPart['subject'], form: number): string => {
@@ -1097,6 +1207,7 @@ export const getReference = (subject: LessonPart['subject'], form: number): stri
   if (subject === 'Business Studies') return BUSINESS_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   if (subject === 'English Language') return ENGLISH_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   if (subject === 'Geography') return GEOGRAPHY_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
+  if (subject === 'History') return HISTORY_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   return REFERENCES[form as 1 | 2] ?? '';
 };
 
@@ -1108,6 +1219,7 @@ export const resolveLessonSubject = (name: string): LessonPart['subject'] | null
   if (/business/.test(value)) return 'Business Studies';
   if (/english/.test(value)) return 'English Language';
   if (/geograph/.test(value)) return 'Geography';
+  if (/histor/.test(value)) return 'History';
   return null;
 };
 
@@ -1122,6 +1234,7 @@ export const getCommonResources = (subject: LessonPart['subject']): string[] =>
     : subject === 'Business Studies' ? BUSINESS_COMMON_RESOURCES
       : subject === 'English Language' ? ENGLISH_COMMON_RESOURCES
         : subject === 'Geography' ? GEOGRAPHY_COMMON_RESOURCES
+          : subject === 'History' ? HISTORY_COMMON_RESOURCES
       : COMMON_RESOURCES;
 
 // Stage text templates per method. {part} is replaced with LessonPart.part.
