@@ -107,7 +107,7 @@ export const UNITS: Record<string, SyllabusUnit> = {
 
 export interface LessonPart {
   id: string;
-  subject: 'Computer Science' | 'Mathematics' | 'Business Studies' | 'English Language' | 'Geography' | 'History';
+  subject: 'Computer Science' | 'Mathematics' | 'Business Studies' | 'English Language' | 'Geography' | 'History' | 'Physics';
   form: 1 | 2 | 3 | 4;
   topic: string;      // Chapter title from the Student's Book
   subtopic: string;   // Section title from the Student's Book
@@ -1182,6 +1182,163 @@ export const HISTORY_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
   2: "Tanzania Institute of Education. (2025). History for secondary schools student's book, form two. Tanzania Institute of Education.",
 };
 
+// ===================== PHYSICS (Form I-II) =====================
+// Source: TIE Physics O-Level syllabus + Student's Books (Form I 2023, Form II 2025). Form III-IV not yet given.
+export const PHYSICS_COMMON_RESOURCES = [
+  'Chalkboard / whiteboard',
+  'Markers and chalk',
+  'Handouts',
+  'Charts and diagrams',
+  'Laboratory apparatus',
+  'Calculator',
+  'Projector / smartphone (simulations and videos)',
+  "Student's book (Physics, as applicable)",
+];
+
+const PM1 = 'Apply knowledge of Physics in various contexts';
+const PS11 = 'Demonstrate mastery of basic concepts, theories and principles of Physics';
+const PS12 = 'Demonstrate mastery of basic terminologies, measurements and symbols in Physics';
+
+const PHY_BASIC = ['Charts and pictures', 'Video clips of physical phenomena', 'Relevant books', 'Simple apparatus'];
+const MEASURE_RES = ['Metre rule', 'Vernier calipers', 'Micrometer screw gauge', 'Stopwatch', 'Beam balance', 'Measuring cylinder', 'Thermometer'];
+const FORCE_RES = ['Spring balance', 'Masses', 'Trolley and ramp', 'Magnets', 'Charts of forces', 'Elastic bands'];
+const DENS_RES = ['Beam balance', 'Measuring cylinder', 'Eureka can', 'Regular and irregular solids', 'Liquids of different densities', 'Hydrometer'];
+const FLOAT_RES = ['Eureka can', 'Spring balance', 'Water trough', 'Objects that sink and float', 'Hydrometer', 'Charts of ships and submarines'];
+const MATTER_RES = ['Springs and elastic bands', 'Capillary tubes', 'Water and detergent', 'Needle and razor blade', 'Charts of molecular forces'];
+const PRESS_RES = ['Wooden blocks', 'Sand tray', 'U-tube manometer', 'Barometer', 'Syringe', 'Water can with holes'];
+const MOTION_RES = ['Ticker timer / stopwatch', 'Trolley and ramp', 'Metre rule', 'Charts of motion graphs', 'Ball and measuring tape', 'Simulations'];
+const WORK_RES = ['Spring balance', 'Masses', 'Pulleys', 'Inclined plane', 'Stairs / measuring tape', 'Stopwatch'];
+const STATIC_RES = ['Ebonite and glass rods', 'Silk and fur cloths', 'Gold-leaf electroscope', 'Capacitors', 'Charts of lightning conductors'];
+const CURRENT_RES = ['Cells and batteries', 'Ammeter and voltmeter', 'Connecting wires', 'Resistors', 'Switches and bulbs', 'Rheostat'];
+const MAGNET_RES = ['Bar magnets', 'Iron filings', 'Compass needles', 'Soft iron and steel bars', 'Coils of wire', 'Charts of magnetic fields'];
+const LIGHT_RES = ['Plane mirror', 'Curved mirrors', 'Ray box', 'Pins and paper', 'Protractor', 'Light sources'];
+const REFRACT_RES = ['Glass block and prism', 'Lenses', 'Ray box', 'Screen', 'Pins and paper', 'Colour filters'];
+const OPTIC_RES = ['Microscope', 'Telescope / binoculars', 'Lenses', 'Camera / pin-hole camera', 'Model or chart of the human eye'];
+
+Object.assign(UNITS, {
+  // ---- Form I ----
+  'P1-1.1a': { mainCompetence: PM1, specificCompetence: PS11, mainActivity: 'Explain the concept of Physics (meaning and branches), its theories and principles', methods: ['brainstorming', 'groupDiscussion', 'qa'], resources: PHY_BASIC },
+  'P1-1.1b': { mainCompetence: PM1, specificCompetence: PS11, mainActivity: 'Discuss the contribution of Physics to the development of modern society', methods: ['brainstorming', 'groupDiscussion', 'projectActivity'], resources: PHY_BASIC },
+  'P1-1.1c': { mainCompetence: PM1, specificCompetence: PS11, mainActivity: 'Explain physical quantities (fundamental and derived quantities)', methods: ['brainstorming', 'qa', 'tips'], resources: MEASURE_RES },
+  'P1-1.2a': { mainCompetence: PM1, specificCompetence: PS12, mainActivity: 'Describe and use instruments for measuring physical quantities', methods: ['practical', 'demonstration', 'smallGroups'], resources: MEASURE_RES },
+  'P1-1.1d': { mainCompetence: PM1, specificCompetence: PS11, mainActivity: 'Describe linear motion (distance, displacement, speed, velocity and acceleration)', methods: ['practical', 'problemSolving', 'groupDiscussion'], resources: MOTION_RES },
+  'P1-1.1e1': { mainCompetence: PM1, specificCompetence: PS11, mainActivity: 'Explain the concept, effects and types of force', methods: ['practical', 'brainstorming', 'groupDiscussion'], resources: FORCE_RES },
+  'P1-1.1e2': { mainCompetence: PM1, specificCompetence: PS11, mainActivity: 'Explain density and relative density and determine them by experiment', methods: ['practical', 'problemSolving', 'smallGroups'], resources: DENS_RES },
+  'P1-1.1f': { mainCompetence: PM1, specificCompetence: PS11, mainActivity: 'Deduce the relationship between density, sinking and floating (upthrust, Archimedes\' principle, law of floatation)', methods: ['practical', 'problemSolving', 'groupDiscussion'], resources: FLOAT_RES },
+  'P1-1.1g': { mainCompetence: PM1, specificCompetence: PS11, mainActivity: 'Describe the mechanical properties of matter in relation to force and energy', methods: ['tips', 'practical', 'groupDiscussion'], resources: MATTER_RES },
+  'P1-1.1e3': { mainCompetence: PM1, specificCompetence: PS11, mainActivity: 'Explain pressure in solids, liquids and the atmosphere', methods: ['practical', 'problemSolving', 'groupDiscussion'], resources: PRESS_RES },
+  'P1-1.1e4': { mainCompetence: PM1, specificCompetence: PS11, mainActivity: 'Explain work, energy and power and solve related problems', methods: ['practical', 'problemSolving', 'qa'], resources: WORK_RES },
+  // ---- Form II ----
+  'P2-1.1c': { mainCompetence: PM1, specificCompetence: PS11, mainActivity: 'Explain the concept and principles of static electricity (detection of charges, conductors and insulators, capacitors, charge distribution and lightning conductors)', methods: ['practical', 'demonstration', 'groupDiscussion'], resources: STATIC_RES },
+  'P2-1.1d': { mainCompetence: PM1, specificCompetence: PS11, mainActivity: 'Describe the concept and laws of current electricity (e.m.f., potential difference, resistance, heating effect, domestic installation and cells)', methods: ['practical', 'problemSolving', 'smallGroups'], resources: CURRENT_RES },
+  'P2-1.1b': { mainCompetence: PM1, specificCompetence: PS11, mainActivity: 'Describe the concept and principles of magnetism (magnetisation, demagnetisation and magnetic fields)', methods: ['practical', 'demonstration', 'groupDiscussion'], resources: MAGNET_RES },
+  'P2-1.1a1': { mainCompetence: PM1, specificCompetence: PS11, mainActivity: 'Describe the concept and principles of light (sources, propagation and reflection)', methods: ['practical', 'demonstration', 'groupDiscussion'], resources: LIGHT_RES },
+  'P2-1.1a2': { mainCompetence: PM1, specificCompetence: PS11, mainActivity: 'Describe refraction and dispersion of light (prisms, colours and lenses)', methods: ['practical', 'demonstration', 'problemSolving'], resources: REFRACT_RES },
+  'P2-1.1a3': { mainCompetence: PM1, specificCompetence: PS11, mainActivity: 'Describe the structure and use of optical instruments', methods: ['demonstration', 'practical', 'groupDiscussion'], resources: OPTIC_RES },
+});
+
+const PPF = (form: 1 | 2) => (topic: string, subtopic: string, part: string, unit: string, ...specificActivities: string[]): LessonPart =>
+  ({ id: `p${form}-${++_n}`, subject: 'Physics', form, topic, subtopic, part, unit, specificActivities });
+const PP1 = PPF(1);
+const PP2 = PPF(2);
+
+LESSON_PARTS.push(
+  // ===== PHYSICS FORM I =====
+  PP1('Introduction to Physics', 'Concept of Physics', 'Meaning of Physics', 'P1-1.1a', 'Explain the meaning of Physics', 'Give examples of physical phenomena around us'),
+  PP1('Introduction to Physics', 'Concept of Physics', 'Branches of Physics', 'P1-1.1a', 'Name the branches of Physics', 'Describe what each branch studies'),
+  PP1('Introduction to Physics', 'Contribution of Physics to the development of modern society', 'Contribution of Physics to modern society', 'P1-1.1b', 'Describe the contribution of Physics to technology, medicine and communication', 'Give examples from the community'),
+  PP1('Introduction to Physics', 'Theories and principles of Physics', 'Theories and principles of Physics', 'P1-1.1a', 'Explain what a theory and a principle are', 'Give examples of physical principles'),
+  PP1('Introduction to Physics', 'Theories and principles of Physics', 'Scientific method and laboratory safety', 'P1-1.1a', 'Describe the steps of the scientific method', 'State laboratory safety rules'),
+
+  PP1('Measurement', 'Concept of measurement', 'Meaning and importance of measurement', 'P1-1.1c', 'Explain the meaning of measurement', 'State why measurement is important'),
+  PP1('Measurement', 'Physical quantity', 'Fundamental and derived quantities', 'P1-1.1c', 'Differentiate fundamental from derived quantities', 'State the SI units of common quantities'),
+  PP1('Measurement', 'Basic equipment/apparatus and their uses', 'Measuring length (metre rule, vernier calipers and micrometer)', 'P1-1.2a', 'Measure length using suitable instruments', 'Read the scales correctly'),
+  PP1('Measurement', 'Basic equipment/apparatus and their uses', 'Measuring mass and weight', 'P1-1.2a', 'Measure mass using a beam balance', 'Measure weight using a spring balance'),
+  PP1('Measurement', 'Basic equipment/apparatus and their uses', 'Measuring time and volume', 'P1-1.2a', 'Measure time using a stopwatch', 'Measure volume using a measuring cylinder'),
+  PP1('Measurement', 'Basic equipment/apparatus and their uses', 'Measuring temperature', 'P1-1.2a', 'Measure temperature using a thermometer', 'Read the scale correctly'),
+
+  PP1('Introduction to force', 'Concept of force', 'Meaning and unit of force', 'P1-1.1e1', 'Explain the meaning of force', 'State the SI unit of force'),
+  PP1('Introduction to force', 'Effects of forces', 'Effects of forces', 'P1-1.1e1', 'Describe the effects of forces on objects', 'Demonstrate the effects using simple apparatus'),
+  PP1('Introduction to force', 'Types of forces', 'Contact forces (friction, tension and normal reaction)', 'P1-1.1e1', 'Describe contact forces', 'Give examples of each'),
+  PP1('Introduction to force', 'Types of forces', 'Non-contact forces (weight, magnetic and electrostatic)', 'P1-1.1e1', 'Describe non-contact forces', 'Differentiate mass from weight'),
+
+  PP1('Density and relative density', 'Concept of density', 'Meaning and calculation of density', 'P1-1.1e2', 'Explain the meaning of density', 'Calculate density using the formula'),
+  PP1('Density and relative density', 'Concept of density', 'Determining density by experiment', 'P1-1.1e2', 'Determine the density of regular and irregular solids', 'Determine the density of a liquid'),
+  PP1('Density and relative density', 'Relative density of a substance', 'Relative density', 'P1-1.1e2', 'Explain relative density', 'Calculate relative density of solids and liquids'),
+
+  PP1('Sinking and floating', 'Concept of sinking and floating', 'Sinking and floating', 'P1-1.1f', 'Explain why objects sink or float', 'Relate sinking and floating to density'),
+  PP1('Sinking and floating', 'Concept of upthrust', 'Upthrust', 'P1-1.1f', 'Explain the concept of upthrust', 'Demonstrate upthrust using a spring balance'),
+  PP1('Sinking and floating', 'Archimedes\' Principle', 'Archimedes\' Principle', 'P1-1.1f', 'State Archimedes\' Principle', 'Verify the principle by experiment'),
+  PP1('Sinking and floating', 'Law of floatation', 'Law of floatation and its applications', 'P1-1.1f', 'State the law of floatation', 'Explain applications (ships, submarines and hydrometers)'),
+
+  PP1('Mechanical properties of matter', 'Concept of elasticity', 'Elasticity and Hooke\'s law', 'P1-1.1g', 'Explain elasticity', 'Verify Hooke\'s law'),
+  PP1('Mechanical properties of matter', 'Adhesion and cohesion', 'Adhesion and cohesion', 'P1-1.1g', 'Differentiate adhesion from cohesion', 'Give examples from daily life'),
+  PP1('Mechanical properties of matter', 'Surface tension', 'Surface tension', 'P1-1.1g', 'Explain surface tension', 'Demonstrate it using simple experiments'),
+  PP1('Mechanical properties of matter', 'Capillarity', 'Capillarity', 'P1-1.1g', 'Explain capillarity', 'Give examples of capillarity in nature'),
+
+  PP1('Pressure', 'Concept of pressure', 'Meaning and unit of pressure', 'P1-1.1e3', 'Explain the meaning of pressure', 'Calculate pressure using the formula'),
+  PP1('Pressure', 'Pressure due to solids', 'Pressure due to solids', 'P1-1.1e3', 'Describe pressure due to solids', 'Explain applications in daily life'),
+  PP1('Pressure', 'Pressure in liquids', 'Pressure in liquids', 'P1-1.1e3', 'Describe pressure in liquids', 'Calculate liquid pressure using P = hρg'),
+  PP1('Pressure', 'Atmospheric Pressure', 'Atmospheric pressure and its measurement', 'P1-1.1e3', 'Explain atmospheric pressure', 'Describe how a barometer measures it'),
+
+  PP1('Linear motion', 'Concept of motion', 'Concept of motion', 'P1-1.1d', 'Explain the concept of motion', 'Give examples of types of motion'),
+  PP1('Linear motion', 'Distance and displacement', 'Distance and displacement', 'P1-1.1d', 'Differentiate distance from displacement', 'Solve simple problems'),
+  PP1('Linear motion', 'Speed and velocity', 'Speed and velocity', 'P1-1.1d', 'Differentiate speed from velocity', 'Calculate speed and velocity'),
+  PP1('Linear motion', 'Acceleration', 'Acceleration', 'P1-1.1d', 'Explain acceleration and retardation', 'Calculate acceleration'),
+  PP1('Linear motion', 'Equation of linear motion', 'Equations of linear motion', 'P1-1.1d', 'State the equations of linear motion', 'Apply the equations to solve problems'),
+  PP1('Linear motion', 'Motion under gravity', 'Motion under gravity', 'P1-1.1d', 'Describe free fall and the acceleration due to gravity', 'Solve problems on motion under gravity'),
+
+  PP1('Work, energy, and power', 'Concept of work', 'Work', 'P1-1.1e4', 'Explain the concept of work', 'Calculate work done'),
+  PP1('Work, energy, and power', 'Concept of energy', 'Forms and sources of energy', 'P1-1.1e4', 'Describe forms and sources of energy', 'State the law of conservation of energy'),
+  PP1('Work, energy, and power', 'Concept of energy', 'Kinetic and potential energy', 'P1-1.1e4', 'Calculate kinetic and potential energy', 'Show energy transformation in examples'),
+  PP1('Work, energy, and power', 'Concept of power', 'Power', 'P1-1.1e4', 'Explain the concept of power', 'Calculate power and efficiency'),
+
+  // ===== PHYSICS FORM II =====
+  PP2('Static electricity', 'Concept of static electricity', 'Charging by friction and detecting charges', 'P2-1.1c', 'Explain static electricity', 'Detect charges using an electroscope'),
+  PP2('Static electricity', 'Conductors and insulators', 'Conductors and insulators', 'P2-1.1c', 'Differentiate conductors from insulators', 'Charge objects by contact and induction'),
+  PP2('Static electricity', 'Capacitors', 'Capacitors and capacitance', 'P2-1.1c', 'Explain how a capacitor stores charge', 'Calculate capacitance'),
+  PP2('Static electricity', 'Capacitors', 'Combination of capacitors', 'P2-1.1c', 'Calculate the effective capacitance in series and parallel', 'State uses of capacitors'),
+  PP2('Static electricity', 'Charge distribution on a conductor', 'Charge distribution on a conductor', 'P2-1.1c', 'Describe how charge is distributed on a conductor', 'Explain the action of points'),
+  PP2('Static electricity', 'Lightning and thunderstorms', 'Lightning and lightning conductors', 'P2-1.1c', 'Explain how lightning occurs', 'Describe how a lightning conductor protects buildings'),
+
+  PP2('Current electricity', 'Concept of current electricity', 'Electric current, potential difference and e.m.f.', 'P2-1.1d', 'Explain current, potential difference and e.m.f.', 'Measure current and voltage in a circuit'),
+  PP2('Current electricity', 'Resistance to an electric current', 'Resistance and Ohm\'s law', 'P2-1.1d', 'State and verify Ohm\'s law', 'Calculate resistance'),
+  PP2('Current electricity', 'Resistance to an electric current', 'Resistors in series and parallel', 'P2-1.1d', 'Calculate effective resistance in series and parallel', 'Solve circuit problems'),
+  PP2('Current electricity', 'Heating effect of an electric current', 'Heating effect of an electric current', 'P2-1.1d', 'Explain the heating effect of current', 'Calculate electrical energy and power'),
+  PP2('Current electricity', 'Electrical installations', 'Domestic electrical installations', 'P2-1.1d', 'Describe a domestic wiring system', 'State safety measures (fuses and earthing)'),
+  PP2('Current electricity', 'Cells', 'Cells and batteries', 'P2-1.1d', 'Describe primary and secondary cells', 'Explain internal resistance and cell arrangements'),
+
+  PP2('Magnetism', 'Concept of magnetism', 'Magnets and magnetic materials', 'P2-1.1b', 'Explain the concept of magnetism', 'Identify magnetic and non-magnetic materials'),
+  PP2('Magnetism', 'Magnetisation and demagnetisation', 'Magnetisation and demagnetisation', 'P2-1.1b', 'Describe methods of magnetising materials', 'Describe methods of demagnetising materials'),
+  PP2('Magnetism', 'Magnetic field of a magnet', 'Magnetic field of a magnet', 'P2-1.1b', 'Plot the magnetic field of a bar magnet', 'Describe the properties of field lines'),
+  PP2('Magnetism', 'Earth\'s magnetic field', 'Earth\'s magnetic field', 'P2-1.1b', 'Describe the Earth\'s magnetic field', 'Explain magnetic declination and dip'),
+
+  PP2('Nature and reflection of light', 'Concept of light', 'Concept and sources of light', 'P2-1.1a1', 'Explain the concept of light', 'Name natural and artificial sources of light'),
+  PP2('Nature and reflection of light', 'Propagation and transmission of light', 'Propagation and transmission of light', 'P2-1.1a1', 'Describe rectilinear propagation of light', 'Explain shadows, eclipses and the pin-hole camera'),
+  PP2('Nature and reflection of light', 'Reflection of light through the plane mirror', 'Laws of reflection and images in plane mirrors', 'P2-1.1a1', 'State the laws of reflection', 'Locate images formed by plane mirrors'),
+  PP2('Nature and reflection of light', 'Reflection of light from curved mirrors', 'Concave and convex mirrors', 'P2-1.1a1', 'Describe images formed by curved mirrors', 'Draw ray diagrams'),
+  PP2('Nature and reflection of light', 'Reflection of light from curved mirrors', 'Mirror formula and applications of curved mirrors', 'P2-1.1a1', 'Apply the mirror formula to solve problems', 'State the uses of curved mirrors'),
+
+  PP2('Refraction and dispersion of light', 'Concept of refraction of light', 'Refraction of light and refractive index', 'P2-1.1a2', 'Explain refraction of light', 'Calculate the refractive index'),
+  PP2('Refraction and dispersion of light', 'Concept of refraction of light', 'Total internal reflection', 'P2-1.1a2', 'Explain total internal reflection', 'Describe its applications (optical fibres)'),
+  PP2('Refraction and dispersion of light', 'Refraction of light by a glass prism', 'Refraction of light by a glass prism', 'P2-1.1a2', 'Trace a ray of light through a prism', 'Explain the angle of deviation'),
+  PP2('Refraction and dispersion of light', 'Colours of light', 'Dispersion and colours of light', 'P2-1.1a2', 'Explain the dispersion of white light', 'Describe primary and secondary colours'),
+  PP2('Refraction and dispersion of light', 'Refraction of light by lenses', 'Converging and diverging lenses', 'P2-1.1a2', 'Describe images formed by lenses', 'Draw ray diagrams for lenses'),
+  PP2('Refraction and dispersion of light', 'Refraction of light by lenses', 'Lens formula and magnification', 'P2-1.1a2', 'Apply the lens formula to solve problems', 'Calculate magnification and power of a lens'),
+
+  PP2('Optical instruments', 'Simple microscope', 'Simple microscope', 'P2-1.1a3', 'Describe how a simple microscope works', 'Calculate its magnifying power'),
+  PP2('Optical instruments', 'Compound microscope', 'Compound microscope', 'P2-1.1a3', 'Describe how a compound microscope works', 'Draw its ray diagram'),
+  PP2('Optical instruments', 'Astronomical telescope', 'Astronomical telescope', 'P2-1.1a3', 'Describe how an astronomical telescope works', 'Calculate its magnifying power'),
+  PP2('Optical instruments', 'Binoculars', 'Binoculars', 'P2-1.1a3', 'Describe how binoculars work', 'State their uses'),
+  PP2('Optical instruments', 'Lens camera', 'Lens camera', 'P2-1.1a3', 'Describe the parts of a lens camera', 'Compare the camera with the human eye'),
+  PP2('Optical instruments', 'The human eye', 'The human eye and defects of vision', 'P2-1.1a3', 'Describe the structure of the human eye', 'Explain defects of vision and their correction'),
+);
+
+export const PHYSICS_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
+  1: "Tanzania Institute of Education. (2023). Physics for secondary schools student's book, form one. Tanzania Institute of Education.",
+  2: "Tanzania Institute of Education. (2025). Physics for secondary schools student's book, form two. Tanzania Institute of Education.",
+};
+
 // References: fill from the copyright page of each book.
 export const REFERENCES: Record<1 | 2, string> = {
   1: "Tanzania Institute of Education. (2023). Computer Science for secondary schools student's book, form one. Tanzania Institute of Education.",
@@ -1208,6 +1365,7 @@ export const getReference = (subject: LessonPart['subject'], form: number): stri
   if (subject === 'English Language') return ENGLISH_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   if (subject === 'Geography') return GEOGRAPHY_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   if (subject === 'History') return HISTORY_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
+  if (subject === 'Physics') return PHYSICS_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   return REFERENCES[form as 1 | 2] ?? '';
 };
 
@@ -1220,6 +1378,7 @@ export const resolveLessonSubject = (name: string): LessonPart['subject'] | null
   if (/english/.test(value)) return 'English Language';
   if (/geograph/.test(value)) return 'Geography';
   if (/histor/.test(value)) return 'History';
+  if (/physic/.test(value)) return 'Physics';
   return null;
 };
 
@@ -1235,6 +1394,7 @@ export const getCommonResources = (subject: LessonPart['subject']): string[] =>
       : subject === 'English Language' ? ENGLISH_COMMON_RESOURCES
         : subject === 'Geography' ? GEOGRAPHY_COMMON_RESOURCES
           : subject === 'History' ? HISTORY_COMMON_RESOURCES
+            : subject === 'Physics' ? PHYSICS_COMMON_RESOURCES
       : COMMON_RESOURCES;
 
 // Stage text templates per method. {part} is replaced with LessonPart.part.
