@@ -107,7 +107,7 @@ export const UNITS: Record<string, SyllabusUnit> = {
 
 export interface LessonPart {
   id: string;
-  subject: 'Computer Science' | 'Mathematics' | 'Business Studies' | 'English Language' | 'Geography' | 'History' | 'Physics' | 'Chemistry';
+  subject: 'Computer Science' | 'Mathematics' | 'Business Studies' | 'English Language' | 'Geography' | 'History' | 'Physics' | 'Chemistry' | 'Biology';
   form: 1 | 2 | 3 | 4;
   topic: string;      // Chapter title from the Student's Book
   subtopic: string;   // Section title from the Student's Book
@@ -1481,6 +1481,190 @@ export const CHEMISTRY_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
   2: "Tanzania Institute of Education. (2025). Chemistry for secondary schools student's book, form two. Tanzania Institute of Education.",
 };
 
+// ===================== BIOLOGY (Form I-III) =====================
+// Source: TIE Biology O-Level syllabus + Student's Books (Form I 2023, Form II 2024, Form III 2025). Form IV not yet given.
+export const BIOLOGY_COMMON_RESOURCES = [
+  'Chalkboard / whiteboard',
+  'Markers and chalk',
+  'Handouts',
+  'Charts and diagrams',
+  'Models and specimens',
+  'Microscope and slides',
+  'Laboratory apparatus and chemicals',
+  'Projector / smartphone (simulations and videos)',
+  "Student's book (Biology, as applicable)",
+];
+
+const BIM1 = 'Demonstrate mastery of the concepts, principles and processes of Biology';
+const BIM2 = 'Communicate using scientific biological terminologies';
+const BIM3 = 'Conduct biological investigations';
+const BIS11 = 'Describe the physiological, anatomical and ecological processes of living organisms';
+const BIS21 = 'Demonstrate mastery of scientific biological terminologies';
+const BIS31 = 'Demonstrate mastery of basic skills for conducting biological investigations';
+
+const BIO_BASIC = ['Charts and pictures', 'Video clips', 'Relevant books', 'Specimens of living things'];
+const BIO_LAB = ['Laboratory apparatus', 'Charts of apparatus', 'Microscope', 'Specimens', 'Safety charts'];
+const BIO_CELL = ['Microscope and slides', 'Onion peel and iodine', 'Models of plant and animal cells', 'Charts of cells', 'Video clips'];
+const BIO_CLASS = ['Specimens of plants and animals', 'Hand lens', 'Charts of classification', 'Identification keys', 'Pictures of organisms'];
+const BIO_PLANT = ['Potted plants and leaves', 'Iodine solution', 'Test tubes and heat source', 'Charts of the leaf', 'Light source'];
+const BIO_NUTR = ['Food samples', 'Food test reagents (iodine, Benedict\'s, biuret)', 'Test tubes and heat source', 'Charts of balanced diet', 'Charts of the digestive system'];
+const BIO_TRANS = ['Charts of the vascular system', 'Potometer', 'Plants with dye', 'Models of the heart', 'Charts of blood vessels and blood'];
+const BIO_GAS = ['Models of the lungs', 'Charts of gas exchange', 'Lime water', 'Yeast and sugar', 'Test tubes and delivery tubes'];
+const BIO_COORD = ['Charts of the nervous system', 'Models of the brain and eye', 'Seedlings and clinostat', 'Charts of the endocrine glands', 'Video clips'];
+const BIO_EXCR = ['Charts of the urinary system', 'Model of the kidney', 'Charts of the skin', 'Video clips', 'Thermometer'];
+
+Object.assign(UNITS, {
+  // ---- Form I ----
+  'BI1-1a': { mainCompetence: BIM1, specificCompetence: BIS11, mainActivity: 'Explain the basic concepts of Biology (meaning, branches, terminologies, importance and relationship with other disciplines)', methods: ['brainstorming', 'groupDiscussion', 'qa'], resources: BIO_BASIC },
+  'BI1-2a': { mainCompetence: BIM2, specificCompetence: BIS21, mainActivity: 'Identify and use laboratory apparatus, equipment and other resources in Biology', methods: ['demonstration', 'practical', 'smallGroups'], resources: BIO_LAB },
+  'BI1-3a': { mainCompetence: BIM3, specificCompetence: BIS31, mainActivity: 'Describe basic skills for conducting biological experiments (observation, measurement and experimentation) and apply the scientific method', methods: ['practical', 'groupDiscussion', 'problemSolving'], resources: BIO_LAB },
+  'BI1-1b': { mainCompetence: BIM1, specificCompetence: BIS11, mainActivity: 'Describe a cell (meaning, types, structures and functions)', methods: ['practical', 'visual', 'groupDiscussion'], resources: BIO_CELL },
+  'BI1-1c': { mainCompetence: BIM1, specificCompetence: BIS11, mainActivity: 'Explain the concept and systems of classification', methods: ['practical', 'groupDiscussion', 'visual'], resources: BIO_CLASS },
+  'BI1-1d': { mainCompetence: BIM1, specificCompetence: BIS11, mainActivity: 'Describe the major groups of organisms (viruses, Monera, Protoctista, Fungi, Plantae and Animalia)', methods: ['jigsaw', 'visual', 'groupDiscussion'], resources: BIO_CLASS },
+  'BI1-1e': { mainCompetence: BIM1, specificCompetence: BIS11, mainActivity: 'Describe nutrition in plants (photosynthesis, leaf structure and mineral requirements)', methods: ['practical', 'demonstration', 'groupDiscussion'], resources: BIO_PLANT },
+  // ---- Form II ----
+  'BI2-1a': { mainCompetence: BIM1, specificCompetence: BIS11, mainActivity: 'Describe nutrition in humans (nutrients, balanced diet, deficiencies and food tests)', methods: ['practical', 'groupDiscussion', 'qa'], resources: BIO_NUTR },
+  'BI2-1b': { mainCompetence: BIM1, specificCompetence: BIS11, mainActivity: 'Describe the digestive system and the digestion process in humans and ruminants', methods: ['visual', 'groupDiscussion', 'qa'], resources: BIO_NUTR },
+  'BI2-1c': { mainCompetence: BIM1, specificCompetence: BIS11, mainActivity: 'Explain the concept and ways of transport of materials in living organisms', methods: ['practical', 'brainstorming', 'groupDiscussion'], resources: BIO_TRANS },
+  'BI2-1d': { mainCompetence: BIM1, specificCompetence: BIS11, mainActivity: 'Describe transport of materials in flowering plants (vascular system, absorption, transpiration and guttation)', methods: ['practical', 'demonstration', 'groupDiscussion'], resources: BIO_TRANS },
+  'BI2-1e': { mainCompetence: BIM1, specificCompetence: BIS11, mainActivity: 'Describe transport of materials in mammals (the heart, blood vessels, blood, blood groups and circulation)', methods: ['visual', 'practical', 'groupDiscussion'], resources: BIO_TRANS },
+  'BI2-1f': { mainCompetence: BIM1, specificCompetence: BIS11, mainActivity: 'Describe gaseous exchange and respiration in mammals and plants', methods: ['practical', 'demonstration', 'groupDiscussion'], resources: BIO_GAS },
+  // ---- Form III ----
+  'BI3-1a': { mainCompetence: BIM1, specificCompetence: BIS11, mainActivity: 'Describe coordination in plants (hormones and tropic responses) and investigate tropisms', methods: ['practical', 'projectActivity', 'groupDiscussion'], resources: BIO_COORD },
+  'BI3-1b': { mainCompetence: BIM1, specificCompetence: BIS11, mainActivity: 'Describe coordination in mammals (nervous system, sense organs and effects of drugs)', methods: ['visual', 'practical', 'groupDiscussion'], resources: BIO_COORD },
+  'BI3-1c': { mainCompetence: BIM1, specificCompetence: BIS11, mainActivity: 'Describe the endocrine system and its relationship with the nervous system', methods: ['groupDiscussion', 'visual', 'qa'], resources: BIO_COORD },
+  'BI3-1d': { mainCompetence: BIM1, specificCompetence: BIS11, mainActivity: 'Describe the mechanism of excretion in the human body (organs, products, complications)', methods: ['visual', 'groupDiscussion', 'qa'], resources: BIO_EXCR },
+  'BI3-1e': { mainCompetence: BIM1, specificCompetence: BIS11, mainActivity: 'Describe regulation in the human body (homeostasis, temperature, osmoregulation and blood sugar)', methods: ['groupDiscussion', 'visual', 'problemSolving'], resources: BIO_EXCR },
+});
+
+const PBIF = (form: 1 | 2 | 3) => (topic: string, subtopic: string, part: string, unit: string, ...specificActivities: string[]): LessonPart =>
+  ({ id: `bi${form}-${++_n}`, subject: 'Biology', form, topic, subtopic, part, unit, specificActivities });
+const PBI1 = PBIF(1);
+const PBI2 = PBIF(2);
+const PBI3 = PBIF(3);
+
+LESSON_PARTS.push(
+  // ===== BIOLOGY FORM I =====
+  PBI1('Introduction to Biology', 'Basic concepts and terminologies in Biology', 'Meaning and branches of Biology', 'BI1-1a', 'Explain the meaning of Biology', 'Name the branches of Biology'),
+  PBI1('Introduction to Biology', 'Basic concepts and terminologies in Biology', 'Basic terminologies in Biology', 'BI1-1a', 'Define basic biological terms', 'Use the terms correctly in sentences'),
+  PBI1('Introduction to Biology', 'Importance of studying Biology', 'Importance of studying Biology', 'BI1-1a', 'State the importance of studying Biology', 'Identify careers related to Biology'),
+  PBI1('Introduction to Biology', 'Relationship between Biology and other scientific fields', 'Relationship between Biology and other subjects', 'BI1-1a', 'Show how Biology is related to other sciences', 'Give examples (Chemistry, Physics, Geography, Agriculture)'),
+
+  PBI1('Scientific processes in Biology', 'Common Biology laboratory apparati, equipment and other resources', 'Laboratory apparatus and equipment', 'BI1-2a', 'Identify common biology laboratory apparatus', 'State the use of each apparatus'),
+  PBI1('Scientific processes in Biology', 'Common Biology laboratory apparati, equipment and other resources', 'Laboratory rules and safety', 'BI1-2a', 'State laboratory rules and safety measures', 'Handle apparatus and specimens safely'),
+  PBI1('Scientific processes in Biology', 'Basic skills in scientific studies', 'Observation, measurement and recording', 'BI1-3a', 'Observe and record biological specimens', 'Measure and record data accurately'),
+  PBI1('Scientific processes in Biology', 'Basic skills in scientific studies', 'Drawing and labelling biological diagrams', 'BI1-3a', 'Draw biological diagrams correctly', 'Label and title the diagrams'),
+  PBI1('Scientific processes in Biology', 'Scientific methods', 'Steps of the scientific method', 'BI1-3a', 'Describe the steps of the scientific method', 'Apply the steps to a simple problem'),
+  PBI1('Scientific processes in Biology', 'Simple biological experiments', 'Carrying out simple biological experiments', 'BI1-3a', 'Plan and carry out a simple experiment', 'Present the results and conclusion'),
+
+  PBI1('Cell structure and organization', 'The cell', 'Meaning of the cell and the cell theory', 'BI1-1b', 'Explain what a cell is', 'State the cell theory'),
+  PBI1('Cell structure and organization', 'The cell', 'Using the microscope', 'BI1-1b', 'Identify the parts of a microscope', 'Use the microscope to observe a cell'),
+  PBI1('Cell structure and organization', 'Types of cells', 'Prokaryotic and eukaryotic cells', 'BI1-1b', 'Describe types of cells', 'Differentiate prokaryotic from eukaryotic cells'),
+  PBI1('Cell structure and organization', 'Animal and plant cells', 'Structure and functions of cell organelles', 'BI1-1b', 'Describe cell organelles and their functions', 'Draw and label a plant and an animal cell'),
+  PBI1('Cell structure and organization', 'Animal and plant cells', 'Differences between plant and animal cells', 'BI1-1b', 'Compare plant and animal cells', 'Observe onion cells and cheek cells'),
+  PBI1('Cell structure and organization', 'Cell differentiation', 'Cell differentiation, tissues, organs and systems', 'BI1-1b', 'Explain cell differentiation', 'Describe levels of cell organisation'),
+
+  PBI1('Classification of living things', 'Concept of classification', 'Meaning and importance of classification', 'BI1-1c', 'Explain the concept of classification', 'State the importance of classification'),
+  PBI1('Classification of living things', 'Classification systems', 'Classification systems (artificial and natural)', 'BI1-1c', 'Describe classification systems', 'Identify the levels of classification'),
+  PBI1('Classification of living things', 'Major groups of living things', 'Five kingdoms and viruses: overview', 'BI1-1c', 'Name the major groups of living things', 'State the characteristics of each kingdom'),
+  PBI1('Classification of living things', 'Binomial nomenclature', 'Binomial nomenclature', 'BI1-1c', 'Explain binomial nomenclature', 'Write scientific names correctly'),
+
+  PBI1('Viruses and major groups of living things', 'Viruses', 'Viruses: structure and importance', 'BI1-1d', 'Describe the structure of viruses', 'State the importance of viruses and diseases they cause'),
+  PBI1('Viruses and major groups of living things', 'Kingdom Monera', 'Kingdom Monera', 'BI1-1d', 'Describe the characteristics of Monera', 'Give examples and their importance'),
+  PBI1('Viruses and major groups of living things', 'Kingdom Protoctista', 'Kingdom Protoctista', 'BI1-1d', 'Describe the characteristics of Protoctista', 'Give examples and their importance'),
+  PBI1('Viruses and major groups of living things', 'Kingdom Fungi', 'Kingdom Fungi', 'BI1-1d', 'Describe the characteristics of Fungi', 'Give examples and their importance'),
+  PBI1('Viruses and major groups of living things', 'Kingdom Plantae', 'Kingdom Plantae: major divisions', 'BI1-1d', 'Describe the divisions of Plantae', 'Give examples of each division'),
+  PBI1('Viruses and major groups of living things', 'Classes of the division Angiospermophyta', 'Classes of Angiospermophyta (monocots and dicots)', 'BI1-1d', 'Differentiate monocots from dicots', 'Classify given plants'),
+  PBI1('Viruses and major groups of living things', 'Kingdom Animalia', 'Kingdom Animalia: invertebrates', 'BI1-1d', 'Describe the major phyla of invertebrates', 'Give examples of each'),
+  PBI1('Viruses and major groups of living things', 'Kingdom Animalia', 'Kingdom Animalia: vertebrates', 'BI1-1d', 'Describe the classes of vertebrates', 'Give examples of each'),
+
+  PBI1('Nutrition in plants', 'Concept of nutrition', 'Concept and types of nutrition', 'BI1-1e', 'Explain the concept of nutrition', 'Differentiate autotrophic from heterotrophic nutrition'),
+  PBI1('Nutrition in plants', 'Photosynthesis', 'Process of photosynthesis', 'BI1-1e', 'Describe the process of photosynthesis', 'Write the word and chemical equations'),
+  PBI1('Nutrition in plants', 'Photosynthesis', 'Investigating conditions necessary for photosynthesis', 'BI1-1e', 'Investigate the conditions necessary for photosynthesis', 'Report the results'),
+  PBI1('Nutrition in plants', 'Structure of the leaf in relation to photosynthesis', 'Structure of the leaf', 'BI1-1e', 'Describe the structure of a leaf', 'Relate leaf structure to photosynthesis'),
+  PBI1('Nutrition in plants', 'Importance of photosynthesis', 'Importance of photosynthesis', 'BI1-1e', 'State the importance of photosynthesis', 'Explain its role in the food chain and the atmosphere'),
+  PBI1('Nutrition in plants', 'Essential and non-essential elements in plants', 'Essential and non-essential elements in plants', 'BI1-1e', 'Name the essential mineral elements for plants', 'Describe the deficiency symptoms'),
+
+  // ===== BIOLOGY FORM II =====
+  PBI2('Nutrition in animals', 'Concept of nutrition in animals', 'Concept and modes of nutrition in animals', 'BI2-1a', 'Explain nutrition in animals', 'Name the modes of nutrition'),
+  PBI2('Nutrition in animals', 'Nutrients', 'Carbohydrates and lipids', 'BI2-1a', 'Describe carbohydrates and lipids', 'State their sources and functions'),
+  PBI2('Nutrition in animals', 'Nutrients', 'Proteins, vitamins, minerals, water and fibre', 'BI2-1a', 'Describe proteins, vitamins, minerals, water and fibre', 'State their sources and functions'),
+  PBI2('Nutrition in animals', 'Balanced diet', 'Balanced diet', 'BI2-1a', 'Explain a balanced diet', 'Plan a balanced meal from local foods'),
+  PBI2('Nutrition in animals', 'Nutritional requirements for different groups of people', 'Nutritional requirements for different groups of people', 'BI2-1a', 'Describe the nutritional needs of different groups', 'Explain why the needs differ'),
+  PBI2('Nutrition in animals', 'Nutritional deficiencies and disorders', 'Nutritional deficiencies and disorders', 'BI2-1a', 'Describe nutritional deficiencies and disorders', 'Suggest ways of preventing them'),
+  PBI2('Nutrition in animals', 'Properties of food nutrients', 'Food tests (starch, reducing sugar, protein and fat)', 'BI2-1a', 'Test food samples for nutrients', 'Record and interpret the results'),
+
+  PBI2('Digestive system', 'The digestion process', 'Parts of the human digestive system', 'BI2-1b', 'Identify the parts of the digestive system', 'State the function of each part'),
+  PBI2('Digestive system', 'The digestion process', 'Digestion, absorption and assimilation', 'BI2-1b', 'Describe digestion in the alimentary canal', 'Explain absorption and assimilation'),
+  PBI2('Digestive system', 'The digestive system of ruminants', 'The digestive system of ruminants', 'BI2-1b', 'Describe the digestive system of a ruminant', 'Compare it with the human system'),
+  PBI2('Digestive system', 'Disorders and diseases of human digestive system', 'Disorders and diseases of the digestive system', 'BI2-1b', 'Describe disorders of the digestive system', 'Suggest prevention methods'),
+
+  PBI2('Transport of materials in living organisms', 'Concept of transportation of materials', 'Concept of transportation of materials', 'BI2-1c', 'Explain the need for transport in living organisms', 'Give examples of materials transported'),
+  PBI2('Transport of materials in living organisms', 'Ways of transportation of materials', 'Diffusion and osmosis', 'BI2-1c', 'Describe diffusion and osmosis', 'Carry out a simple experiment on osmosis'),
+  PBI2('Transport of materials in living organisms', 'Ways of transportation of materials', 'Active transport', 'BI2-1c', 'Describe active transport', 'Differentiate it from passive transport'),
+
+  PBI2('Transport of materials in flowering plants', 'The vascular system', 'The vascular system (xylem and phloem)', 'BI2-1d', 'Describe xylem and phloem', 'State their functions'),
+  PBI2('Transport of materials in flowering plants', 'Absorption and movement of water and mineral salts', 'Absorption and movement of water and mineral salts', 'BI2-1d', 'Describe how roots absorb water', 'Explain the movement of water up the stem'),
+  PBI2('Transport of materials in flowering plants', 'Transpiration', 'Transpiration', 'BI2-1d', 'Explain transpiration', 'Investigate factors affecting transpiration'),
+  PBI2('Transport of materials in flowering plants', 'Guttation', 'Guttation', 'BI2-1d', 'Explain guttation', 'Differentiate guttation from transpiration'),
+
+  PBI2('Transport of materials in mammals', 'The mammalian heart', 'Structure and function of the mammalian heart', 'BI2-1e', 'Describe the structure of the heart', 'Explain how the heart pumps blood'),
+  PBI2('Transport of materials in mammals', 'Blood vessels', 'Blood vessels (arteries, veins and capillaries)', 'BI2-1e', 'Describe the types of blood vessels', 'Compare their structure and function'),
+  PBI2('Transport of materials in mammals', 'The blood', 'Components and functions of blood', 'BI2-1e', 'Describe the components of blood', 'State the function of each component'),
+  PBI2('Transport of materials in mammals', 'Blood groups', 'Blood groups', 'BI2-1e', 'Describe the ABO blood groups', 'Explain the Rhesus factor'),
+  PBI2('Transport of materials in mammals', 'Blood transfusion', 'Blood transfusion', 'BI2-1e', 'Explain blood transfusion', 'Determine compatible donors and recipients'),
+  PBI2('Transport of materials in mammals', 'Blood circulation in human beings', 'Blood circulation in human beings', 'BI2-1e', 'Describe the double circulation', 'Measure the pulse rate'),
+
+  PBI2('Gas exchange and respiration', 'Concept of gas exchange', 'Concept of gas exchange', 'BI2-1f', 'Explain the concept of gas exchange', 'State the features of gas exchange surfaces'),
+  PBI2('Gas exchange and respiration', 'Gas exchange in mammals', 'Gas exchange in mammals', 'BI2-1f', 'Describe the human respiratory system', 'Explain breathing and gas exchange in the alveoli'),
+  PBI2('Gas exchange and respiration', 'Gas exchange in plants', 'Gas exchange in plants', 'BI2-1f', 'Describe gas exchange in plants', 'Identify the parts responsible (stomata and lenticels)'),
+  PBI2('Gas exchange and respiration', 'Respiration in mammals', 'Aerobic respiration', 'BI2-1f', 'Describe aerobic respiration', 'Write the word and chemical equations'),
+  PBI2('Gas exchange and respiration', 'Respiration in mammals', 'Anaerobic respiration', 'BI2-1f', 'Describe anaerobic respiration', 'Investigate fermentation using yeast'),
+  PBI2('Gas exchange and respiration', 'Infections and diseases of the respiratory system in humans', 'Infections and diseases of the respiratory system', 'BI2-1f', 'Describe respiratory infections and diseases', 'Suggest prevention methods'),
+
+  // ===== BIOLOGY FORM III =====
+  PBI3('Coordination in plants', 'Concept of coordination in plants', 'Concept of coordination in plants', 'BI3-1a', 'Explain coordination in plants', 'Give examples of plant responses'),
+  PBI3('Coordination in plants', 'Plant hormones', 'Plant hormones', 'BI3-1a', 'Describe plant hormones (auxins, gibberellins and others)', 'State their functions'),
+  PBI3('Coordination in plants', 'Concept of paratonic movement', 'Paratonic movements (tropic and nastic)', 'BI3-1a', 'Explain paratonic movements', 'Differentiate tropisms from nastic movements'),
+  PBI3('Coordination in plants', 'Investigation of tropisms in plants', 'Investigating tropisms in plants', 'BI3-1a', 'Investigate phototropism and geotropism', 'Report the findings'),
+
+  PBI3('Coordination in mammals', 'Concept of coordination in animals', 'Concept of coordination in animals', 'BI3-1b', 'Explain coordination in animals', 'Differentiate nervous from hormonal coordination'),
+  PBI3('Coordination in mammals', 'Nervous coordination in humans', 'Nervous coordination in humans', 'BI3-1b', 'Describe nervous coordination', 'Name the main parts of the nervous system'),
+  PBI3('Coordination in mammals', 'Structure of neurones', 'Structure of neurones', 'BI3-1b', 'Describe the structure of neurones', 'Differentiate types of neurones'),
+  PBI3('Coordination in mammals', 'Nerve impulse', 'Nerve impulse', 'BI3-1b', 'Explain how a nerve impulse is transmitted', 'Describe the synapse'),
+  PBI3('Coordination in mammals', 'Central nervous system', 'Central nervous system (brain and spinal cord)', 'BI3-1b', 'Describe the structure and functions of the brain and spinal cord', 'Draw and label the brain'),
+  PBI3('Coordination in mammals', 'Peripheral nervous system', 'Peripheral nervous system', 'BI3-1b', 'Describe the somatic and autonomic nervous systems', 'Compare voluntary and involuntary actions'),
+  PBI3('Coordination in mammals', 'Investigation of the nervous coordination process', 'Reflex arc and the knee jerk', 'BI3-1b', 'Describe a reflex arc', 'Investigate the knee jerk reflex'),
+  PBI3('Coordination in mammals', 'Sense organs', 'The eye', 'BI3-1b', 'Describe the structure and functions of the eye', 'Explain eye defects and their correction'),
+  PBI3('Coordination in mammals', 'Sense organs', 'The ear, nose, tongue and skin', 'BI3-1b', 'Describe the structure and functions of the ear, nose, tongue and skin', 'Explain how each detects stimuli'),
+  PBI3('Coordination in mammals', 'Drugs and drug abuse in relation to nervous coordination', 'Drugs and drug abuse', 'BI3-1b', 'Describe the effects of drugs on the nervous system', 'Suggest ways of preventing drug abuse'),
+
+  PBI3('Endocrine system', 'Concept of endocrine system', 'Concept of the endocrine system', 'BI3-1c', 'Explain the endocrine system', 'Differentiate endocrine from exocrine glands'),
+  PBI3('Endocrine system', 'Interaction between endocrine and nervous system', 'Interaction between the endocrine and nervous systems', 'BI3-1c', 'Compare the endocrine and nervous systems', 'Explain how they work together'),
+  PBI3('Endocrine system', 'Hormones produced by endocrine glands', 'Endocrine glands and their hormones', 'BI3-1c', 'Name the endocrine glands and their hormones', 'State the function of each hormone'),
+  PBI3('Endocrine system', 'Complications and disorders of the endocrine system', 'Disorders of the endocrine system', 'BI3-1c', 'Describe disorders caused by hormone imbalance', 'Suggest management or prevention'),
+
+  PBI3('Excretion in animals', 'Concept of excretion', 'Concept of excretion', 'BI3-1d', 'Explain excretion', 'Differentiate excretion from egestion'),
+  PBI3('Excretion in animals', 'Excretion in humans', 'Excretory organs and products in humans', 'BI3-1d', 'Identify excretory organs and their products', 'Describe the role of each organ'),
+  PBI3('Excretion in animals', 'Urinary system', 'The urinary system and the kidney', 'BI3-1d', 'Describe the structure of the urinary system and kidney', 'Draw and label the kidney'),
+  PBI3('Excretion in animals', 'Urinary system', 'Urine formation', 'BI3-1d', 'Describe the formation of urine', 'Explain ultrafiltration and reabsorption'),
+  PBI3('Excretion in animals', 'Other excretory organs in humans', 'Other excretory organs (skin, lungs and liver)', 'BI3-1d', 'Describe the excretory roles of the skin, lungs and liver', 'Draw and label the skin'),
+  PBI3('Excretion in animals', 'Common complications and disorders of the excretory system', 'Disorders of the excretory system', 'BI3-1d', 'Describe common disorders (kidney stones and kidney failure)', 'Suggest prevention methods'),
+
+  PBI3('Regulation', 'Concept of regulation', 'Concept of regulation and homeostasis', 'BI3-1e', 'Explain regulation and homeostasis', 'Describe feedback mechanisms'),
+  PBI3('Regulation', 'Homeostatic mechanisms', 'Homeostatic mechanisms', 'BI3-1e', 'Describe homeostatic mechanisms', 'Give examples in the human body'),
+  PBI3('Regulation', 'Types of regulation', 'Types of regulation', 'BI3-1e', 'Describe types of regulation', 'Differentiate them with examples'),
+  PBI3('Regulation', 'Thermoregulation', 'Thermoregulation: endotherms and ectotherms', 'BI3-1e', 'Differentiate endotherms from ectotherms', 'Describe thermoregulation in humans'),
+  PBI3('Regulation', 'Osmoregulation', 'Osmoregulation', 'BI3-1e', 'Explain osmoregulation', 'Describe the role of ADH'),
+  PBI3('Regulation', 'Blood sugar regulation', 'Blood sugar regulation', 'BI3-1e', 'Describe how blood sugar is regulated', 'Explain the roles of insulin and glucagon'),
+);
+
+export const BIOLOGY_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
+  1: "Tanzania Institute of Education. (2023). Biology for secondary schools student's book, form one. Tanzania Institute of Education.",
+  2: "Tanzania Institute of Education. (2024). Biology for secondary schools student's book, form two. Tanzania Institute of Education.",
+  3: "Tanzania Institute of Education. (2025). Biology for secondary schools student's book, form three. Tanzania Institute of Education.",
+};
+
 // References: fill from the copyright page of each book.
 export const REFERENCES: Record<1 | 2, string> = {
   1: "Tanzania Institute of Education. (2023). Computer Science for secondary schools student's book, form one. Tanzania Institute of Education.",
@@ -1509,6 +1693,7 @@ export const getReference = (subject: LessonPart['subject'], form: number): stri
   if (subject === 'History') return HISTORY_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   if (subject === 'Physics') return PHYSICS_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   if (subject === 'Chemistry') return CHEMISTRY_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
+  if (subject === 'Biology') return BIOLOGY_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   return REFERENCES[form as 1 | 2] ?? '';
 };
 
@@ -1523,6 +1708,7 @@ export const resolveLessonSubject = (name: string): LessonPart['subject'] | null
   if (/histor/.test(value)) return 'History';
   if (/physic/.test(value)) return 'Physics';
   if (/chem/.test(value)) return 'Chemistry';
+  if (/biolog/.test(value)) return 'Biology';
   return null;
 };
 
@@ -1540,6 +1726,7 @@ export const getCommonResources = (subject: LessonPart['subject']): string[] =>
           : subject === 'History' ? HISTORY_COMMON_RESOURCES
             : subject === 'Physics' ? PHYSICS_COMMON_RESOURCES
               : subject === 'Chemistry' ? CHEMISTRY_COMMON_RESOURCES
+                : subject === 'Biology' ? BIOLOGY_COMMON_RESOURCES
       : COMMON_RESOURCES;
 
 // Stage text templates per method. {part} is replaced with LessonPart.part.
