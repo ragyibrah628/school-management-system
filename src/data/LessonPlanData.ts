@@ -107,7 +107,7 @@ export const UNITS: Record<string, SyllabusUnit> = {
 
 export interface LessonPart {
   id: string;
-  subject: 'Computer Science' | 'Mathematics' | 'Business Studies' | 'English Language' | 'Geography' | 'History' | 'Physics';
+  subject: 'Computer Science' | 'Mathematics' | 'Business Studies' | 'English Language' | 'Geography' | 'History' | 'Physics' | 'Chemistry';
   form: 1 | 2 | 3 | 4;
   topic: string;      // Chapter title from the Student's Book
   subtopic: string;   // Section title from the Student's Book
@@ -1339,6 +1339,148 @@ export const PHYSICS_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
   2: "Tanzania Institute of Education. (2025). Physics for secondary schools student's book, form two. Tanzania Institute of Education.",
 };
 
+// ===================== CHEMISTRY (Form I-II) =====================
+// Source: TIE Chemistry O-Level syllabus + Student's Books (Form I 2023, Form II 2025). Form III-IV not yet given.
+export const CHEMISTRY_COMMON_RESOURCES = [
+  'Chalkboard / whiteboard',
+  'Markers and chalk',
+  'Handouts',
+  'Charts and diagrams',
+  'Laboratory apparatus and chemicals',
+  'Periodic table chart',
+  'Projector / smartphone (simulations and videos)',
+  "Student's book (Chemistry, as applicable)",
+];
+
+const CM1 = 'Demonstrate mastery of basic concepts, theories and principles in Chemistry';
+const CM2 = 'Demonstrate mastery of basic terminologies in Chemistry';
+const CM3 = 'Conduct experiments in Chemistry';
+const CS11 = 'Demonstrate mastery of concepts, theories and principles in Chemistry';
+const CS12 = 'Demonstrate an understanding of the physical and chemical properties of elements on the basis of their arrangements in the periodic table';
+const CS21 = 'Use the IUPAC nomenclature to name chemical species';
+const CS22 = 'Use chemical symbols, formulae and equations to represent chemical reactions';
+
+const CHEM_BASIC = ['Charts and pictures', 'Video clips', 'Relevant books', 'Samples of chemical products'];
+const LAB_RES = ['Laboratory apparatus', 'Charts of apparatus and safety signs', 'First aid kit', 'Fire extinguisher / sand bucket', 'Video clips'];
+const FIRE_RES = ['Candle, matches and Bunsen burner', 'Fire extinguisher', 'Sand and water buckets', 'Charts of the fire triangle', 'Video clips'];
+const CHEM_MATTER_RES = ['Ice, water and steam setup', 'Heat source', 'Beakers and thermometer', 'Charts of states of matter', 'Samples of substances'];
+const ELEMENT_RES = ['Periodic table chart', 'Samples of elements', 'Charts of chemical symbols', 'Flash cards of elements'];
+const SEPARATE_RES = ['Filter paper and funnel', 'Evaporating dish', 'Distillation set', 'Chromatography paper', 'Magnet', 'Mixtures (sand and salt, ink, iron filings)'];
+const ATOM_RES = ['Models of atoms', 'Charts of atomic structure', 'Periodic table chart', 'Simulations'];
+const PERIODIC_RES = ['Periodic table chart', 'Samples of elements', 'Charts of trends', 'Simulations'];
+const BOND_RES = ['Models of molecules and ionic lattices', 'Charts of bonding', 'Periodic table chart', 'Simulations'];
+const REACT_RES = ['Test tubes and chemicals', 'Heat source', 'Balances', 'Charts of equations', 'Samples of everyday reactions'];
+const ACID_RES = ['Dilute acids and bases', 'Indicators and litmus paper', 'pH chart', 'Test tubes and beakers', 'Locally available materials (flowers, fruits)'];
+
+Object.assign(UNITS, {
+  // ---- Form I ----
+  'C1-1.1a': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Describe the concept of Chemistry (meaning, branches, applications and relationships with other disciplines)', methods: ['brainstorming', 'groupDiscussion', 'qa'], resources: CHEM_BASIC },
+  'C1-1.1b': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Discuss the contribution of Chemistry in the development of modern society', methods: ['fieldTrip', 'groupDiscussion', 'projectActivity'], resources: CHEM_BASIC },
+  'C1-3.1a': { mainCompetence: CM3, specificCompetence: CM3, mainActivity: 'Describe basic Chemistry laboratory skills (rules, safety measures, first aid and apparatus)', methods: ['demonstration', 'practical', 'groupDiscussion'], resources: LAB_RES },
+  'C1-3.1d': { mainCompetence: CM3, specificCompetence: CM3, mainActivity: 'Describe fire, firefighting and flames', methods: ['demonstration', 'practical', 'groupDiscussion'], resources: FIRE_RES },
+  'C1-1.1c': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Describe the concept of matter (states of matter, physical and chemical changes)', methods: ['practical', 'demonstration', 'groupDiscussion'], resources: CHEM_MATTER_RES },
+  'C1-1.1d': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Describe chemical elements and the criteria for assigning chemical symbols', methods: ['qa', 'smallGroups', 'visual'], resources: ELEMENT_RES },
+  'C1-1.1e': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Compare the properties of compounds and mixtures with those of their constituent elements', methods: ['practical', 'groupDiscussion', 'qa'], resources: ELEMENT_RES },
+  'C1-3.1c': { mainCompetence: CM3, specificCompetence: CM3, mainActivity: 'Perform experiments on the separation of mixtures using different methods', methods: ['practical', 'projectActivity', 'smallGroups'], resources: SEPARATE_RES },
+  // ---- Form II ----
+  'C2-1.1a': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Describe the modern concept of atomic structure (Dalton\'s theory and sub-atomic particles)', methods: ['brainstorming', 'visual', 'groupDiscussion'], resources: ATOM_RES },
+  'C2-1.1b': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Describe electronic arrangements of atoms', methods: ['demonstration', 'problemSolving', 'smallGroups'], resources: ATOM_RES },
+  'C2-1.1c': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Use the concept of atomic structure to determine atomic and mass numbers', methods: ['problemSolving', 'groupDiscussion', 'qa'], resources: ATOM_RES },
+  'C2-1.2a': { mainCompetence: CM1, specificCompetence: CS12, mainActivity: 'Explain the development and arrangement of the periodic table and the trends in properties across periods and down groups', methods: ['groupDiscussion', 'visual', 'problemSolving'], resources: PERIODIC_RES },
+  'C2-1.1d': { mainCompetence: CM2, specificCompetence: CS21, mainActivity: 'Explain chemical formulae and nomenclature (valency, radicals, oxidation state and naming binary compounds)', methods: ['problemSolving', 'smallGroups', 'qa'], resources: BOND_RES },
+  'C2-1.1f': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Describe chemical bonding (electrovalent and covalent bonding)', methods: ['demonstration', 'groupDiscussion', 'visual'], resources: BOND_RES },
+  'C2-1.1g': { mainCompetence: CM2, specificCompetence: CS22, mainActivity: 'Describe chemical reactions, write and balance chemical equations and identify types of reactions', methods: ['practical', 'problemSolving', 'groupDiscussion'], resources: REACT_RES },
+  'C2-1.1i': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Describe acids, bases and salts and their reactions', methods: ['practical', 'groupDiscussion', 'qa'], resources: ACID_RES },
+  'C2-3.1a': { mainCompetence: CM3, specificCompetence: CM3, mainActivity: 'Prepare and use acid-base indicators and test acidity and alkalinity of local substances', methods: ['practical', 'projectActivity', 'smallGroups'], resources: ACID_RES },
+});
+
+const PCF = (form: 1 | 2) => (topic: string, subtopic: string, part: string, unit: string, ...specificActivities: string[]): LessonPart =>
+  ({ id: `c${form}-${++_n}`, subject: 'Chemistry', form, topic, subtopic, part, unit, specificActivities });
+const PC1 = PCF(1);
+const PC2 = PCF(2);
+
+LESSON_PARTS.push(
+  // ===== CHEMISTRY FORM I =====
+  PC1('Introduction to Chemistry', 'Concept of chemistry', 'Meaning of Chemistry', 'C1-1.1a', 'Explain the meaning of Chemistry', 'Give examples of chemical processes around us'),
+  PC1('Introduction to Chemistry', 'Concept of chemistry', 'Branches of Chemistry', 'C1-1.1a', 'Name the branches of Chemistry', 'Describe what each branch studies'),
+  PC1('Introduction to Chemistry', 'Relationships of chemistry with other related disciplines', 'Relationship between Chemistry and other subjects', 'C1-1.1a', 'Show how Chemistry is related to other subjects', 'Give examples (Biology, Physics, Agriculture, Geography)'),
+  PC1('Introduction to Chemistry', 'Applications of chemistry in the development of a modern society', 'Applications of Chemistry in everyday life and industry', 'C1-1.1b', 'Describe the applications of Chemistry in agriculture, medicine and industry', 'Give examples from the community'),
+  PC1('Introduction to Chemistry', 'Applications of chemistry in the development of a modern society', 'Careers and contribution of Chemistry to society', 'C1-1.1b', 'Identify careers related to Chemistry', 'Discuss the contribution of Chemistry to development'),
+
+  PC1('Laboratory techniques and safety', 'Laboratory safety measures', 'Laboratory rules and safety measures', 'C1-3.1a', 'State laboratory rules', 'Explain safety measures when working in a laboratory'),
+  PC1('Laboratory techniques and safety', 'Laboratory safety measures', 'Hazard signs and handling of chemicals', 'C1-3.1a', 'Identify hazard warning signs', 'Describe safe handling and disposal of chemicals'),
+  PC1('Laboratory techniques and safety', 'First Aid', 'First aid for common laboratory accidents', 'C1-3.1a', 'Describe first aid for burns, cuts and chemical spills', 'Demonstrate basic first aid procedures'),
+  PC1('Laboratory techniques and safety', 'Basic chemistry laboratory apparatus', 'Apparatus for measuring and holding', 'C1-3.1a', 'Identify apparatus for measuring and holding', 'State the use of each apparatus'),
+  PC1('Laboratory techniques and safety', 'Basic chemistry laboratory apparatus', 'Apparatus for heating and other uses', 'C1-3.1a', 'Identify apparatus for heating and other uses', 'Handle apparatus correctly, including the Bunsen burner'),
+
+  PC1('Fire, firefighting and flames', 'Fire', 'Meaning and causes of fire (fire triangle)', 'C1-3.1d', 'Explain the conditions necessary for fire', 'Describe the causes of fire'),
+  PC1('Fire, firefighting and flames', 'Firefighting', 'Classes of fire and firefighting methods', 'C1-3.1d', 'Describe classes of fire', 'Describe methods of fighting fire'),
+  PC1('Fire, firefighting and flames', 'Firefighting', 'Fire extinguishers and fire safety', 'C1-3.1d', 'Identify types of fire extinguishers and their uses', 'State fire safety measures at school and home'),
+  PC1('Fire, firefighting and flames', 'Flames', 'Luminous and non-luminous flames', 'C1-3.1d', 'Differentiate luminous from non-luminous flames', 'Describe the structure of a Bunsen burner flame'),
+
+  PC1('Matter', 'States of matter', 'States of matter and the particle theory', 'C1-1.1c', 'Describe the states of matter', 'Explain the particle theory of matter'),
+  PC1('Matter', 'States of matter', 'Changes of state', 'C1-1.1c', 'Describe changes of state (melting, boiling, condensation, sublimation)', 'Perform an experiment on changes of state'),
+  PC1('Matter', 'States of matter', 'Diffusion, Brownian motion and gas properties', 'C1-1.1c', 'Explain diffusion and Brownian motion', 'Give examples of diffusion in daily life'),
+  PC1('Matter', 'Physical and chemical changes', 'Physical changes', 'C1-1.1c', 'Describe physical changes', 'Give examples of physical changes'),
+  PC1('Matter', 'Physical and chemical changes', 'Chemical changes', 'C1-1.1c', 'Describe chemical changes', 'Differentiate chemical from physical changes by experiment'),
+
+  PC1('Elements, compounds and mixtures', 'Elements and chemical symbols', 'Elements and their classification (metals and non-metals)', 'C1-1.1d', 'Define an element', 'Classify elements as metals or non-metals'),
+  PC1('Elements, compounds and mixtures', 'Elements and chemical symbols', 'Chemical symbols and the first 20 elements', 'C1-1.1d', 'State the criteria for assigning chemical symbols', 'Write the symbols of the first 20 elements'),
+  PC1('Elements, compounds and mixtures', 'Compounds and mixtures', 'Compounds', 'C1-1.1e', 'Define a compound', 'Compare compounds with their constituent elements'),
+  PC1('Elements, compounds and mixtures', 'Compounds and mixtures', 'Mixtures', 'C1-1.1e', 'Define a mixture', 'Differentiate mixtures from compounds'),
+  PC1('Elements, compounds and mixtures', 'Separation of mixtures', 'Filtration, decantation and evaporation', 'C1-3.1c', 'Separate mixtures by filtration, decantation and evaporation', 'Choose a suitable method for a given mixture'),
+  PC1('Elements, compounds and mixtures', 'Separation of mixtures', 'Distillation and crystallisation', 'C1-3.1c', 'Separate mixtures by distillation and crystallisation', 'Describe applications of the methods'),
+  PC1('Elements, compounds and mixtures', 'Separation of mixtures', 'Chromatography, magnetism and other methods', 'C1-3.1c', 'Separate mixtures by chromatography and magnetism', 'Explain the principle of each method'),
+
+  // ===== CHEMISTRY FORM II =====
+  PC2('Atomic structure', 'Concept of atomic structure', 'Concept of atomic structure', 'C2-1.1a', 'Explain the concept of atomic structure', 'Describe how ideas about the atom developed'),
+  PC2('Atomic structure', 'Dalton atomic theory', 'Dalton\'s atomic theory', 'C2-1.1a', 'State Dalton\'s atomic theory', 'Explain its limitations'),
+  PC2('Atomic structure', 'Sub-atomic particles', 'Sub-atomic particles (protons, neutrons and electrons)', 'C2-1.1a', 'Describe the sub-atomic particles', 'State their relative charge and mass'),
+  PC2('Atomic structure', 'Electronic arrangement', 'Electronic arrangement of atoms', 'C2-1.1b', 'Describe how electrons are arranged in shells', 'Write the electronic arrangement of the first 20 elements'),
+  PC2('Atomic structure', 'Determination of atomic number and mass number', 'Atomic number', 'C2-1.1c', 'Define atomic number', 'Determine the atomic number of elements'),
+  PC2('Atomic structure', 'Determination of atomic number and mass number', 'Mass number', 'C2-1.1c', 'Define mass number', 'Calculate the number of protons, neutrons and electrons'),
+
+  PC2('Periodic classification', 'Development of the periodic table', 'Development of the periodic table', 'C2-1.2a', 'Describe how the periodic table developed', 'State the contributions of Dobereiner, Newlands and Mendeleev'),
+  PC2('Periodic classification', 'Modern periodic table', 'The modern periodic table', 'C2-1.2a', 'Describe the arrangement of the modern periodic table', 'Identify groups and periods'),
+  PC2('Periodic classification', 'Electronic configuration and element positioning in the periodic table', 'Locating elements using electronic configuration', 'C2-1.2a', 'Use electronic configuration to locate an element', 'Relate group and period to electronic arrangement'),
+  PC2('Periodic classification', 'Trends in physical and chemical properties across periods and down groups', 'Trends across periods', 'C2-1.2a', 'Describe trends in physical and chemical properties across a period', 'Explain the trends'),
+  PC2('Periodic classification', 'Trends in physical and chemical properties across periods and down groups', 'Trends down a group', 'C2-1.2a', 'Describe trends in physical and chemical properties down a group', 'Explain the trends'),
+  PC2('Periodic classification', 'Trends in selected groups', 'Trends in selected groups (alkali metals, halogens and noble gases)', 'C2-1.2a', 'Describe the properties of alkali metals, halogens and noble gases', 'State their uses'),
+
+  PC2('Chemical bonding, formula and nomenclature', 'Concept of chemical bonding', 'Concept of chemical bonding and formation of ions', 'C2-1.1f', 'Explain why atoms form bonds', 'Describe the formation of positive and negative ions'),
+  PC2('Chemical bonding, formula and nomenclature', 'Electrovalent bonding', 'Electrovalent (ionic) bonding', 'C2-1.1f', 'Describe the formation of ionic bonds', 'Draw dot-and-cross diagrams of ionic compounds'),
+  PC2('Chemical bonding, formula and nomenclature', 'Covalent bonding', 'Covalent bonding', 'C2-1.1f', 'Describe the formation of covalent bonds', 'Draw dot-and-cross diagrams of covalent molecules'),
+  PC2('Chemical bonding, formula and nomenclature', 'Valency', 'Valency', 'C2-1.1d', 'Define valency', 'Determine the valency of elements'),
+  PC2('Chemical bonding, formula and nomenclature', 'Radicals', 'Radicals', 'C2-1.1d', 'Define a radical', 'State the formulae and charges of common radicals'),
+  PC2('Chemical bonding, formula and nomenclature', 'Oxidation state', 'Oxidation state', 'C2-1.1d', 'Define oxidation state', 'Determine oxidation states in compounds'),
+  PC2('Chemical bonding, formula and nomenclature', 'Concept of chemical formulas', 'Writing chemical formulae', 'C2-1.1d', 'Explain the concept of chemical formulae', 'Write formulae of compounds using valency'),
+  PC2('Chemical bonding, formula and nomenclature', 'Types of chemical formulas', 'Empirical and molecular formulae', 'C2-1.1d', 'Differentiate empirical from molecular formulae', 'Determine empirical and molecular formulae'),
+  PC2('Chemical bonding, formula and nomenclature', 'Formula calculations', 'Formula calculations', 'C2-1.1d', 'Calculate relative molecular mass and percentage composition', 'Solve problems on formulae'),
+  PC2('Chemical bonding, formula and nomenclature', 'Nomenclature of binary inorganic compounds', 'Naming binary inorganic compounds (IUPAC)', 'C2-1.1d', 'Name binary inorganic compounds using IUPAC rules', 'Write formulae from given names'),
+
+  PC2('Chemical reactions', 'Concept of chemical reactions', 'Concept of chemical reactions', 'C2-1.1g', 'Explain the concept of a chemical reaction', 'Identify evidence that a reaction has occurred'),
+  PC2('Chemical reactions', 'Chemical equations', 'Writing and balancing chemical equations', 'C2-1.1g', 'Write word and chemical equations', 'Balance chemical equations'),
+  PC2('Chemical reactions', 'Types of chemical reactions', 'Types of chemical reactions', 'C2-1.1g', 'Describe types of chemical reactions (combination, decomposition, displacement and double decomposition)', 'Relate them to processes in daily life'),
+
+  PC2('Acids, bases, and salts', 'Acids', 'Acids and their properties', 'C2-1.1i', 'Define acids and describe their properties', 'Name common laboratory and natural acids'),
+  PC2('Acids, bases, and salts', 'Acids', 'Strengths and basicity of acids', 'C2-1.1i', 'Differentiate strong from weak acids', 'Determine the basicity of an acid'),
+  PC2('Acids, bases, and salts', 'Bases', 'Bases and their properties', 'C2-1.1i', 'Define bases and alkalis and describe their properties', 'Name common bases'),
+  PC2('Acids, bases, and salts', 'Bases', 'Strengths of bases and acidity of a base', 'C2-1.1i', 'Differentiate strong from weak bases', 'Determine the acidity of a base'),
+  PC2('Acids, bases, and salts', 'Neutralisation reaction', 'Neutralisation reaction', 'C2-1.1i', 'Describe neutralisation', 'Write equations for neutralisation reactions'),
+  PC2('Acids, bases, and salts', 'Uses of acids and bases', 'Uses of acids and bases', 'C2-1.1i', 'State the uses of acids and bases', 'Give examples from daily life and industry'),
+  PC2('Acids, bases, and salts', 'Acid-base indicators', 'Acid-base indicators', 'C2-3.1a', 'Prepare indicators from local materials', 'Use indicators to test acidity and alkalinity'),
+  PC2('Acids, bases, and salts', 'pH scale', 'The pH scale', 'C2-3.1a', 'Explain the pH scale', 'Determine the pH of common substances'),
+  PC2('Acids, bases, and salts', 'Uses of pH indicators', 'Occurrence and uses of pH indicators', 'C2-3.1a', 'Identify natural pH indicators', 'State the uses of pH indicators'),
+  PC2('Acids, bases, and salts', 'Salts', 'Types of salts', 'C2-1.1i', 'Describe types of salts', 'Give examples of each type'),
+  PC2('Acids, bases, and salts', 'Salts', 'Preparation of salts', 'C2-1.1i', 'Describe methods of preparing salts', 'Prepare a salt in the laboratory'),
+  PC2('Acids, bases, and salts', 'Salts', 'Properties and uses of salts', 'C2-1.1i', 'Describe the properties of salts', 'State the uses of salts'),
+);
+
+export const CHEMISTRY_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
+  1: "Tanzania Institute of Education. (2023). Chemistry for secondary schools student's book, form one. Tanzania Institute of Education.",
+  2: "Tanzania Institute of Education. (2025). Chemistry for secondary schools student's book, form two. Tanzania Institute of Education.",
+};
+
 // References: fill from the copyright page of each book.
 export const REFERENCES: Record<1 | 2, string> = {
   1: "Tanzania Institute of Education. (2023). Computer Science for secondary schools student's book, form one. Tanzania Institute of Education.",
@@ -1366,6 +1508,7 @@ export const getReference = (subject: LessonPart['subject'], form: number): stri
   if (subject === 'Geography') return GEOGRAPHY_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   if (subject === 'History') return HISTORY_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   if (subject === 'Physics') return PHYSICS_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
+  if (subject === 'Chemistry') return CHEMISTRY_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   return REFERENCES[form as 1 | 2] ?? '';
 };
 
@@ -1379,6 +1522,7 @@ export const resolveLessonSubject = (name: string): LessonPart['subject'] | null
   if (/geograph/.test(value)) return 'Geography';
   if (/histor/.test(value)) return 'History';
   if (/physic/.test(value)) return 'Physics';
+  if (/chem/.test(value)) return 'Chemistry';
   return null;
 };
 
@@ -1395,6 +1539,7 @@ export const getCommonResources = (subject: LessonPart['subject']): string[] =>
         : subject === 'Geography' ? GEOGRAPHY_COMMON_RESOURCES
           : subject === 'History' ? HISTORY_COMMON_RESOURCES
             : subject === 'Physics' ? PHYSICS_COMMON_RESOURCES
+              : subject === 'Chemistry' ? CHEMISTRY_COMMON_RESOURCES
       : COMMON_RESOURCES;
 
 // Stage text templates per method. {part} is replaced with LessonPart.part.
