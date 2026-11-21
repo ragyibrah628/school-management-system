@@ -920,8 +920,8 @@ export function LessonPlan({
               </div>
               <div className="lesson-plan-header-copy">
                 <h1>{text.title}</h1>
-                <p className="lesson-plan-council">{lang === 'sw' ? swahiliCouncilName(districtName) : districtName}</p>
-                <p className="lesson-plan-school-name">{lang === 'sw' ? swahiliSchoolName(schoolName) : schoolName}</p>
+                <p className="lesson-plan-council">{lang === 'sw' ? swahiliCouncilName(districtName).toUpperCase() : districtName}</p>
+                <p className="lesson-plan-school-name">{lang === 'sw' ? swahiliSchoolName(schoolName).toUpperCase() : schoolName}</p>
               </div>
               <div className="lesson-plan-header-spacer" aria-hidden="true" />
             </header>
