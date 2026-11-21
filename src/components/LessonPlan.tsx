@@ -10,17 +10,22 @@ import {
   useState,
 } from 'react';
 import {
-  buildRemarkOptions,
   getCommonResources,
+  getLessonLanguage,
+  getMethodTemplate,
   getReference,
+  getRemarkOptions,
   resolveLessonSubject,
   supportedFormsFor,
   INTRODUCTION,
+  INTRODUCTION_SW,
   LESSON_PARTS,
-  METHOD_TEMPLATES,
+  NO_REMARK_OPTIONS,
   STAGE_MINUTES_DOUBLE,
   STAGE_MINUTES_SINGLE,
+  STAGE_NAMES_SW,
   UNITS,
+  type LessonLanguage,
 } from '../data/LessonPlanData';
 
 interface LessonPlanProps {
@@ -179,6 +184,152 @@ const formatDate = (value: string): string => {
   return year && month && day ? `${day}/${month}/${year}` : value;
 };
 
+// Words printed on the lesson-plan sheet. Only Historia ya Tanzania na Maadili and Kiswahili use Swahili ('sw');
+// every other subject keeps the English sheet exactly as before. The layout is the same in both languages.
+interface SheetText {
+  title: string;
+  teacher: string;
+  subject: string;
+  className: string;
+  date: string;
+  time: string;
+  periodType: string;
+  single: string;
+  double: string;
+  students: string;
+  registration: string;
+  girls: string;
+  boys: string;
+  total: string;
+  registered: string;
+  present: string;
+  absent: string;
+  mainCompetence: string;
+  specificCompetence: string;
+  mainActivity: string;
+  focus: string;
+  specificActivities: string;
+  resources: string;
+  references: string;
+  process: string;
+  stage: string;
+  minutes: string;
+  teaching: string;
+  learning: string;
+  remarks: string;
+  stages: [string, string, string, string];
+}
+
+const SHEET_TEXT: Record<LessonLanguage, SheetText> = {
+  en: {
+    title: 'LESSON PLAN',
+    teacher: 'TEACHER',
+    subject: 'SUBJECT',
+    className: 'CLASS',
+    date: 'DATE',
+    time: 'TIME',
+    periodType: 'PERIOD TYPE',
+    single: 'Single (40 min)',
+    double: 'Double (80 min)',
+    students: 'NUMBER OF STUDENTS',
+    registration: 'REGISTRATION',
+    girls: 'GIRLS',
+    boys: 'BOYS',
+    total: 'TOTAL',
+    registered: 'REGISTERED',
+    present: 'PRESENT',
+    absent: 'ABSENT',
+    mainCompetence: 'MAIN COMPETENCE',
+    specificCompetence: 'SPECIFIC COMPETENCE',
+    mainActivity: 'MAIN ACTIVITY',
+    focus: 'focus',
+    specificActivities: 'SPECIFIC ACTIVITIES',
+    resources: 'TEACHING & LEARNING RESOURCES',
+    references: 'REFERENCES',
+    process: 'TEACHING AND LEARNING PROCESS',
+    stage: 'STAGE',
+    minutes: 'TIME (MIN)',
+    teaching: 'TEACHING ACTIVITIES',
+    learning: 'LEARNING ACTIVITIES',
+    remarks: 'REMARKS:',
+    stages: ['Introduction', 'Competence development', 'Design', 'Realization'],
+  },
+  sw: {
+    title: 'ANDALIO LA SOMO',
+    teacher: 'JINA LA MWALIMU',
+    subject: 'SOMO',
+    className: 'DARASA',
+    date: 'TAREHE',
+    time: 'MUDA',
+    periodType: 'AINA YA KIPINDI',
+    single: 'Kipindi kimoja (dakika 40)',
+    double: 'Vipindi viwili (dakika 80)',
+    students: 'IDADI',
+    registration: 'USAJILI',
+    girls: 'WASICHANA',
+    boys: 'WAVULANA',
+    total: 'JUMLA',
+    registered: 'WALIO ANDIKISHWA',
+    present: 'WALIO HUDHURIA',
+    absent: 'WASIOHUDHURIA',
+    mainCompetence: 'UMAHIRI MKUU',
+    specificCompetence: 'UMAHIRI MAHUSUSI',
+    mainActivity: 'SHUGHULI KUU',
+    focus: 'mkazo',
+    specificActivities: 'SHUGHULI MAHUSUSI',
+    resources: 'ZANA ZA KUFUNDISHIA',
+    references: 'REJEA',
+    process: 'MCHAKATO WA UFUNDISHAJI NA UJIFUNZAJI',
+    stage: 'HATUA',
+    minutes: 'MUDA (DAK)',
+    teaching: 'SHUGHULI ZA UFUNDISHAJI',
+    learning: 'SHUGHULI ZA UJIFUNZAJI',
+    remarks: 'MAONI:',
+    stages: [STAGE_NAMES_SW.introduction, STAGE_NAMES_SW.development, STAGE_NAMES_SW.design, STAGE_NAMES_SW.realization],
+  },
+};
+
+// "08:00" or "8:00 AM" -> "08 : 00 ASUBUHI" (Swahili sheet). Anything that cannot be read is printed unchanged.
+const swahiliClock = (value: string): string => {
+  const match = value.trim().match(/^(\d{1,2})[:.](\d{2})\s*(am|pm)?$/i);
+  if (!match) return value;
+  let hour = Number(match[1]);
+  const minutes = match[2];
+  const meridiem = match[3]?.toLowerCase();
+  if (meridiem === 'pm' && hour < 12) hour += 12;
+  if (meridiem === 'am' && hour === 12) hour = 0;
+  if (hour > 23) return value;
+  const suffix = hour < 12 ? 'ASUBUHI' : 'ALASIRI';
+  const twelveHour = hour % 12 === 0 ? 12 : hour % 12;
+  return `${String(twelveHour).padStart(2, '0')} : ${minutes} ${suffix}`;
+};
+
+// "Ruangwa District Council" -> "Halmashauri ya Wilaya ya Ruangwa"; "Nambawala Secondary School" -> "Shule ya Sekondari Nambawala".
+// Names that do not match these patterns are printed unchanged.
+const swahiliCouncilName = (name: string): string => {
+  const match = name.trim().match(/^(.+?)\s+(District|Town|Municipal|City)\s+Council$/i);
+  if (!match) return name;
+  const kind = match[2].toLowerCase();
+  const label = kind === 'district' ? 'Halmashauri ya Wilaya ya' : kind === 'town' ? 'Halmashauri ya Mji wa' : kind === 'municipal' ? 'Halmashauri ya Manispaa ya' : 'Halmashauri ya Jiji la';
+  return `${label} ${match[1]}`;
+};
+
+const swahiliSchoolName = (name: string): string => {
+  const match = name.trim().match(/^(.+?)\s+Secondary\s+School$/i);
+  return match ? `Shule ya Sekondari ${match[1]}` : name;
+};
+
+const SWAHILI_FORM_NAMES: Record<number, string> = { 1: 'KWANZA', 2: 'PILI', 3: 'TATU', 4: 'NNE' };
+
+// "Form 1A" / "FORM 2 B" -> "KIDATO CHA KWANZA A" (Swahili sheet).
+const swahiliClassName = (className: string): string => {
+  const form = normalizeForm(className);
+  if (!form) return className.toUpperCase();
+  const match = className.trim().toUpperCase().match(/^(?:FORM\s*|F\s*)(IV|III|II|I|[1-4]|ONE|TWO|THREE|FOUR)/);
+  const stream = match ? className.trim().toUpperCase().slice(match[0].length).trim() : '';
+  return `KIDATO CHA ${SWAHILI_FORM_NAMES[form]}${stream ? ` ${stream}` : ''}`;
+};
+
 export function LessonPlan({
   teacherName,
   assignments,
@@ -254,6 +405,8 @@ export function LessonPlan({
   )];
   const selectedForm = normalizeForm(className);
   const lessonSubject = resolveLessonSubject(subject);
+  const lang: LessonLanguage = getLessonLanguage(lessonSubject);
+  const text = SHEET_TEXT[lang];
   // Forms that already have lesson-plan data for this subject.
   const supportedForms: number[] = lessonSubject ? supportedFormsFor(lessonSubject) : [];
   const isSupportedClass = !!lessonSubject && !!selectedForm && supportedForms.includes(selectedForm);
@@ -280,7 +433,7 @@ export function LessonPlan({
     : [];
   const availableMethods = unit?.methods ?? [];
   const selectedMethod = availableMethods[0];
-  const remarkOptions = selectedPart ? buildRemarkOptions(selectedPart) : [];
+  const remarkOptions = selectedPart ? getRemarkOptions(lang, selectedPart) : [];
 
   const registered = registeredStudents[className];
   const adminRegisteredGirls = readCount(registered?.regG);
@@ -325,9 +478,11 @@ export function LessonPlan({
     }
     return positionInRun % 2 === 0;
   };
-  const printedTime = selectedSlot && periodType
-    ? `${selectedSlot.startTime} - ${periodType === 'double' && secondSlot ? secondSlot.endTime : selectedSlot.endTime}`
-    : '';
+  const printedStart = selectedSlot ? (lang === 'sw' ? swahiliClock(selectedSlot.startTime) : selectedSlot.startTime) : '';
+  const printedEndRaw = selectedSlot ? (periodType === 'double' && secondSlot ? secondSlot.endTime : selectedSlot.endTime) : '';
+  const printedEnd = lang === 'sw' ? swahiliClock(printedEndRaw) : printedEndRaw;
+  const printedTime = selectedSlot && periodType ? `${printedStart} - ${printedEnd}` : '';
+  const printedClassName = lang === 'sw' ? swahiliClassName(className) : className;
   const attendanceIsValid = girlsValueValid && boysValueValid;
   const complete = !!subject && !!className && !!date && !!periodType &&
     !!topic && !!subtopic && !!selectedPart && registeredGirlsValid && registeredBoysValid &&
@@ -338,29 +493,29 @@ export function LessonPlan({
   const processRows = selectedPart && selectedMethod
     ? [
         {
-          stage: 'Introduction',
+          stage: text.stages[0],
           minutes: periodType === 'double' ? STAGE_MINUTES_DOUBLE.introduction : STAGE_MINUTES_SINGLE.introduction,
-          text: INTRODUCTION,
+          text: lang === 'sw' ? INTRODUCTION_SW : INTRODUCTION,
         },
         {
-          stage: 'Competence development',
+          stage: text.stages[1],
           minutes: periodType === 'double' ? STAGE_MINUTES_DOUBLE.development : STAGE_MINUTES_SINGLE.development,
-          text: METHOD_TEMPLATES[selectedMethod].development,
+          text: getMethodTemplate(lang, selectedMethod).development,
         },
         {
-          stage: 'Design',
+          stage: text.stages[2],
           minutes: periodType === 'double' ? STAGE_MINUTES_DOUBLE.design : STAGE_MINUTES_SINGLE.design,
-          text: METHOD_TEMPLATES[selectedMethod].design,
+          text: getMethodTemplate(lang, selectedMethod).design,
         },
         {
-          stage: 'Realization',
+          stage: text.stages[3],
           minutes: periodType === 'double' ? STAGE_MINUTES_DOUBLE.realization : STAGE_MINUTES_SINGLE.realization,
-          text: METHOD_TEMPLATES[selectedMethod].realization,
+          text: getMethodTemplate(lang, selectedMethod).realization,
         },
       ]
     : [];
   const replacePart = (text: string) => text.split('{part}').join(selectedPart?.part ?? '');
-  const printedRemark = selectedRemark && selectedRemark !== 'No remark (leave blank lines)'
+  const printedRemark = selectedRemark && !NO_REMARK_OPTIONS.includes(selectedRemark)
     ? selectedRemark
     : '';
   const fitToPage = useFitToPage(printSheetRef, [
@@ -764,9 +919,9 @@ export function LessonPlan({
                 {schoolLogo && <img src={schoolLogo} alt="School logo" />}
               </div>
               <div className="lesson-plan-header-copy">
-                <h1>LESSON PLAN</h1>
-                <p className="lesson-plan-council">{districtName}</p>
-                <p className="lesson-plan-school-name">{schoolName}</p>
+                <h1>{text.title}</h1>
+                <p className="lesson-plan-council">{lang === 'sw' ? swahiliCouncilName(districtName).toUpperCase() : districtName}</p>
+                <p className="lesson-plan-school-name">{lang === 'sw' ? swahiliSchoolName(schoolName).toUpperCase() : schoolName}</p>
               </div>
               <div className="lesson-plan-header-spacer" aria-hidden="true" />
             </header>
@@ -774,30 +929,30 @@ export function LessonPlan({
             <table className="lesson-plan-meta">
               <tbody>
                 <tr>
-                  <th>TEACHER</th><td>{teacherName}</td>
-                  <th>SUBJECT</th><td>{subject}</td>
+                  <th>{text.teacher}</th><td>{teacherName}</td>
+                  <th>{text.subject}</th><td>{lang === 'sw' ? subject.toUpperCase() : subject}</td>
                 </tr>
                 <tr>
-                  <th>CLASS</th><td>{className}</td>
-                  <th>DATE</th><td>{date ? formatDate(date) : ''}</td>
+                  <th>{text.className}</th><td>{printedClassName}</td>
+                  <th>{text.date}</th><td>{date ? formatDate(date) : ''}</td>
                 </tr>
                 <tr>
-                  <th>TIME</th><td>{printedTime}</td>
-                  <th>PERIOD TYPE</th><td>{periodType === 'double' ? 'Double (80 min)' : periodType === 'single' ? 'Single (40 min)' : ''}</td>
+                  <th>{text.time}</th><td>{printedTime}</td>
+                  <th>{text.periodType}</th><td>{periodType === 'double' ? text.double : periodType === 'single' ? text.single : ''}</td>
                 </tr>
               </tbody>
             </table>
 
             <section className="lesson-plan-block lesson-plan-students-block">
-              <h2 className="lesson-plan-block-title">NUMBER OF STUDENTS</h2>
+              <h2 className="lesson-plan-block-title">{text.students}</h2>
               <table className="lesson-plan-students">
                 <thead>
-                  <tr><th>REGISTRATION</th><th>GIRLS</th><th>BOYS</th><th>TOTAL</th></tr>
+                  <tr><th>{text.registration}</th><th>{text.girls}</th><th>{text.boys}</th><th>{text.total}</th></tr>
                 </thead>
                 <tbody>
-                  <tr><th>REGISTERED</th><td>{registeredGirls}</td><td>{registeredBoys}</td><td>{registeredTotal}</td></tr>
-                  <tr><th>PRESENT</th><td>{presentGirlsCount}</td><td>{presentBoysCount}</td><td>{presentTotal}</td></tr>
-                  <tr><th>ABSENT</th><td>{absentGirls}</td><td>{absentBoys}</td><td>{absentTotal}</td></tr>
+                  <tr><th>{text.registered}</th><td>{registeredGirls}</td><td>{registeredBoys}</td><td>{registeredTotal}</td></tr>
+                  <tr><th>{text.present}</th><td>{presentGirlsCount}</td><td>{presentBoysCount}</td><td>{presentTotal}</td></tr>
+                  <tr><th>{text.absent}</th><td>{absentGirls}</td><td>{absentBoys}</td><td>{absentTotal}</td></tr>
                 </tbody>
               </table>
             </section>
@@ -805,24 +960,24 @@ export function LessonPlan({
             <section className="lesson-plan-block lesson-plan-details-block">
               <table className="lesson-plan-details">
                 <tbody>
-                  <tr><th>MAIN COMPETENCE</th><td>{unit?.mainCompetence}</td></tr>
-                  <tr><th>SPECIFIC COMPETENCE</th><td>{unit?.specificCompetence}</td></tr>
-                  <tr><th>MAIN ACTIVITY</th><td>{unit && selectedPart ? `${unit.mainActivity} – focus: ${selectedPart.part}` : unit?.mainActivity}</td></tr>
+                  <tr><th>{text.mainCompetence}</th><td>{unit?.mainCompetence}</td></tr>
+                  <tr><th>{text.specificCompetence}</th><td>{unit?.specificCompetence}</td></tr>
+                  <tr><th>{text.mainActivity}</th><td>{unit && selectedPart ? `${unit.mainActivity} – ${text.focus}: ${selectedPart.part}` : unit?.mainActivity}</td></tr>
                   <tr>
-                    <th>SPECIFIC ACTIVITIES</th>
+                    <th>{text.specificActivities}</th>
                     <td>{selectedPart && <ol>{selectedPart.specificActivities.map(activity => <li key={activity}>{activity}</li>)}</ol>}</td>
                   </tr>
-                  <tr><th>TEACHING &amp; LEARNING RESOURCES</th><td>{selectedResources.join(', ')}</td></tr>
-                  <tr><th>REFERENCES</th><td>{selectedForm && lessonSubject ? getReference(lessonSubject, selectedForm) : ''}</td></tr>
+                  <tr><th>{text.resources}</th><td>{selectedResources.join(', ')}</td></tr>
+                  <tr><th>{text.references}</th><td>{selectedForm && lessonSubject ? getReference(lessonSubject, selectedForm) : ''}</td></tr>
                 </tbody>
               </table>
             </section>
 
             <section className="lesson-plan-block lesson-plan-process-section">
-              <h2 className="lesson-plan-block-title">TEACHING AND LEARNING PROCESS</h2>
+              <h2 className="lesson-plan-block-title">{text.process}</h2>
               <table className="lesson-plan-process">
                 <thead>
-                  <tr><th>STAGE</th><th>TIME (MIN)</th><th>TEACHING ACTIVITIES</th><th>LEARNING ACTIVITIES</th></tr>
+                  <tr><th>{text.stage}</th><th>{text.minutes}</th><th>{text.teaching}</th><th>{text.learning}</th></tr>
                 </thead>
                 <tbody>
                   {processRows.map(row => (
@@ -839,7 +994,7 @@ export function LessonPlan({
 
             {/* REMARKS is always printed, last on the page: the chosen remark, or blank lines to write on. */}
             <div className="lesson-plan-remarks">
-              <strong>REMARKS:</strong>
+              <strong>{text.remarks}</strong>
               {printedRemark ? (
                 <span className="lesson-plan-remarks-text"> {printedRemark}</span>
               ) : (
