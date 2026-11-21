@@ -22,6 +22,9 @@ export type MethodKey =
   | 'fieldTrip'
   | 'rolePlay';
 
+// Mbinu za ziada zinazotumika kwenye masomo ya Kiswahili (Utafiti mdogo, Matembezi ya galari, Mdahalo, Tafakuri).
+export type SwMethodKey = MethodKey | 'research' | 'gallery' | 'debate' | 'reflection';
+
 export const METHOD_LABELS: Record<MethodKey, string> = {
   brainstorming: 'Brainstorming',
   tips: 'Think-Ink-Pair-Share (TIPS)',
@@ -46,7 +49,7 @@ export interface SyllabusUnit {
   mainCompetence: string;
   specificCompetence: string;
   mainActivity: string;
-  methods: MethodKey[];
+  methods: SwMethodKey[];
   resources: string[];
 }
 
@@ -107,7 +110,7 @@ export const UNITS: Record<string, SyllabusUnit> = {
 
 export interface LessonPart {
   id: string;
-  subject: 'Computer Science' | 'Mathematics' | 'Business Studies' | 'English Language' | 'Geography' | 'History' | 'Physics' | 'Chemistry' | 'Biology';
+  subject: 'Computer Science' | 'Mathematics' | 'Business Studies' | 'English Language' | 'Geography' | 'History' | 'Physics' | 'Chemistry' | 'Biology' | 'Historia ya Tanzania na Maadili' | 'Kiswahili';
   form: 1 | 2 | 3 | 4;
   topic: string;      // Chapter title from the Student's Book
   subtopic: string;   // Section title from the Student's Book
@@ -1665,6 +1668,260 @@ export const BIOLOGY_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
   3: "Tanzania Institute of Education. (2025). Biology for secondary schools student's book, form three. Tanzania Institute of Education.",
 };
 
+// ===================== HISTORIA YA TANZANIA NA MAADILI (Kidato cha I-III) - KISWAHILI =====================
+// Chanzo: Muhtasari wa Historia ya Tanzania na Maadili, Elimu ya Sekondari Kidato cha I-IV (TIE 2023) + vitabu vya mwanafunzi
+// (Kidato cha I 2023, cha II 2024, cha III 2025). Lugha ya andalio la somo hili ni Kiswahili; mfumo ni uleule wa masomo mengine.
+// Kidato cha IV bado hakijatolewa. Sura za utafiti (3.x Kidato cha III) hazipo kwenye kitabu cha mwanafunzi, kwa hiyo hazimo hapa.
+
+export const HTM_COMMON_RESOURCES = [
+  'Ubao wa chaki / ubao mweupe',
+  'Chaki na kalamu za ubao',
+  'Vijarida vya maelezo',
+  'Ramani ya Tanzania na Afrika',
+  'Chati na mfuatano wa matukio (time line)',
+  'Picha na mabango',
+  'Projekta / simu janja (video na makala)',
+  'Kitabu cha mwanafunzi (Historia ya Tanzania na Maadili)',
+  'Muhtasari wa somo',
+];
+
+const HT_MC1 = 'Kulinda historia, urithi na maadili ya Taifa';
+const HT_MC2 = 'Kumudu historia ya jamii za Kitanzania na maadili yake kabla ya ukoloni';
+const HT_MC3 = 'Kumudu historia ya Tanzania na maadili wakati wa ukoloni, 1890 – 1960';
+const HT_MC4 = 'Kumudu historia ya ujenzi wa Taifa la Tanzania na maadili katika kipindi cha 1961 – 1966';
+const HT_MC5 = 'Kutathmini ujenzi wa Taifa na maadili wakati wa Azimio la Arusha, 1967 – 1985';
+
+const HT_S11 = 'Kuelezea chimbuko la jamii za Kitanzania na maadili yake';
+const HT_S12 = 'Kumudu maarifa na ujuzi wa maadili na urithi wa jamii za Kitanzania';
+const HT_S13 = 'Kutumia maarifa na ujuzi wa historia na urithi kubuni fursa mbalimbali zilizopo katika jamii za Kitanzania';
+const HT_S14 = 'Kubaini fursa mbalimbali za kujenga ushirikiano na kukuza uchumi wa kitaifa';
+const HT_S21 = 'Kuchambua mifumo ya kijamii (elimu, afya, utamaduni, uchumi) iliyokuza na kuendeleza maadili ya jamii za Kitanzania kabla ya ukoloni';
+const HT_S22 = 'Kuchambua mifumo iliyokuza na kuendeleza uchumi na siasa katika jamii za Kitanzania kabla ya ukoloni';
+const HT_S23 = 'Kutathmini vichocheo vya mabadiliko ya sayansi na teknolojia katika jamii za Kitanzania kabla ya ukoloni';
+const HT_F2_S31 = 'Kutumia maarifa na ujuzi wa chimbuko na ukuaji wa mfumo wa ukoloni kuelewa uhusiano wa kihistoria kati ya Tanzania na mataifa yaliyoitawala';
+const HT_F2_S32 = 'Kutathmini athari za mfumo wa ukoloni kwenye maadili ya jamii za Kitanzania';
+const HT_F2_S33 = 'Kuchambua jitihada za jamii za Kitanzania kupinga ukoloni na maadili ya kikoloni';
+const HT_F2_S41 = 'Kuchambua mifumo ya uchumi, siasa, utamaduni, jamii na maadili iliyojengwa 1961 – 1966';
+const HT_F2_S42 = 'Kumudu historia ya Mapinduzi Matukufu ya Zanzibar';
+const HT_F3_S43 = 'Kumudu historia ya Muungano wa Tanganyika na Zanzibar';
+const HT_F3_S51 = 'Kuchambua chimbuko la Azimio la Arusha na matokeo yake kiuchumi, kisiasa, kiutamaduni na kimaadili';
+const HT_F3_S52 = 'Kueleza nafasi ya Tanzania katika kujenga uhusiano wa kikanda';
+
+const HT_BASIC = ['Matini kuhusu historia ya Tanzania na maadili', 'Chati na picha', 'Ramani ya Tanzania', 'Mtaalamu mwalikwa (mzee au mwanahistoria)'];
+const HT_ORIGIN = ['Matini zenye kuonesha asili ya jamii za Kitanzania', 'Ramani kuonesha mtawanyiko wa jamii za asili', 'Vitu halisi vilivyotumiwa na watu wa jamii za asili'];
+const HT_HERITAGE = ['Ramani kuonesha maeneo yenye urithi wa Tanzania', 'Vitu halisi vilivyotumiwa na watu wa jamii za asili', 'Matini kuhusu maadili na urithi wa jamii za Kitanzania'];
+const HT_OPPORT = ['Matini kuhusu fursa kwenye urithi wa jamii za Kitanzania', 'Ramani kuonesha maeneo yenye urithi wa Tanzania', 'Vitu halisi vilivyotumiwa na watu wa jamii za asili', 'Picha za vivutio vya urithi'];
+const HT_NATION = ['Matini kuhusu fursa mbalimbali za kujenga ushirikiano na kukuza uchumi wa kitaifa', 'Picha kuonesha shughuli mbalimbali', 'Ramani kuonesha maeneo yenye fursa mbalimbali'];
+const HT_SOCIAL = ['Picha kuonesha miundombinu ya elimu, afya na utamaduni kabla ya ukoloni', 'Ramani kuonesha mtawanyiko wa miundombinu ya elimu, afya na utamaduni kabla ya ukoloni', 'Vitu halisi vilivyotumika kabla ya ukoloni'];
+const HT_POLECON = ['Matini kuhusu mifumo ya kiuchumi na kisiasa kabla ya ukoloni', 'Ramani kuonesha maeneo mbalimbali ya jamii za asili za Kitanzania', 'Picha za shughuli za kiuchumi na kisiasa'];
+const HT_SCI = ['Matini kuhusu vichocheo vya mabadiliko ya sayansi na teknolojia katika jamii za Kitanzania kabla ya ukoloni', 'Picha za bidhaa zilizozalishwa na jamii za Kitanzania kabla ya ukoloni', 'Ramani kuonesha maeneo yaliyokuwa ya uzalishaji wa bidhaa kabla ya ukoloni'];
+const HT_COLONY = ['Matini kuhusu chimbuko la mfumo wa ukoloni', 'Picha mbalimbali kuonesha wataalamu na shughuli za wakoloni', 'Ramani ya Tanzania wakati wa ukoloni', 'Chati ya mfuatano wa matukio (time line)'];
+const HT_ETHICS_COL = ['Matini kuhusu athari za mfumo wa ukoloni kwenye maadili ya jamii za Kitanzania', 'Picha za matukio ya kipindi cha ukoloni', 'Chati na picha'];
+const HT_RESIST = ['Picha kuonesha matendo ya kupinga ukoloni', 'Matini kuhusu harakati za jamii za Kitanzania kupinga ukoloni na maadili ya kikoloni', 'Ramani kuonesha maeneo ya upinzani', 'Chati ya mfuatano wa matukio (time line)'];
+const HT_NATIONB = ['Matini kuhusu mifumo ya uchumi, siasa, utamaduni, jamii na maadili iliyojengwa 1961 – 1966', 'Picha za matukio ya mwanzo wa uhuru', 'Chati na picha'];
+const HT_ZNZ = ['Matini kuhusu Mapinduzi Matukufu ya Zanzibar', 'Picha kuonesha watu walioshiriki katika Mapinduzi Matukufu ya Zanzibar', 'Ramani ya Zanzibar'];
+const HT_UNION = ['Matini kuhusu historia ya ujenzi wa Taifa na maadili 1961 – 1966', 'Kielelezo kuonesha muundo wa Muungano wa Tanganyika na Zanzibar', 'Katiba ya Jamhuri ya Muungano wa Tanzania', 'Picha za viongozi na matukio ya Muungano'];
+const HT_ARUSHA = ['Matini kuhusu Azimio la Arusha', 'Picha za viongozi na matukio ya kipindi cha Azimio la Arusha', 'Chati ya mfuatano wa matukio (time line)'];
+const HT_REGION = ['Matini kuhusu nafasi ya Tanzania katika kujenga uhusiano wa kikanda', 'Ramani ya Afrika Mashariki na Kusini mwa Afrika', 'Picha za viongozi na vikao vya jumuiya za kikanda', 'Mtaalamu mwalikwa'];
+
+Object.assign(UNITS, {
+  // ---- Kidato cha I ----
+  'HT1-0': { mainCompetence: HT_MC1, specificCompetence: HT_S11, mainActivity: 'Kueleza dhana ya Historia ya Tanzania na Maadili, umuhimu wake na uhusiano wake na masomo mengine', methods: ['brainstorming', 'qa', 'groupDiscussion'], resources: HT_BASIC },
+  'HT1-1.1a': { mainCompetence: HT_MC1, specificCompetence: HT_S11, mainActivity: 'Kueleza asili ya jamii za Kitanzania (Wabantu, Wanilo, Wakushito, Wakichembe)', methods: ['brainstorming', 'guestSpeaker', 'groupDiscussion'], resources: HT_ORIGIN },
+  'HT1-1.1b': { mainCompetence: HT_MC1, specificCompetence: HT_S11, mainActivity: 'Kubaini shughuli mbalimbali za makundi ya asili ya jamii za Kitanzania', methods: ['tips', 'groupDiscussion'], resources: HT_ORIGIN },
+  'HT1-1.1c': { mainCompetence: HT_MC1, specificCompetence: HT_S11, mainActivity: 'Kueleza maadili ya jamii za asili ya Kitanzania', methods: ['brainstorming', 'caseStudy', 'groupDiscussion'], resources: HT_ORIGIN },
+  'HT1-1.2a': { mainCompetence: HT_MC1, specificCompetence: HT_S12, mainActivity: 'Kuchambua maadili na urithi wa jamii za Kitanzania', methods: ['jigsaw', 'groupDiscussion'], resources: HT_HERITAGE },
+  'HT1-1.2b': { mainCompetence: HT_MC1, specificCompetence: HT_S12, mainActivity: 'Kueleza matendo ya msingi yanayokuza na kulinda maadili na urithi wa jamii za Kitanzania', methods: ['groupDiscussion', 'qa'], resources: HT_HERITAGE },
+  'HT1-1.3a': { mainCompetence: HT_MC1, specificCompetence: HT_S13, mainActivity: 'Kubaini fursa mbalimbali zilizopo kwenye urithi wa jamii za Kitanzania', methods: ['research', 'gallery'], resources: HT_OPPORT },
+  'HT1-1.3b': { mainCompetence: HT_MC1, specificCompetence: HT_S13, mainActivity: 'Kueleza namna fursa zilizopo kwenye urithi wa jamii za Kitanzania zinavyoweza kutumika kukuza uchumi binafsi na jamii', methods: ['caseStudy', 'guestSpeaker'], resources: HT_OPPORT },
+  'HT1-1.3c': { mainCompetence: HT_MC1, specificCompetence: HT_S13, mainActivity: 'Kueleza njia mbalimbali za kutunza urithi wa jamii za Kitanzania', methods: ['tips', 'groupDiscussion'], resources: HT_OPPORT },
+  'HT1-1.4a': { mainCompetence: HT_MC1, specificCompetence: HT_S14, mainActivity: 'Kuainisha shughuli mbalimbali za kujenga ushirikiano na kukuza uchumi wa Taifa', methods: ['research', 'gallery'], resources: HT_NATION },
+  'HT1-1.4b': { mainCompetence: HT_MC1, specificCompetence: HT_S14, mainActivity: 'Kufafanua namna shughuli mbalimbali zinavyochangia kujenga ushirikiano na kukuza uchumi wa Taifa', methods: ['guestSpeaker', 'groupDiscussion'], resources: HT_NATION },
+  'HT1-2.1a': { mainCompetence: HT_MC2, specificCompetence: HT_S21, mainActivity: 'Kubaini mifumo ya kijamii ya Tanzania kabla ya ukoloni', methods: ['research', 'groupDiscussion'], resources: HT_SOCIAL },
+  'HT1-2.1b': { mainCompetence: HT_MC2, specificCompetence: HT_S21, mainActivity: 'Kueleza mifumo ya kijamii ya Tanzania ilivyokuza maadili kabla ya ukoloni', methods: ['guestSpeaker', 'groupDiscussion'], resources: HT_SOCIAL },
+  'HT1-2.2a': { mainCompetence: HT_MC2, specificCompetence: HT_S22, mainActivity: 'Kubaini mifumo ya kiuchumi na kisiasa katika jamii za Kitanzania kabla ya ukoloni', methods: ['research', 'groupDiscussion'], resources: HT_POLECON },
+  'HT1-2.2b': { mainCompetence: HT_MC2, specificCompetence: HT_S22, mainActivity: 'Kueleza jinsi mifumo ya kisiasa na kiuchumi ilivyokuza na kuendeleza shughuli za kiuchumi na kisiasa kabla ya ukoloni', methods: ['research', 'groupDiscussion'], resources: HT_POLECON },
+  'HT1-2.2c': { mainCompetence: HT_MC2, specificCompetence: HT_S22, mainActivity: 'Kufafanua uhusiano kati ya jamii za Kitanzania na za Mashariki ya Kati, Mashariki ya Mbali na Ulaya katika kuendeleza shughuli za kiuchumi na kisiasa kabla ya ukoloni', methods: ['jigsaw', 'groupDiscussion'], resources: HT_POLECON },
+  'HT1-2.2d': { mainCompetence: HT_MC2, specificCompetence: HT_S22, mainActivity: 'Kutathmini mchango wa mifumo ya kisiasa na kiuchumi katika kukuza maadili ya jamii za Kitanzania kabla ya ukoloni', methods: ['caseStudy', 'groupDiscussion'], resources: HT_POLECON },
+  'HT1-2.3a': { mainCompetence: HT_MC2, specificCompetence: HT_S23, mainActivity: 'Kueleza hali ya sayansi na teknolojia katika jamii za Kitanzania kabla ya ukoloni', methods: ['research', 'groupDiscussion'], resources: HT_SCI },
+  'HT1-2.3b': { mainCompetence: HT_MC2, specificCompetence: HT_S23, mainActivity: 'Kubaini vichocheo vya mabadiliko ya sayansi na teknolojia katika jamii za Kitanzania kabla ya ukoloni', methods: ['caseStudy', 'qa'], resources: HT_SCI },
+  // ---- Kidato cha II ----
+  'HT2-1.1a': { mainCompetence: HT_MC3, specificCompetence: HT_F2_S31, mainActivity: 'Kuchambua chimbuko la ukoloni', methods: ['research', 'groupDiscussion'], resources: HT_COLONY },
+  'HT2-1.1b': { mainCompetence: HT_MC3, specificCompetence: HT_F2_S31, mainActivity: 'Kubainisha mataifa yaliyoitawala Tanzania na mifumo yake ya kikoloni katika uchumi, utawala na utamaduni', methods: ['groupDiscussion', 'research'], resources: HT_COLONY },
+  'HT2-1.1c': { mainCompetence: HT_MC3, specificCompetence: HT_F2_S31, mainActivity: 'Kujadili mchango wa mifumo ya kikoloni katika uhusiano wa Tanzania na mataifa yaliyoitawala', methods: ['tips', 'groupDiscussion'], resources: HT_COLONY },
+  'HT2-1.2a': { mainCompetence: HT_MC3, specificCompetence: HT_F2_S32, mainActivity: 'Kueleza hali ya maadili ya jamii za Kitanzania kipindi ukoloni unaingia', methods: ['jigsaw', 'groupDiscussion'], resources: HT_ETHICS_COL },
+  'HT2-1.2b': { mainCompetence: HT_MC3, specificCompetence: HT_F2_S32, mainActivity: 'Kuchambua athari za mfumo wa ukoloni katika maadili ya jamii za Kitanzania', methods: ['research', 'groupDiscussion'], resources: HT_ETHICS_COL },
+  'HT2-1.2c': { mainCompetence: HT_MC3, specificCompetence: HT_F2_S32, mainActivity: 'Kubaini maadili yaliyodumishwa na jamii za Kitanzania wakati wa ukoloni', methods: ['groupDiscussion', 'caseStudy', 'qa'], resources: HT_ETHICS_COL },
+  'HT2-1.3a': { mainCompetence: HT_MC3, specificCompetence: HT_F2_S33, mainActivity: 'Kubaini sababu za jamii za Kitanzania kupinga uvamizi wa kikoloni, ukoloni na maadili yake', methods: ['research', 'qa'], resources: HT_RESIST },
+  'HT2-1.3b': { mainCompetence: HT_MC3, specificCompetence: HT_F2_S33, mainActivity: 'Kujadili njia mbalimbali zilizotumika na jamii za Kitanzania kupinga uvamizi wa kikoloni, ukoloni na maadili yake', methods: ['caseStudy', 'groupDiscussion'], resources: HT_RESIST },
+  'HT2-1.3c': { mainCompetence: HT_MC3, specificCompetence: HT_F2_S33, mainActivity: 'Kufafanua misingi na mbinu zilizotumika kupigania uhuru wa Tanganyika na Zanzibar', methods: ['guestSpeaker', 'groupDiscussion'], resources: HT_RESIST },
+  'HT2-1.3d': { mainCompetence: HT_MC3, specificCompetence: HT_F2_S33, mainActivity: 'Kutathmini mchango wa harakati za kupinga uvamizi na ukoloni katika kutunza maadili ya Kitanzania na kujenga uzalendo', methods: ['reflection', 'qa'], resources: HT_RESIST },
+  'HT2-2.1a': { mainCompetence: HT_MC4, specificCompetence: HT_F2_S41, mainActivity: 'Kueleza hali ya uchumi, siasa, utamaduni, jamii na maadili mara baada ya uhuru', methods: ['research', 'groupDiscussion'], resources: HT_NATIONB },
+  'HT2-2.1b': { mainCompetence: HT_MC4, specificCompetence: HT_F2_S41, mainActivity: 'Kutathmini mikakati na changamoto za ujenzi wa Taifa kiuchumi, kisiasa, kiutamaduni, kijamii na kimaadili kipindi cha 1961 – 1966', methods: ['reflection', 'groupDiscussion'], resources: HT_NATIONB },
+  'HT2-2.2a': { mainCompetence: HT_MC4, specificCompetence: HT_F2_S42, mainActivity: 'Kueleza chimbuko la Mapinduzi Matukufu ya Zanzibar', methods: ['research', 'groupDiscussion'], resources: HT_ZNZ },
+  'HT2-2.2b': { mainCompetence: HT_MC4, specificCompetence: HT_F2_S42, mainActivity: 'Kubaini mchango wa Mapinduzi Matukufu ya Zanzibar katika kujenga umoja, mshikamano na maadili miongoni mwa Wazanzibari', methods: ['research', 'qa'], resources: HT_ZNZ },
+  // ---- Kidato cha III ----
+  'HT3-1.1a': { mainCompetence: HT_MC4, specificCompetence: HT_F3_S43, mainActivity: 'Kufafanua chimbuko la Muungano wa Tanganyika na Zanzibar', methods: ['research', 'groupDiscussion'], resources: HT_UNION },
+  'HT3-1.1b': { mainCompetence: HT_MC4, specificCompetence: HT_F3_S43, mainActivity: 'Kueleza muundo na misingi ya Muungano wa Tanganyika na Zanzibar', methods: ['research', 'groupDiscussion'], resources: HT_UNION },
+  'HT3-1.1c': { mainCompetence: HT_MC4, specificCompetence: HT_F3_S43, mainActivity: 'Kutathmini Muungano wa Tanganyika na Zanzibar katika kujenga umoja na maadili ya Kitaifa', methods: ['research', 'reflection'], resources: HT_UNION },
+  'HT3-2.1a': { mainCompetence: HT_MC5, specificCompetence: HT_F3_S51, mainActivity: 'Kujadili chimbuko la Azimio la Arusha', methods: ['research', 'groupDiscussion'], resources: HT_ARUSHA },
+  'HT3-2.1b': { mainCompetence: HT_MC5, specificCompetence: HT_F3_S51, mainActivity: 'Kufafanua misingi na mchango wa Azimio la Arusha katika ujenzi wa Taifa kiuchumi, kisiasa, kijamii na kimaadili', methods: ['jigsaw', 'groupDiscussion'], resources: HT_ARUSHA },
+  'HT3-2.1c': { mainCompetence: HT_MC5, specificCompetence: HT_F3_S51, mainActivity: 'Kutathmini changamoto za Azimio la Arusha kiuchumi, kisiasa, kijamii na kimaadili', methods: ['research', 'reflection'], resources: HT_ARUSHA },
+  'HT3-2.2a': { mainCompetence: HT_MC5, specificCompetence: HT_F3_S52, mainActivity: 'Kufafanua dhana ya uhusiano wa kikanda na ujenzi wa Taifa', methods: ['guestSpeaker', 'qa'], resources: HT_REGION },
+  'HT3-2.2b': { mainCompetence: HT_MC5, specificCompetence: HT_F3_S52, mainActivity: 'Kueleza mchango wa Tanzania katika kukuza uhusiano wa kikanda na kujenga utaifa (EAC na SADC)', methods: ['research', 'debate'], resources: HT_REGION },
+  'HT3-2.2c': { mainCompetence: HT_MC5, specificCompetence: HT_F3_S52, mainActivity: 'Kubaini changamoto za uhusiano wa kikanda katika ujenzi wa Taifa', methods: ['caseStudy', 'qa'], resources: HT_REGION },
+});
+
+const PHTF = (form: 1 | 2 | 3) => (topic: string, subtopic: string, part: string, unit: string, ...specificActivities: string[]): LessonPart =>
+  ({ id: `ht${form}-${++_n}`, subject: 'Historia ya Tanzania na Maadili', form, topic, subtopic, part, unit, specificActivities });
+const HT1 = PHTF(1);
+const HT2 = PHTF(2);
+const HT3 = PHTF(3);
+
+LESSON_PARTS.push(
+  // ===== KIDATO CHA I =====
+  HT1('Dhana ya Historia ya Tanzania na Maadili', 'Historia ya Tanzania na Maadili', 'Maana ya Historia ya Tanzania na Maadili', 'HT1-0', 'Kueleza maana ya Historia ya Tanzania na Maadili', 'Kutoa mifano ya matukio ya historia ya Tanzania'),
+  HT1('Dhana ya Historia ya Tanzania na Maadili', 'Dhana ya maadili', 'Dhana ya maadili', 'HT1-0', 'Kueleza maana ya maadili', 'Kutoa mifano ya maadili mema ya Kitanzania'),
+  HT1('Dhana ya Historia ya Tanzania na Maadili', 'Umuhimu wa somo la Historia ya Tanzania na Maadili', 'Umuhimu wa somo la Historia ya Tanzania na Maadili', 'HT1-0', 'Kueleza umuhimu wa kujifunza somo hili', 'Kuhusisha somo hili na maisha ya kila siku'),
+  HT1('Dhana ya Historia ya Tanzania na Maadili', 'Uhusiano kati ya somo la Historia ya Tanzania na Maadili na masomo mengine', 'Uhusiano wa somo hili na masomo mengine', 'HT1-0', 'Kubainisha masomo yanayohusiana na Historia ya Tanzania na Maadili', 'Kutoa mifano ya uhusiano huo'),
+
+  HT1('Chimbuko la jamii za Kitanzania na maadili yake', 'Dhana ya jamii', 'Dhana ya jamii', 'HT1-1.1a', 'Kueleza dhana ya jamii', 'Kutoa mifano ya jamii za Kitanzania'),
+  HT1('Chimbuko la jamii za Kitanzania na maadili yake', 'Asili ya jamii za Kitanzania', 'Asili ya Wabantu na Wanilo', 'HT1-1.1a', 'Kueleza asili ya Wabantu na Wanilo', 'Kutaja mifano ya jamii za makundi hayo'),
+  HT1('Chimbuko la jamii za Kitanzania na maadili yake', 'Asili ya jamii za Kitanzania', 'Asili ya Wakushito na Wakichembe', 'HT1-1.1a', 'Kueleza asili ya Wakushito na Wakichembe', 'Kutaja mifano ya jamii za makundi hayo'),
+  HT1('Chimbuko la jamii za Kitanzania na maadili yake', 'Mtawanyiko wa jamii za Tanzania kabla ya ukoloni', 'Mtawanyiko wa jamii za Tanzania kabla ya ukoloni', 'HT1-1.1a', 'Kueleza mtawanyiko wa jamii za Tanzania kabla ya ukoloni', 'Kuonesha njia za uhamaji kwenye ramani'),
+  HT1('Chimbuko la jamii za Kitanzania na maadili yake', 'Matokeo ya uhamaji', 'Matokeo ya uhamaji', 'HT1-1.1a', 'Kubainisha matokeo ya uhamaji wa jamii', 'Kueleza athari za uhamaji kwa jamii za Kitanzania'),
+  HT1('Chimbuko la jamii za Kitanzania na maadili yake', 'Shughuli za makundi ya asili ya jamii za Kitanzania', 'Shughuli za makundi ya asili ya jamii za Kitanzania', 'HT1-1.1b', 'Kubaini shughuli za makundi ya asili ya jamii za Kitanzania', 'Kulinganisha shughuli za makundi hayo'),
+  HT1('Chimbuko la jamii za Kitanzania na maadili yake', 'Maadili ya jamii za asili ya Kitanzania', 'Maadili ya jamii za asili ya Kitanzania', 'HT1-1.1c', 'Kueleza maadili ya jamii za asili ya Kitanzania', 'Kutoa mifano ya maadili hayo'),
+
+  HT1('Maadili na urithi wa jamii za Kitanzania', 'Dhana ya urithi wa Tanzania', 'Dhana ya urithi wa Tanzania', 'HT1-1.2a', 'Kueleza dhana ya urithi', 'Kutaja aina za urithi wa Tanzania'),
+  HT1('Maadili na urithi wa jamii za Kitanzania', 'Maadili kama sehemu ya urithi wa kiutamaduni', 'Maadili kama sehemu ya urithi wa kiutamaduni', 'HT1-1.2a', 'Kueleza maadili kama sehemu ya urithi wa kiutamaduni', 'Kutoa mifano kutoka katika jamii'),
+  HT1('Maadili na urithi wa jamii za Kitanzania', 'Kazi za binadamu kama sehemu ya urithi wa kiutamaduni', 'Kazi za binadamu kama sehemu ya urithi wa kiutamaduni', 'HT1-1.2a', 'Kubainisha kazi za binadamu zilizo urithi wa kiutamaduni', 'Kueleza umuhimu wa kazi hizo'),
+  HT1('Maadili na urithi wa jamii za Kitanzania', 'Urithi wa asili', 'Urithi wa asili', 'HT1-1.2a', 'Kueleza maana ya urithi wa asili', 'Kutaja mifano ya urithi wa asili wa Tanzania'),
+  HT1('Maadili na urithi wa jamii za Kitanzania', 'Matendo yanayokuza na kulinda maadili na urithi wa Tanzania', 'Matendo yanayokuza na kulinda maadili na urithi wa Tanzania', 'HT1-1.2b', 'Kueleza matendo yanayokuza na kulinda maadili na urithi', 'Kuainisha wajibu wa mwanafunzi katika kulinda urithi'),
+
+  HT1('Fursa zinazotokana na urithi wa jamii za Kitanzania', 'Urithi wa kihistoria', 'Urithi wa kihistoria', 'HT1-1.3a', 'Kueleza maana ya urithi wa kihistoria', 'Kutaja mifano ya urithi wa kihistoria wa Tanzania'),
+  HT1('Fursa zinazotokana na urithi wa jamii za Kitanzania', 'Fursa za urithi wa kihistoria', 'Fursa za urithi wa kihistoria', 'HT1-1.3a', 'Kubaini fursa zinazotokana na urithi wa kihistoria', 'Kuorodhesha fursa hizo kwa mifano'),
+  HT1('Fursa zinazotokana na urithi wa jamii za Kitanzania', 'Matumizi ya fursa za urithi wa kihistoria', 'Matumizi ya fursa za urithi wa kihistoria', 'HT1-1.3b', 'Kueleza jinsi fursa za urithi wa kihistoria zinavyotumika', 'Kueleza manufaa yake kwa uchumi binafsi na jamii'),
+  HT1('Fursa zinazotokana na urithi wa jamii za Kitanzania', 'Urithi wa asili', 'Urithi wa asili', 'HT1-1.3a', 'Kueleza maana ya urithi wa asili', 'Kutaja mifano ya urithi wa asili wa Tanzania'),
+  HT1('Fursa zinazotokana na urithi wa jamii za Kitanzania', 'Fursa za urithi wa asili', 'Fursa za urithi wa asili', 'HT1-1.3a', 'Kubaini fursa zinazotokana na urithi wa asili', 'Kuorodhesha fursa hizo kwa mifano'),
+  HT1('Fursa zinazotokana na urithi wa jamii za Kitanzania', 'Matumizi ya fursa za urithi wa asili', 'Matumizi ya fursa za urithi wa asili', 'HT1-1.3b', 'Kueleza jinsi fursa za urithi wa asili zinavyotumika', 'Kueleza manufaa yake kwa uchumi binafsi na jamii'),
+  HT1('Fursa zinazotokana na urithi wa jamii za Kitanzania', 'Njia za kutunza urithi wa jamii za Kitanzania', 'Njia za kutunza urithi wa jamii za Kitanzania', 'HT1-1.3c', 'Kueleza njia za kutunza urithi wa jamii za Kitanzania', 'Kupendekeza hatua za kutunza urithi wa mazingira yao'),
+  HT1('Fursa zinazotokana na urithi wa jamii za Kitanzania', 'Fursa za kukuza uchumi na ushirikiano wa kitaifa', 'Shughuli za kujenga ushirikiano na kukuza uchumi wa kitaifa', 'HT1-1.4a', 'Kuainisha shughuli za kujenga ushirikiano na kukuza uchumi wa Taifa', 'Kutoa mifano ya shughuli hizo'),
+  HT1('Fursa zinazotokana na urithi wa jamii za Kitanzania', 'Fursa za kukuza uchumi na ushirikiano wa kitaifa', 'Mchango wa shughuli hizo katika ushirikiano na uchumi wa Taifa', 'HT1-1.4b', 'Kufafanua mchango wa shughuli hizo katika ushirikiano wa kitaifa', 'Kufafanua mchango wake katika kukuza uchumi wa Taifa'),
+
+  HT1('Mifumo katika jamii za Kitanzania kabla ya ukoloni', 'Mifumo ya kijamii', 'Mifumo ya kijamii', 'HT1-2.1a', 'Kubaini mifumo ya kijamii (elimu, afya, utamaduni)', 'Kueleza kazi ya kila mfumo'),
+  HT1('Mifumo katika jamii za Kitanzania kabla ya ukoloni', 'Utamaduni wa jamii za asili ya Tanzania kabla ya ukoloni', 'Utamaduni wa jamii za asili ya Tanzania kabla ya ukoloni', 'HT1-2.1a', 'Kueleza utamaduni wa jamii za asili kabla ya ukoloni', 'Kutoa mifano ya mila na desturi'),
+  HT1('Mifumo katika jamii za Kitanzania kabla ya ukoloni', 'Mifumo ya kijamii ilivyokuza ujenzi wa maadili', 'Mifumo ya kijamii ilivyokuza ujenzi wa maadili', 'HT1-2.1b', 'Kueleza jinsi mifumo ya kijamii ilivyokuza maadili', 'Kutoa mifano ya maadili yaliyojengwa na mifumo hiyo'),
+  HT1('Mifumo katika jamii za Kitanzania kabla ya ukoloni', 'Mifumo ya kiuchumi kabla ya ukoloni', 'Mifumo ya kiuchumi kabla ya ukoloni', 'HT1-2.2a', 'Kubaini mifumo ya kiuchumi kabla ya ukoloni', 'Kueleza sifa za kila mfumo'),
+  HT1('Mifumo katika jamii za Kitanzania kabla ya ukoloni', 'Maendeleo ya viwanda', 'Maendeleo ya viwanda', 'HT1-2.2a', 'Kueleza maendeleo ya viwanda kabla ya ukoloni', 'Kutaja mifano ya viwanda vya jamii za asili'),
+  HT1('Mifumo katika jamii za Kitanzania kabla ya ukoloni', 'Shughuli za kilimo katika jamii za asili', 'Shughuli za kilimo katika jamii za asili', 'HT1-2.2a', 'Kueleza shughuli za kilimo katika jamii za asili', 'Kulinganisha aina za kilimo zilizofanyika'),
+  HT1('Mifumo katika jamii za Kitanzania kabla ya ukoloni', 'Mifumo ya kisiasa ya jamii za Kitanzania kabla ya ukoloni', 'Mifumo ya kisiasa ya jamii za Kitanzania kabla ya ukoloni', 'HT1-2.2a', 'Kubaini mifumo ya kisiasa kabla ya ukoloni', 'Kutoa mifano ya jamii zilizotumia mifumo hiyo'),
+  HT1('Mifumo katika jamii za Kitanzania kabla ya ukoloni', 'Jinsi mifumo ya kisiasa na kiuchumi ilivyokuza shughuli za siasa', 'Jinsi mifumo ya kisiasa na kiuchumi ilivyokuza shughuli za siasa', 'HT1-2.2b', 'Kueleza jinsi mifumo ya kisiasa na kiuchumi ilivyokuza shughuli za siasa', 'Kutoa mifano kutoka jamii za Kitanzania'),
+  HT1('Mifumo katika jamii za Kitanzania kabla ya ukoloni', 'Mchango wa mifumo ya kisiasa na kiuchumi katika kukuza maadili', 'Mchango wa mifumo ya kisiasa na kiuchumi katika kukuza maadili', 'HT1-2.2d', 'Kutathmini mchango wa mifumo ya kisiasa na kiuchumi katika kukuza maadili', 'Kutoa mifano ya maadili yaliyokuzwa'),
+  HT1('Mifumo katika jamii za Kitanzania kabla ya ukoloni', 'Changamoto zilizojitokeza katika ujenzi wa maadili', 'Changamoto zilizojitokeza katika ujenzi wa maadili', 'HT1-2.2d', 'Kubainisha changamoto zilizojitokeza katika ujenzi wa maadili', 'Kupendekeza namna ya kukabiliana nazo'),
+
+  HT1('Uhusiano kati ya jamii za Kitanzania na jamii nyingine', 'Uhusiano kati ya jamii za Kitanzania', 'Uhusiano kati ya jamii za Kitanzania', 'HT1-2.2c', 'Kueleza uhusiano uliokuwepo kati ya jamii za Kitanzania', 'Kutoa mifano ya uhusiano huo'),
+  HT1('Uhusiano kati ya jamii za Kitanzania na jamii nyingine', 'Uhusiano kati ya jamii za Kitanzania na za Mashariki ya Kati na Mbali', 'Uhusiano na jamii za Mashariki ya Kati na Mbali', 'HT1-2.2c', 'Kueleza uhusiano kati ya jamii za Kitanzania na za Mashariki ya Kati na Mbali', 'Kutaja bidhaa zilizobadilishana'),
+  HT1('Uhusiano kati ya jamii za Kitanzania na jamii nyingine', 'Uhusiano wa jamii za Kitanzania na jamii za Ulaya', 'Uhusiano na jamii za Ulaya', 'HT1-2.2c', 'Kueleza uhusiano kati ya jamii za Kitanzania na za Ulaya', 'Kubainisha sababu za uhusiano huo'),
+  HT1('Uhusiano kati ya jamii za Kitanzania na jamii nyingine', 'Athari za uhusiano kati ya jamii za Kitanzania na jamii za Mashariki ya Kati na Mbali', 'Athari za uhusiano na jamii za Mashariki ya Kati na Mbali', 'HT1-2.2c', 'Kubainisha athari chanya na hasi za uhusiano huo', 'Kujadili athari hizo kwa jamii za Kitanzania'),
+  HT1('Uhusiano kati ya jamii za Kitanzania na jamii nyingine', 'Athari zilizotokana na uhusiano kati ya bara la Ulaya na jamii za Kitanzania', 'Athari za uhusiano kati ya bara la Ulaya na jamii za Kitanzania', 'HT1-2.2c', 'Kubainisha athari za uhusiano na bara la Ulaya', 'Kujadili athari hizo kwa jamii za Kitanzania'),
+
+  HT1('Sayansi na teknolojia kabla ya ukoloni', 'Dhana ya sayansi na teknolojia', 'Dhana ya sayansi na teknolojia', 'HT1-2.3a', 'Kueleza dhana ya sayansi na teknolojia', 'Kutoa mifano ya teknolojia ya jamii za asili'),
+  HT1('Sayansi na teknolojia kabla ya ukoloni', 'Teknolojia wakati wa Zama za Mawe za Kale', 'Teknolojia wakati wa Zama za Mawe za Kale', 'HT1-2.3a', 'Kueleza teknolojia ya Zama za Mawe za Kale', 'Kutaja zana zilizotumika'),
+  HT1('Sayansi na teknolojia kabla ya ukoloni', 'Teknolojia wakati wa Zama za Chuma', 'Teknolojia wakati wa Zama za Chuma', 'HT1-2.3a', 'Kueleza teknolojia ya Zama za Chuma', 'Kutaja zana na bidhaa zilizotengenezwa'),
+  HT1('Sayansi na teknolojia kabla ya ukoloni', 'Tofauti ya teknolojia kati ya Zama za Mawe na Zama za Chuma', 'Tofauti ya teknolojia kati ya Zama za Mawe na Zama za Chuma', 'HT1-2.3a', 'Kulinganisha teknolojia ya Zama za Mawe na Zama za Chuma', 'Kueleza tofauti kuu kati ya zama hizo'),
+  HT1('Sayansi na teknolojia kabla ya ukoloni', 'Mambo ya kujifunza kutokana na maendeleo ya Zama za Chuma', 'Mambo ya kujifunza kutokana na maendeleo ya Zama za Chuma', 'HT1-2.3b', 'Kubainisha mambo ya kujifunza kutokana na Zama za Chuma', 'Kueleza jinsi yanavyoweza kutumika leo'),
+  HT1('Sayansi na teknolojia kabla ya ukoloni', 'Vichocheo vya mabadiliko ya sayansi na teknolojia kabla ya ukoloni', 'Vichocheo vya mabadiliko ya sayansi na teknolojia kabla ya ukoloni', 'HT1-2.3b', 'Kubaini vichocheo vya mabadiliko ya sayansi na teknolojia', 'Kutoa mifano ya vichocheo hivyo'),
+
+  // ===== KIDATO CHA II =====
+  HT2('Ukoloni katika jamii za Kitanzania', 'Chimbuko na ukuaji wa ukoloni', 'Chimbuko na ukuaji wa ukoloni', 'HT2-1.1a', 'Kuchambua chimbuko la ukoloni', 'Kueleza hatua za ukuaji wa ukoloni'),
+  HT2('Ukoloni katika jamii za Kitanzania', 'Mifumo ya kikoloni ya mataifa yaliyozitawala jamii za Kitanzania', 'Mifumo ya kikoloni ya mataifa yaliyozitawala jamii za Kitanzania', 'HT2-1.1b', 'Kubainisha mataifa yaliyozitawala jamii za Kitanzania', 'Kueleza mifumo yao ya kikoloni'),
+  HT2('Ukoloni katika jamii za Kitanzania', 'Utawala wa Waarabu', 'Utawala wa Waarabu', 'HT2-1.1b', 'Kueleza utawala wa Waarabu katika jamii za Kitanzania', 'Kueleza mifumo yao ya uchumi, utawala na utamaduni'),
+  HT2('Ukoloni katika jamii za Kitanzania', 'Utawala wa Wajerumani', 'Utawala wa Wajerumani', 'HT2-1.1b', 'Kueleza utawala wa Wajerumani katika Tanganyika', 'Kueleza mifumo yao ya uchumi, utawala na utamaduni'),
+  HT2('Ukoloni katika jamii za Kitanzania', 'Utawala wa Waingereza Tanganyika na Zanzibar', 'Utawala wa Waingereza Tanganyika na Zanzibar', 'HT2-1.1b', 'Kueleza utawala wa Waingereza Tanganyika na Zanzibar', 'Kueleza mifumo yao ya uchumi, utawala na utamaduni'),
+  HT2('Ukoloni katika jamii za Kitanzania', 'Mchango wa ukoloni katika uhusiano wa Tanzania na mataifa yaliyoitawala', 'Mchango wa ukoloni katika uhusiano wa Tanzania na mataifa yaliyoitawala', 'HT2-1.1c', 'Kujadili mchango wa ukoloni katika uhusiano wa Tanzania na mataifa yaliyoitawala', 'Kubainisha manufaa na hasara za uhusiano huo'),
+
+  HT2('Athari za ukoloni katika maadili ya Kitanzania', 'Dhana ya maadili wakati wa ukoloni', 'Dhana ya maadili wakati wa ukoloni', 'HT2-1.2a', 'Kueleza dhana ya maadili wakati wa ukoloni', 'Kutoa mifano ya maadili ya kikoloni'),
+  HT2('Athari za ukoloni katika maadili ya Kitanzania', 'Maadili ya jamii za Kitanzania wakati ukoloni unaingia', 'Maadili ya jamii za Kitanzania wakati ukoloni unaingia', 'HT2-1.2a', 'Kueleza hali ya maadili ya jamii za Kitanzania kipindi ukoloni unaingia', 'Kutoa mifano ya maadili ya jamii hizo'),
+  HT2('Athari za ukoloni katika maadili ya Kitanzania', 'Athari za mfumo wa ukoloni katika maadili ya Kitanzania', 'Athari za mfumo wa ukoloni katika maadili ya Kitanzania', 'HT2-1.2b', 'Kuchambua athari za mfumo wa ukoloni katika maadili ya Kitanzania', 'Kutofautisha athari chanya na hasi'),
+  HT2('Athari za ukoloni katika maadili ya Kitanzania', 'Maadili ya Kitanzania yaliyodumishwa wakati wa ukoloni', 'Maadili ya Kitanzania yaliyodumishwa wakati wa ukoloni', 'HT2-1.2c', 'Kubaini maadili yaliyodumishwa wakati wa ukoloni', 'Kueleza jinsi jamii zilivyoyadumisha'),
+
+  HT2('Mapambano ya awali dhidi ya uvamizi wa kikoloni', 'Dhana ya uvamizi wa kikoloni', 'Dhana ya uvamizi wa kikoloni', 'HT2-1.3a', 'Kueleza dhana ya uvamizi wa kikoloni', 'Kutoa mifano ya uvamizi katika Tanzania'),
+  HT2('Mapambano ya awali dhidi ya uvamizi wa kikoloni', 'Sababu za kuupinga uvamizi wa kikoloni na maadili yake', 'Sababu za kuupinga uvamizi wa kikoloni na maadili yake', 'HT2-1.3a', 'Kubaini sababu za kupinga uvamizi wa kikoloni', 'Kueleza sababu za kupinga maadili ya kikoloni'),
+  HT2('Mapambano ya awali dhidi ya uvamizi wa kikoloni', 'Upinzani dhidi ya uvamizi wa kikoloni katika jamii za Kitanzania', 'Upinzani dhidi ya uvamizi wa kikoloni katika jamii za Kitanzania', 'HT2-1.3b', 'Kujadili upinzani dhidi ya uvamizi wa kikoloni katika jamii za Kitanzania', 'Kutaja viongozi na jamii zilizopinga'),
+  HT2('Mapambano ya awali dhidi ya uvamizi wa kikoloni', 'Changamoto zilizokabili mapambano dhidi ya uvamizi wa kikoloni', 'Changamoto zilizokabili mapambano dhidi ya uvamizi wa kikoloni', 'HT2-1.3b', 'Kubainisha changamoto zilizokabili mapambano', 'Kueleza chanzo cha changamoto hizo'),
+  HT2('Mapambano ya awali dhidi ya uvamizi wa kikoloni', 'Matokeo ya kupinga uvamizi wa kikoloni', 'Matokeo ya kupinga uvamizi wa kikoloni', 'HT2-1.3b', 'Kueleza matokeo ya kupinga uvamizi wa kikoloni', 'Kutofautisha matokeo chanya na hasi'),
+
+  HT2('Harakati za kudai uhuru wa Tanganyika na Zanzibar', 'Dhana ya uhuru na harakati za kudai uhuru', 'Dhana ya uhuru na harakati za kudai uhuru', 'HT2-1.3c', 'Kueleza dhana ya uhuru na harakati za kudai uhuru', 'Kutoa mifano ya harakati hizo'),
+  HT2('Harakati za kudai uhuru wa Tanganyika na Zanzibar', 'Misingi ya kudai uhuru wa Tanganyika na Zanzibar', 'Misingi ya kudai uhuru wa Tanganyika na Zanzibar', 'HT2-1.3c', 'Kufafanua misingi ya kudai uhuru wa Tanganyika na Zanzibar', 'Kutaja vyama na viongozi waliodai uhuru'),
+  HT2('Harakati za kudai uhuru wa Tanganyika na Zanzibar', 'Mbinu zilizotumika kudai uhuru wa Tanganyika na Zanzibar', 'Mbinu zilizotumika kudai uhuru wa Tanganyika na Zanzibar', 'HT2-1.3c', 'Kufafanua mbinu zilizotumika kudai uhuru', 'Kueleza mafanikio ya mbinu hizo'),
+  HT2('Harakati za kudai uhuru wa Tanganyika na Zanzibar', 'Mchango wa harakati za kupinga uvamizi na ukoloni', 'Mchango wa harakati za kupinga uvamizi na ukoloni', 'HT2-1.3d', 'Kutathmini mchango wa harakati za kupinga uvamizi na ukoloni', 'Kueleza jinsi zilivyokuza uzalendo na maadili'),
+
+  HT2('Ujenzi wa taifa baada ya ukoloni', 'Dhana ya ujenzi wa taifa', 'Dhana ya ujenzi wa taifa', 'HT2-2.1a', 'Kueleza dhana ya ujenzi wa taifa', 'Kutoa mifano ya ujenzi wa taifa'),
+  HT2('Ujenzi wa taifa baada ya ukoloni', 'Mifumo iliyojengwa kati ya mwaka 1961 hadi 1966', 'Mifumo iliyojengwa kati ya mwaka 1961 hadi 1966', 'HT2-2.1a', 'Kueleza hali ya uchumi, siasa, utamaduni, jamii na maadili baada ya uhuru', 'Kubainisha mifumo iliyojengwa 1961 – 1966'),
+  HT2('Ujenzi wa taifa baada ya ukoloni', 'Mikakati ya ujenzi wa taifa', 'Mikakati ya ujenzi wa taifa', 'HT2-2.1b', 'Kubainisha mikakati ya ujenzi wa taifa', 'Kutathmini mafanikio ya mikakati hiyo'),
+  HT2('Ujenzi wa taifa baada ya ukoloni', 'Changamoto za ujenzi wa taifa', 'Changamoto za ujenzi wa taifa', 'HT2-2.1b', 'Kubainisha changamoto za ujenzi wa taifa', 'Kupendekeza namna ya kukabiliana nazo'),
+
+  HT2('Mapinduzi Matukufu ya Zanzibar', 'Dhana ya mapinduzi', 'Dhana ya mapinduzi', 'HT2-2.2a', 'Kueleza dhana ya mapinduzi', 'Kutofautisha mapinduzi na mabadiliko mengine'),
+  HT2('Mapinduzi Matukufu ya Zanzibar', 'Chimbuko la Mapinduzi Matukufu ya Zanzibar', 'Chimbuko la Mapinduzi Matukufu ya Zanzibar', 'HT2-2.2a', 'Kueleza chimbuko la Mapinduzi Matukufu ya Zanzibar', 'Kueleza hali ya Zanzibar kabla ya mapinduzi'),
+  HT2('Mapinduzi Matukufu ya Zanzibar', 'Sababu za Mapinduzi Matukufu ya Zanzibar', 'Sababu za Mapinduzi Matukufu ya Zanzibar', 'HT2-2.2a', 'Kubainisha sababu za Mapinduzi Matukufu ya Zanzibar', 'Kupanga sababu hizo kwa makundi (kisiasa, kiuchumi, kijamii)'),
+  HT2('Mapinduzi Matukufu ya Zanzibar', 'Mchango wa Mapinduzi Matukufu ya Zanzibar', 'Mchango wa Mapinduzi Matukufu ya Zanzibar', 'HT2-2.2b', 'Kubaini mchango wa Mapinduzi Matukufu ya Zanzibar', 'Kueleza mchango wake katika umoja, mshikamano na maadili'),
+
+  // ===== KIDATO CHA III =====
+  HT3('Muungano wa Tanganyika na Zanzibar', 'Chimbuko la Muungano wa Tanganyika na Zanzibar', 'Chimbuko la Muungano wa Tanganyika na Zanzibar', 'HT3-1.1a', 'Kufafanua chimbuko la Muungano wa Tanganyika na Zanzibar', 'Kueleza matukio yaliyosababisha Muungano'),
+  HT3('Muungano wa Tanganyika na Zanzibar', 'Misingi ya Muungano wa Tanganyika na Zanzibar', 'Misingi ya Muungano wa Tanganyika na Zanzibar', 'HT3-1.1b', 'Kueleza misingi ya Muungano wa Tanganyika na Zanzibar', 'Kutaja Hati za Muungano'),
+  HT3('Muungano wa Tanganyika na Zanzibar', 'Muundo wa Muungano', 'Muundo wa Muungano', 'HT3-1.1b', 'Kueleza muundo wa Muungano', 'Kuchora kielelezo cha muundo wa Muungano'),
+  HT3('Muungano wa Tanganyika na Zanzibar', 'Mambo ya Muungano', 'Mambo ya Muungano', 'HT3-1.1b', 'Kutaja mambo ya Muungano', 'Kutofautisha mambo ya Muungano na yasiyo ya Muungano'),
+
+  HT3('Mchango wa Muungano wa Tanganyika na Zanzibar', 'Dhana ya umoja wa kitaifa', 'Dhana ya umoja wa kitaifa', 'HT3-1.1c', 'Kueleza dhana ya umoja wa kitaifa', 'Kutoa mifano ya umoja wa kitaifa'),
+  HT3('Mchango wa Muungano wa Tanganyika na Zanzibar', 'Mchango wa Muungano katika kujenga umoja wa kitaifa', 'Mchango wa Muungano katika kujenga umoja wa kitaifa', 'HT3-1.1c', 'Kueleza mchango wa Muungano katika kujenga umoja wa kitaifa', 'Kutoa mifano ya mchango huo'),
+  HT3('Mchango wa Muungano wa Tanganyika na Zanzibar', 'Mchango wa Muungano katika kujenga maadili mengine ya kitaifa', 'Mchango wa Muungano katika kujenga maadili mengine ya kitaifa', 'HT3-1.1c', 'Kubainisha maadili ya kitaifa yaliyojengwa na Muungano', 'Kueleza jinsi Muungano ulivyoyajenga'),
+  HT3('Mchango wa Muungano wa Tanganyika na Zanzibar', 'Hoja za Muungano', 'Hoja za Muungano', 'HT3-1.1c', 'Kubainisha hoja za Muungano', 'Kujadili hoja hizo kwa kuzingatia ukweli wa kihistoria'),
+  HT3('Mchango wa Muungano wa Tanganyika na Zanzibar', 'Mikakati ya kudumisha Muungano wa Tanganyika na Zanzibar', 'Mikakati ya kudumisha Muungano wa Tanganyika na Zanzibar', 'HT3-1.1c', 'Kubainisha mikakati ya kudumisha Muungano', 'Kueleza wajibu wa raia katika kudumisha Muungano'),
+
+  HT3('Chimbuko na misingi ya Azimio la Arusha', 'Dhana ya Azimio la Arusha', 'Dhana ya Azimio la Arusha', 'HT3-2.1a', 'Kueleza dhana ya Azimio la Arusha', 'Kueleza lengo la Azimio la Arusha'),
+  HT3('Chimbuko na misingi ya Azimio la Arusha', 'Chimbuko la Azimio la Arusha', 'Chimbuko la Azimio la Arusha', 'HT3-2.1a', 'Kujadili chimbuko la Azimio la Arusha', 'Kubainisha sababu za kutangazwa kwa Azimio'),
+  HT3('Chimbuko na misingi ya Azimio la Arusha', 'Misingi ya Azimio la Arusha', 'Misingi ya Azimio la Arusha', 'HT3-2.1b', 'Kufafanua misingi ya Azimio la Arusha', 'Kutoa mifano ya utekelezaji wa misingi hiyo'),
+  HT3('Chimbuko na misingi ya Azimio la Arusha', 'Sehemu za Azimio la Arusha', 'Sehemu za Azimio la Arusha', 'HT3-2.1b', 'Kutaja sehemu za Azimio la Arusha', 'Kueleza kila sehemu kwa ufupi'),
+
+  HT3('Ujenzi wa taifa wakati wa Azimio la Arusha', 'Dhana ya ujenzi wa taifa', 'Dhana ya ujenzi wa taifa wakati wa Azimio la Arusha', 'HT3-2.1b', 'Kueleza dhana ya ujenzi wa taifa', 'Kuhusisha ujenzi wa taifa na Azimio la Arusha'),
+  HT3('Ujenzi wa taifa wakati wa Azimio la Arusha', 'Mchango wa Azimio la Arusha kwenye uchumi', 'Mchango wa Azimio la Arusha kwenye uchumi', 'HT3-2.1b', 'Kueleza mchango wa Azimio la Arusha kwenye uchumi', 'Kutoa mifano ya mafanikio'),
+  HT3('Ujenzi wa taifa wakati wa Azimio la Arusha', 'Mchango wa Azimio la Arusha kwenye maendeleo ya jamii', 'Mchango wa Azimio la Arusha kwenye maendeleo ya jamii', 'HT3-2.1b', 'Kueleza mchango wa Azimio la Arusha kwenye maendeleo ya jamii', 'Kutoa mifano ya elimu na afya'),
+  HT3('Ujenzi wa taifa wakati wa Azimio la Arusha', 'Mchango wa Azimio la Arusha katika sekta ya maji na umeme', 'Mchango wa Azimio la Arusha katika sekta ya maji na umeme', 'HT3-2.1b', 'Kueleza mchango wa Azimio la Arusha katika sekta ya maji na umeme', 'Kutoa mifano ya miradi iliyotekelezwa'),
+  HT3('Ujenzi wa taifa wakati wa Azimio la Arusha', 'Mchango wa Azimio la Arusha kwenye usawa wa kijinsia', 'Mchango wa Azimio la Arusha kwenye usawa wa kijinsia', 'HT3-2.1b', 'Kueleza mchango wa Azimio la Arusha kwenye usawa wa kijinsia', 'Kutoa mifano ya mabadiliko yaliyotokea'),
+  HT3('Ujenzi wa taifa wakati wa Azimio la Arusha', 'Mchango wa Azimio la Arusha kwenye siasa', 'Mchango wa Azimio la Arusha kwenye siasa', 'HT3-2.1b', 'Kueleza mchango wa Azimio la Arusha kwenye siasa', 'Kutoa mifano ya mabadiliko ya kisiasa'),
+  HT3('Ujenzi wa taifa wakati wa Azimio la Arusha', 'Mchango wa Azimio la Arusha kwenye utamaduni', 'Mchango wa Azimio la Arusha kwenye utamaduni', 'HT3-2.1b', 'Kueleza mchango wa Azimio la Arusha kwenye utamaduni', 'Kutaja mfano wa lugha ya Kiswahili na michezo'),
+  HT3('Ujenzi wa taifa wakati wa Azimio la Arusha', 'Changamoto zilizokabili Azimio la Arusha katika ujenzi wa taifa', 'Changamoto zilizokabili Azimio la Arusha katika ujenzi wa taifa', 'HT3-2.1c', 'Kutathmini changamoto zilizokabili Azimio la Arusha', 'Kupendekeza suluhisho la kila changamoto'),
+
+  HT3('Ujenzi wa maadili wakati wa Azimio la Arusha', 'Dhana ya maadili ya taifa', 'Dhana ya maadili ya taifa', 'HT3-2.1b', 'Kueleza dhana ya maadili ya taifa', 'Kutoa mifano ya maadili ya taifa'),
+  HT3('Ujenzi wa maadili wakati wa Azimio la Arusha', 'Mchango wa Azimio la Arusha kwenye ujenzi wa maadili ya taifa', 'Mchango wa Azimio la Arusha kwenye ujenzi wa maadili ya taifa', 'HT3-2.1b', 'Kueleza mchango wa Azimio la Arusha kwenye ujenzi wa maadili ya taifa', 'Kutoa mifano ya maadili yaliyojengwa'),
+  HT3('Ujenzi wa maadili wakati wa Azimio la Arusha', 'Mikakati iliyotumika katika ujenzi wa maadili', 'Mikakati iliyotumika katika ujenzi wa maadili', 'HT3-2.1b', 'Kubainisha mikakati iliyotumika kujenga maadili', 'Kutathmini mafanikio ya mikakati hiyo'),
+
+  HT3('Tanzania katika uhusiano wa kikanda', 'Dhana ya uhusiano wa kikanda', 'Dhana ya uhusiano wa kikanda', 'HT3-2.2a', 'Kufafanua dhana ya uhusiano wa kikanda', 'Kueleza umuhimu wa uhusiano wa kikanda'),
+  HT3('Tanzania katika uhusiano wa kikanda', 'Uhusiano wa kikanda katika ujenzi wa taifa', 'Uhusiano wa kikanda katika ujenzi wa taifa', 'HT3-2.2a', 'Kueleza uhusiano wa kikanda katika ujenzi wa taifa', 'Kutoa mifano ya uhusiano huo'),
+  HT3('Tanzania katika uhusiano wa kikanda', 'Jumuiya ya Afrika Mashariki - awamu ya kwanza, 1967-1977', 'Jumuiya ya Afrika Mashariki: awamu ya kwanza, 1967 – 1977', 'HT3-2.2b', 'Kueleza malengo na mafanikio ya Jumuiya ya Afrika Mashariki ya kwanza', 'Kubainisha sababu za kuvunjika kwake'),
+  HT3('Tanzania katika uhusiano wa kikanda', 'Jumuiya ya Afrika Mashariki - awamu ya pili, kuanzia 2000', 'Jumuiya ya Afrika Mashariki: awamu ya pili, kuanzia 2000', 'HT3-2.2b', 'Kueleza malengo na mafanikio ya Jumuiya ya Afrika Mashariki ya pili', 'Kulinganisha awamu ya kwanza na ya pili'),
+  HT3('Tanzania katika uhusiano wa kikanda', 'Jumuiya ya Maendeleo Kusini mwa Afrika', 'Jumuiya ya Maendeleo Kusini mwa Afrika (SADC)', 'HT3-2.2b', 'Kueleza malengo na mafanikio ya SADC', 'Kueleza nafasi ya Tanzania katika SADC'),
+  HT3('Tanzania katika uhusiano wa kikanda', 'Mikakati ya kuendeleza uhusiano wa kikanda', 'Mikakati ya kuendeleza uhusiano wa kikanda', 'HT3-2.2b', 'Kubainisha mikakati ya kuendeleza uhusiano wa kikanda', 'Kupendekeza hatua za kuimarisha uhusiano huo'),
+
+  HT3('Mchango wa uhusiano wa kikanda', 'Mchango wa Tanzania katika kukuza uhusiano wa kikanda', 'Mchango wa Tanzania katika kukuza uhusiano wa kikanda', 'HT3-2.2b', 'Kueleza mchango wa Tanzania katika kukuza uhusiano wa kikanda', 'Kutoa mifano ya mchango huo'),
+  HT3('Mchango wa uhusiano wa kikanda', 'Mchango wa Tanzania katika harakati za ukombozi', 'Mchango wa Tanzania katika harakati za ukombozi', 'HT3-2.2b', 'Kueleza mchango wa Tanzania katika harakati za ukombozi wa nchi za Afrika', 'Kutaja nchi zilizonufaika'),
+  HT3('Mchango wa uhusiano wa kikanda', 'Mchango wa uhusiano wa kikanda katika ujenzi wa taifa', 'Mchango wa uhusiano wa kikanda katika ujenzi wa taifa', 'HT3-2.2b', 'Kueleza mchango wa uhusiano wa kikanda katika ujenzi wa taifa', 'Kujenga hoja kwa kutumia mdahalo'),
+
+  HT3('Changamoto za uhusiano wa kikanda', 'Changamoto katika kukuza uhusiano wa kikanda', 'Changamoto katika kukuza uhusiano wa kikanda', 'HT3-2.2c', 'Kubaini changamoto katika kukuza uhusiano wa kikanda', 'Kutoa mifano ya changamoto hizo'),
+  HT3('Changamoto za uhusiano wa kikanda', 'Changamoto za uhusiano wa kikanda katika ujenzi wa taifa', 'Changamoto za uhusiano wa kikanda katika ujenzi wa taifa', 'HT3-2.2c', 'Kubaini changamoto za uhusiano wa kikanda katika ujenzi wa taifa', 'Kueleza athari za changamoto hizo'),
+  HT3('Changamoto za uhusiano wa kikanda', 'Mikakati ya kukabiliana na changamoto za uhusiano wa kikanda', 'Mikakati ya kukabiliana na changamoto za uhusiano wa kikanda', 'HT3-2.2c', 'Kubainisha mikakati ya kukabiliana na changamoto za uhusiano wa kikanda', 'Kupendekeza suluhisho la kila changamoto'),
+);
+
+// Taarifa za kitabu (rejea): TIE, mwaka wa kitabu cha kila kidato.
+export const HTM_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
+  1: 'Taasisi ya Elimu Tanzania. (2023). Historia Ya Tanzania na Maadili kitabu cha mwanafunzi kwa shule za sekondari kidato cha kwanza. Taasisi ya Elimu Tanzania.',
+  2: 'Taasisi ya Elimu Tanzania. (2024). Historia Ya Tanzania na Maadili kitabu cha mwanafunzi kwa shule za sekondari kidato cha pili. Taasisi ya Elimu Tanzania.',
+  3: 'Taasisi ya Elimu Tanzania. (2025). Historia Ya Tanzania na Maadili kitabu cha mwanafunzi kwa shule za sekondari kidato cha tatu. Taasisi ya Elimu Tanzania.',
+};
+
+// ===================== KISWAHILI (bado hakijaongezwa: muhtasari na orodha ya mada hazijatolewa) =====================
+
 // References: fill from the copyright page of each book.
 export const REFERENCES: Record<1 | 2, string> = {
   1: "Tanzania Institute of Education. (2023). Computer Science for secondary schools student's book, form one. Tanzania Institute of Education.",
@@ -1694,6 +1951,8 @@ export const getReference = (subject: LessonPart['subject'], form: number): stri
   if (subject === 'Physics') return PHYSICS_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   if (subject === 'Chemistry') return CHEMISTRY_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   if (subject === 'Biology') return BIOLOGY_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
+  if (subject === 'Historia ya Tanzania na Maadili') return HTM_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
+  if (subject === 'Kiswahili') return '';
   return REFERENCES[form as 1 | 2] ?? '';
 };
 
@@ -1705,6 +1964,9 @@ export const resolveLessonSubject = (name: string): LessonPart['subject'] | null
   if (/business/.test(value)) return 'Business Studies';
   if (/english/.test(value)) return 'English Language';
   if (/geograph/.test(value)) return 'Geography';
+  // Historia ya Tanzania na Maadili lazima ichunguzwe kabla ya 'History' (jina lina "histor").
+  if (/historia\s+ya\s+tanzania|maadili/.test(value)) return 'Historia ya Tanzania na Maadili';
+  if (/kiswahili|swahili/.test(value)) return 'Kiswahili';
   if (/histor/.test(value)) return 'History';
   if (/physic/.test(value)) return 'Physics';
   if (/chem/.test(value)) return 'Chemistry';
@@ -1727,6 +1989,8 @@ export const getCommonResources = (subject: LessonPart['subject']): string[] =>
             : subject === 'Physics' ? PHYSICS_COMMON_RESOURCES
               : subject === 'Chemistry' ? CHEMISTRY_COMMON_RESOURCES
                 : subject === 'Biology' ? BIOLOGY_COMMON_RESOURCES
+                  : subject === 'Historia ya Tanzania na Maadili' ? HTM_COMMON_RESOURCES
+                    : subject === 'Kiswahili' ? HTM_COMMON_RESOURCES
       : COMMON_RESOURCES;
 
 // Stage text templates per method. {part} is replaced with LessonPart.part.
@@ -1830,3 +2094,154 @@ export const INTRODUCTION: StageText = {
 // Stage minutes
 export const STAGE_MINUTES_SINGLE = { introduction: 5, development: 15, design: 10, realization: 10 }; // 40 min
 export const STAGE_MINUTES_DOUBLE = { introduction: 10, development: 40, design: 15, realization: 15 }; // 80 min
+
+// =====================================================================================
+// LUGHA YA KISWAHILI (Historia ya Tanzania na Maadili na Kiswahili).
+// Masomo haya mawili tu huchapishwa kwa Kiswahili; mfumo wa andalio ni uleule. Masomo mengine yote yanabaki Kiingereza.
+// =====================================================================================
+export type LessonLanguage = 'en' | 'sw';
+
+export const getLessonLanguage = (subject: LessonPart['subject'] | null | undefined): LessonLanguage =>
+  subject === 'Historia ya Tanzania na Maadili' || subject === 'Kiswahili' ? 'sw' : 'en';
+
+// Mbinu za Kiswahili zinazotumia kiolezo kimoja kimoja (ziada ya zile 17 za kawaida).
+export const METHOD_TEMPLATES_SW: Record<SwMethodKey, MethodTemplate> = {
+  brainstorming: {
+    development: { teacher: 'Huongoza wanafunzi kubungua bongo kuhusu "{part}"', learners: 'Wanafunzi hutoa mawazo na kuandika hoja muhimu' },
+    design: { teacher: 'Huwaelekeza wanafunzi kupanga na kuelezea mawazo yao', learners: 'Wanafunzi hupanga mawazo kuhusu "{part}"' },
+    realization: { teacher: 'Hufanya muhtasari wa kipindi na kuwaongoza wanafunzi kutoa hitimisho', learners: 'Wanafunzi hueleza hoja kuu za "{part}"' },
+  },
+  tips: {
+    development: { teacher: 'Hutoa swali kuhusu "{part}" ili wanafunzi wafikiri na kuandika', learners: 'Wanafunzi hufikiri na kuandika majibu yao binafsi' },
+    design: { teacher: 'Huwaongoza wanafunzi kukaa katika jozi na kushirikishana majibu', learners: 'Wanafunzi hujadili majibu yao katika jozi' },
+    realization: { teacher: 'Huwaalika wanafunzi kushirikisha darasa na kufanya muhtasari wa kipindi', learners: 'Wanafunzi hushirikisha darasa na kuandika muhtasari' },
+  },
+  qa: {
+    development: { teacher: 'Huuliza maswali elekezi kuhusu "{part}"', learners: 'Wanafunzi hujibu na kuuliza maswali' },
+    design: { teacher: 'Huuliza maswali ya kuchochea fikra na kufafanua hoja kuu', learners: 'Wanafunzi hujibu na kuandika madokezo' },
+    realization: { teacher: 'Hufanya muhtasari wa kipindi na kutoa zoezi fupi', learners: 'Wanafunzi hufanya zoezi na kueleza hoja kuu' },
+  },
+  smallGroups: {
+    development: { teacher: 'Hueleza kazi kuhusu "{part}" na kuunda vikundi vidogovidogo', learners: 'Wanafunzi hujiunga na vikundi vyao na kusoma kazi' },
+    design: { teacher: 'Huwaongoza wanafunzi wanapofanya kazi kwenye vikundi', learners: 'Wanafunzi hufanya kazi kwenye vikundi kukamilisha kazi' },
+    realization: { teacher: 'Huwaalika vikundi kuwasilisha na kufanya muhtasari wa kipindi', learners: 'Vikundi huwasilisha na kutoa muhtasari' },
+  },
+  groupDiscussion: {
+    development: { teacher: 'Hutambulisha "{part}" na kutoa maswali ya majadiliano', learners: 'Wanafunzi husikiliza na kusoma maswali' },
+    design: { teacher: 'Hupita kwenye vikundi kuongoza majadiliano', learners: 'Wanafunzi hujadili kwenye vikundi na kuandika hoja' },
+    realization: { teacher: 'Huwaalika vikundi kutoa taarifa na kufanya muhtasari wa kipindi', learners: 'Vikundi huwasilisha matokeo ya majadiliano' },
+  },
+  demonstration: {
+    development: { teacher: 'Huonesha "{part}" hatua kwa hatua', learners: 'Wanafunzi huangalia na kuandika madokezo' },
+    design: { teacher: 'Huwaalika wanafunzi kurudia ulichoonesha', learners: 'Wanafunzi hujaribu hatua chini ya uongozi' },
+    realization: { teacher: 'Hufanya muhtasari wa kipindi na kusahihisha makosa', learners: 'Wanafunzi hueleza hatua na hoja kuu' },
+  },
+  practical: {
+    development: { teacher: 'Hueleza kazi ya vitendo kuhusu "{part}" na kuonesha hatua', learners: 'Wanafunzi husikiliza na kuangalia' },
+    design: { teacher: 'Huwaongoza wanafunzi wanapofanya kazi ya vitendo', learners: 'Wanafunzi hufanya kazi ya vitendo' },
+    realization: { teacher: 'Hukagua kazi za wanafunzi na kufanya muhtasari wa kipindi', learners: 'Wanafunzi huwasilisha kazi zao na kueleza walichojifunza' },
+  },
+  caseStudy: {
+    development: { teacher: 'Huwasilisha kisa mafunzo kinachohusiana na "{part}"', learners: 'Wanafunzi husoma na kuchambua kisa mafunzo' },
+    design: { teacher: 'Huwaongoza wanafunzi kujibu maswali ya kisa mafunzo', learners: 'Wanafunzi hujadili na kujibu maswali' },
+    realization: { teacher: 'Hufanya muhtasari wa kipindi na kuhusisha kisa na mada', learners: 'Wanafunzi huwasilisha hitimisho kutokana na kisa' },
+  },
+  jigsaw: {
+    development: { teacher: 'Hugawa "{part}" katika sehemu ndogo na kukipa kila kikundi cha wataalamu sehemu moja', learners: 'Wanafunzi hujiunga na vikundi vya wataalamu na kusoma sehemu yao' },
+    design: { teacher: 'Huunda vikundi vilivyochanganywa na kuwaongoza wanafunzi kufundishana', learners: 'Wanafunzi hurudi kwenye vikundi vilivyochanganywa na kufundisha wenzao walichojifunza' },
+    realization: { teacher: 'Hufanya muhtasari wa kipindi na kutoa zoezi fupi', learners: 'Wanafunzi hufanya zoezi na kueleza hoja kuu' },
+  },
+  visual: {
+    development: { teacher: 'Huonesha chati au picha kuhusu "{part}" na kuwaongoza wanafunzi kuangalia', learners: 'Wanafunzi huangalia na kueleza wanachokiona' },
+    design: { teacher: 'Huwaongoza wanafunzi kuchambua mifano hatua kwa hatua', learners: 'Wanafunzi huchambua mifano na kuandika hatua' },
+    realization: { teacher: 'Hufanya muhtasari wa kipindi na kutoa zoezi', learners: 'Wanafunzi hufanya zoezi na kueleza hoja kuu' },
+  },
+  problemSolving: {
+    development: { teacher: 'Hufanya mfano elekezi kuhusu "{part}" na kutoa matatizo ya kutatua', learners: 'Wanafunzi hufuata mfano na kuandika hatua' },
+    design: { teacher: 'Huwaongoza wanafunzi kutatua matatizo kwa jozi au vikundi', learners: 'Wanafunzi hutatua matatizo na kulinganisha majibu' },
+    realization: { teacher: 'Hujadili majibu, husahihisha makosa na kufanya muhtasari wa kipindi', learners: 'Wanafunzi huwasilisha majibu na kueleza hoja kuu' },
+  },
+  scenario: {
+    development: { teacher: 'Huwasilisha mazingira mafupi yanayohusiana na "{part}" na kutoa maswali elekezi', learners: 'Wanafunzi husoma mazingira na kujadili maswali kwenye vikundi' },
+    design: { teacher: 'Huwaongoza vikundi kuhusisha mazingira hayo na dhana za "{part}"', learners: 'Wanafunzi huhusisha mazingira na dhana na kuandika waliyoyabaini' },
+    realization: { teacher: 'Huwaalika vikundi kushirikisha na kufanya muhtasari wa kipindi', learners: 'Vikundi hushirikisha walichojifunza na kuandika hoja kuu' },
+  },
+  guestSpeaker: {
+    development: { teacher: 'Humtambulisha mtaalamu mwalikwa (au mada iliyorekodiwa) kuhusu "{part}" na kuwaongoza wanafunzi kuandaa maswali', learners: 'Wanafunzi husikiliza na kuandika hoja muhimu' },
+    design: { teacher: 'Huwaongoza wanafunzi kuuliza maswali na kujadili walichosikia', learners: 'Wanafunzi huuliza maswali na kujadili majibu' },
+    realization: { teacher: 'Huwaongoza wanafunzi kufanya muhtasari wa mada na kuihusisha na mada ya kipindi', learners: 'Wanafunzi hufanya muhtasari wa walichojifunza' },
+  },
+  projectActivity: {
+    development: { teacher: 'Hueleza kazi ya mradi kuhusu "{part}" na kuunda vikundi', learners: 'Wanafunzi hujiunga na vikundi na kupanga mradi' },
+    design: { teacher: 'Huwaongoza vikundi wanapofanya mradi', learners: 'Wanafunzi hufanya mradi na kuandaa taarifa fupi' },
+    realization: { teacher: 'Huwaalika vikundi kuwasilisha na kutoa mrejesho', learners: 'Vikundi huwasilisha kazi zao na kutafakari walichojifunza' },
+  },
+  skillsLab: {
+    development: { teacher: 'Hutoa mwongozo na kazi kuhusu "{part}" na kuunda vikundi', learners: 'Wanafunzi husoma mwongozo na kugawana kazi kwenye vikundi' },
+    design: { teacher: 'Huwaongoza vikundi kukamilisha kazi hatua kwa hatua', learners: 'Wanafunzi hukamilisha sehemu yao ya kazi' },
+    realization: { teacher: 'Huwaalika vikundi kushirikisha na kufanya muhtasari wa kipindi', learners: 'Vikundi hushirikisha kazi zao na kueleza hoja kuu' },
+  },
+  fieldTrip: {
+    development: { teacher: 'Hugawa vikundi mahali pa kutembelea (au kuchunguza) kuhusiana na "{part}" na kutoa maswali elekezi', learners: 'Wanafunzi huandaa maswali na fomu za uchunguzi' },
+    design: { teacher: 'Huwaongoza wanafunzi kuandika matokeo ya ziara', learners: 'Wanafunzi huandika wanachokiona na kujadili' },
+    realization: { teacher: 'Huwaalika vikundi kuwasilisha matokeo na kufanya muhtasari wa kipindi', learners: 'Vikundi huwasilisha matokeo na kuyahusisha na "{part}"' },
+  },
+  rolePlay: {
+    development: { teacher: 'Hueleza hali husika kuhusu "{part}" na kugawa majukumu', learners: 'Wanafunzi hujiandaa na majukumu yao kwenye vikundi' },
+    design: { teacher: 'Huwaongoza vikundi wanapoigiza hali hiyo', learners: 'Wanafunzi huigiza hali hiyo' },
+    realization: { teacher: 'Huongoza mjadala wa yaliyojifunzwa na kufanya muhtasari wa kipindi', learners: 'Wanafunzi hujadili mafunzo na kueleza hoja kuu' },
+  },
+  research: {
+    development: { teacher: 'Huelekeza wanafunzi kusoma matini kutoka vyanzo mbalimbali kuhusu "{part}"', learners: 'Wanafunzi husoma matini na kuandika maelezo mafupi' },
+    design: { teacher: 'Huwaongoza wanafunzi kujadili walichokipata kwenye vikundi', learners: 'Wanafunzi hujadili na kulinganisha maelezo yao' },
+    realization: { teacher: 'Huwaalika vikundi kuwasilisha matokeo na kufanya muhtasari wa kipindi', learners: 'Wanafunzi huwasilisha matokeo na kueleza hoja kuu' },
+  },
+  gallery: {
+    development: { teacher: 'Huelekeza wanafunzi kuandaa na kubandika kazi zao kuhusu "{part}" kwenye kuta za darasa', learners: 'Wanafunzi huandaa na kubandika kazi zao' },
+    design: { teacher: 'Huwaongoza wanafunzi kufanya matembezi na kuuliza maswali kwenye vikundi', learners: 'Wanafunzi hutembelea kazi za vikundi vingine, huuliza maswali na kuandika maoni' },
+    realization: { teacher: 'Huongoza majadiliano ya darasa na kufanya muhtasari wa kipindi', learners: 'Wanafunzi hurekebisha kazi zao na kueleza walichojifunza' },
+  },
+  debate: {
+    development: { teacher: 'Hugawa darasa katika makundi mawili na kutoa hoja ya mdahalo kuhusu "{part}"', learners: 'Wanafunzi hujiandaa kutetea au kupinga hoja' },
+    design: { teacher: 'Husimamia mdahalo na kuhakikisha kila upande unapata nafasi', learners: 'Wanafunzi hutoa hoja na kujibu hoja za upande wa pili' },
+    realization: { teacher: 'Hufanya muhtasari wa hoja zilizotolewa na kutoa hitimisho', learners: 'Wanafunzi hueleza walichojifunza kutokana na mdahalo' },
+  },
+  reflection: {
+    development: { teacher: 'Huuliza maswali ya kuwafanya wanafunzi kutafakari kuhusu "{part}"', learners: 'Wanafunzi hutafakari na kuandika mawazo yao' },
+    design: { teacher: 'Huwaongoza wanafunzi kushirikishana mawazo na kutoa maoni', learners: 'Wanafunzi hushirikishana mawazo na kutoa maoni yao' },
+    realization: { teacher: 'Hufanya muhtasari na kuwaongoza wanafunzi kupendekeza suluhisho', learners: 'Wanafunzi hueleza hitimisho na mapendekezo yao' },
+  },
+};
+
+export const INTRODUCTION_SW: StageText = {
+  teacher: 'Huwasalimia wanafunzi, huhakiki mahudhurio, hupitia kipindi kilichopita na kutambulisha "{part}"',
+  learners: 'Wanafunzi huitikia salamu, hujibu maswali ya marudio na kusikiliza mada mpya',
+};
+
+export const STAGE_NAMES_SW = {
+  introduction: 'UTANGULIZI',
+  development: 'KUENDELEZA UJENZI WA UMAHIRI',
+  design: 'KUBUNI',
+  realization: 'TATHMINI',
+};
+
+// Kiolezo cha hatua kulingana na lugha ya somo.
+export const getMethodTemplate = (language: LessonLanguage, method: SwMethodKey): MethodTemplate =>
+  language === 'sw' ? METHOD_TEMPLATES_SW[method] : METHOD_TEMPLATES[method as MethodKey];
+
+export const NO_REMARK_OPTIONS = ['No remark (leave blank lines)', 'Hakuna maoni (acha mistari tupu)'];
+
+export const buildRemarkOptionsSw = (part: LessonPart): string[] => {
+  const skill = part.specificActivities[0] ?? '';
+  const lowercaseSkill = skill ? `${skill[0].toLowerCase()}${skill.slice(1)}` : '';
+
+  return [
+    `Kipindi kilifanikiwa. Wanafunzi wengi waliweza ${lowercaseSkill}.`,
+    `Kipindi kilifanikiwa kwa kiasi. Baadhi ya wanafunzi wanahitaji mazoezi zaidi kuhusu "${part.part}"; marudio mafupi yatafanyika katika kipindi kijacho.`,
+    `Kipindi hakikukamilika kama kilivyopangwa kwa sababu ya muda au zana kutotosha. "${part.part}" utaendelezwa katika kipindi kijacho.`,
+    NO_REMARK_OPTIONS[1],
+  ];
+};
+
+export const getRemarkOptions = (language: LessonLanguage, part: LessonPart): string[] =>
+  language === 'sw' ? buildRemarkOptionsSw(part) : buildRemarkOptions(part);
