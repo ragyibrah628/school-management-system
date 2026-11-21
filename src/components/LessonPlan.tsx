@@ -982,4 +982,33 @@ export function LessonPlan({
                 <tbody>
                   {processRows.map(row => (
                     <tr key={row.stage}>
-                      <th>{row.stage.toUpperCase()}</
+                      <th>{row.stage.toUpperCase()}</th>
+                      <td>{row.minutes}</td>
+                      <td>{replacePart(row.text.teacher)}</td>
+                      <td>{replacePart(row.text.learners)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+
+            {/* REMARKS is always printed, last on the page: the chosen remark, or blank lines to write on. */}
+            <div className="lesson-plan-remarks">
+              <strong>{text.remarks}</strong>
+              {printedRemark ? (
+                <span className="lesson-plan-remarks-text"> {printedRemark}</span>
+              ) : (
+                <div className="lesson-plan-remark-lines" aria-hidden="true">
+                  <span />
+                  <span />
+                </div>
+              )}
+            </div>
+          </article>
+          </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
