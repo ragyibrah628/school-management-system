@@ -2396,4 +2396,10 @@ export const buildRemarkOptionsSw = (part: LessonPart): string[] => {
   return [
     `Kipindi kilifanikiwa. Wanafunzi wengi waliweza ${lowercaseSkill}.`,
     `Kipindi kilifanikiwa kwa kiasi. Baadhi ya wanafunzi wanahitaji mazoezi zaidi kuhusu "${part.part}"; marudio mafupi yatafanyika katika kipindi kijacho.`,
-    `Kipindi hakikukamilika kama kilivyopan
+    `Kipindi hakikukamilika kama kilivyopangwa kwa sababu ya muda au zana kutotosha. "${part.part}" utaendelezwa katika kipindi kijacho.`,
+    NO_REMARK_OPTIONS[1],
+  ];
+};
+
+export const getRemarkOptions = (language: LessonLanguage, part: LessonPart): string[] =>
+  language === 'sw' ? buildRemarkOptionsSw(part) : buildRemarkOptions(part);
