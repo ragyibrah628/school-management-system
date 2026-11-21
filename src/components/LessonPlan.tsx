@@ -262,8 +262,8 @@ const SHEET_TEXT: Record<LessonLanguage, SheetText> = {
     date: 'TAREHE',
     time: 'MUDA',
     periodType: 'AINA YA KIPINDI',
-    single: 'Kipindi kimoja (dak 40)',
-    double: 'Vipindi viwili (dak 80)',
+    single: 'Kipindi kimoja (dakika 40)',
+    double: 'Vipindi viwili (dakika 80)',
     students: 'IDADI',
     registration: 'USAJILI',
     girls: 'WASICHANA',
@@ -289,7 +289,7 @@ const SHEET_TEXT: Record<LessonLanguage, SheetText> = {
   },
 };
 
-// "08:00" or "8:00 AM" -> "08 : 00 ASUB" (Swahili sheet). Anything that cannot be read is printed unchanged.
+// "08:00" or "8:00 AM" -> "08 : 00 ASUBUHI" (Swahili sheet). Anything that cannot be read is printed unchanged.
 const swahiliClock = (value: string): string => {
   const match = value.trim().match(/^(\d{1,2})[:.](\d{2})\s*(am|pm)?$/i);
   if (!match) return value;
@@ -299,9 +299,24 @@ const swahiliClock = (value: string): string => {
   if (meridiem === 'pm' && hour < 12) hour += 12;
   if (meridiem === 'am' && hour === 12) hour = 0;
   if (hour > 23) return value;
-  const suffix = hour < 12 ? 'ASUB' : 'ALASIRI';
+  const suffix = hour < 12 ? 'ASUBUHI' : 'ALASIRI';
   const twelveHour = hour % 12 === 0 ? 12 : hour % 12;
   return `${String(twelveHour).padStart(2, '0')} : ${minutes} ${suffix}`;
+};
+
+// "Ruangwa District Council" -> "Halmashauri ya Wilaya ya Ruangwa"; "Nambawala Secondary School" -> "Shule ya Sekondari Nambawala".
+// Names that do not match these patterns are printed unchanged.
+const swahiliCouncilName = (name: string): string => {
+  const match = name.trim().match(/^(.+?)\s+(District|Town|Municipal|City)\s+Council$/i);
+  if (!match) return name;
+  const kind = match[2].toLowerCase();
+  const label = kind === 'district' ? 'Halmashauri ya Wilaya ya' : kind === 'town' ? 'Halmashauri ya Mji wa' : kind === 'municipal' ? 'Halmashauri ya Manispaa ya' : 'Halmashauri ya Jiji la';
+  return `${label} ${match[1]}`;
+};
+
+const swahiliSchoolName = (name: string): string => {
+  const match = name.trim().match(/^(.+?)\s+Secondary\s+School$/i);
+  return match ? `Shule ya Sekondari ${match[1]}` : name;
 };
 
 const SWAHILI_FORM_NAMES: Record<number, string> = { 1: 'KWANZA', 2: 'PILI', 3: 'TATU', 4: 'NNE' };
@@ -905,8 +920,8 @@ export function LessonPlan({
               </div>
               <div className="lesson-plan-header-copy">
                 <h1>{text.title}</h1>
-                <p className="lesson-plan-council">{districtName}</p>
-                <p className="lesson-plan-school-name">{schoolName}</p>
+                <p className="lesson-plan-council">{lang === 'sw' ? swahiliCouncilName(districtName) : districtName}</p>
+                <p className="lesson-plan-school-name">{lang === 'sw' ? swahiliSchoolName(schoolName) : schoolName}</p>
               </div>
               <div className="lesson-plan-header-spacer" aria-hidden="true" />
             </header>
@@ -967,33 +982,4 @@ export function LessonPlan({
                 <tbody>
                   {processRows.map(row => (
                     <tr key={row.stage}>
-                      <th>{row.stage.toUpperCase()}</th>
-                      <td>{row.minutes}</td>
-                      <td>{replacePart(row.text.teacher)}</td>
-                      <td>{replacePart(row.text.learners)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-
-            {/* REMARKS is always printed, last on the page: the chosen remark, or blank lines to write on. */}
-            <div className="lesson-plan-remarks">
-              <strong>{text.remarks}</strong>
-              {printedRemark ? (
-                <span className="lesson-plan-remarks-text"> {printedRemark}</span>
-              ) : (
-                <div className="lesson-plan-remark-lines" aria-hidden="true">
-                  <span />
-                  <span />
-                </div>
-              )}
-            </div>
-          </article>
-          </div>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
+                      <th>{row.stage.toUpperCase()}</
