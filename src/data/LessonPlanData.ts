@@ -23,7 +23,7 @@ export type MethodKey =
   | 'rolePlay';
 
 // Mbinu za ziada zinazotumika kwenye masomo ya Kiswahili (Utafiti mdogo, Matembezi ya galari, Mdahalo, Tafakuri).
-export type SwMethodKey = MethodKey | 'research' | 'gallery' | 'debate' | 'reflection';
+export type SwMethodKey = MethodKey | 'research' | 'gallery' | 'debate' | 'reflection' | 'narration' | 'textAnalysis' | 'games' | 'writePresent';
 
 export const METHOD_LABELS: Record<MethodKey, string> = {
   brainstorming: 'Brainstorming',
@@ -1920,7 +1920,145 @@ export const HTM_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
   3: 'Taasisi ya Elimu Tanzania. (2025). Historia Ya Tanzania na Maadili kitabu cha mwanafunzi kwa shule za sekondari kidato cha tatu. Taasisi ya Elimu Tanzania.',
 };
 
-// ===================== KISWAHILI (bado hakijaongezwa: muhtasari na orodha ya mada hazijatolewa) =====================
+// ===================== KISWAHILI (Kidato cha I-II) - KISWAHILI =====================
+// Chanzo: Muhtasari wa Kiswahili Kidato cha I-IV (TIE) + vitabu vya mwanafunzi (Kidato cha I 2023, cha II 2024).
+// "Zoezi la marudio" la kila sura halimo (si mada ya kufundisha). Kidato cha III na IV bado havijatolewa.
+
+export const KISW_COMMON_RESOURCES = [
+  'Ubao wa chaki / ubao mweupe',
+  'Chaki na kalamu za ubao',
+  'Kamusi ya Kiswahili',
+  'Matini za kusoma',
+  'Kinyonyi (kinasa sauti) / simu janja',
+  'Chati za tungo na miundo ya uandishi',
+  'Kadi za maneno / tungo',
+  'Picha na michoro',
+  'Kitabu cha mwanafunzi (Kiswahili)',
+  'Muhtasari wa somo',
+];
+
+const KW_MC1 = 'Kumudu misingi ya Kiswahili';
+const KW_MC2 = 'Kumudu lugha ya mazungumzo na ya maandishi';
+const KW_MC3 = 'Kuwasiliana katika miktadha mbalimbali';
+const KW_S11 = 'Kutambua Kiswahili kama kielelezo cha utaifa na utambulisho wa Mtanzania';
+const KW_S12 = 'Kukuza uelewa wa sarufi ya Kiswahili';
+const KW_S21 = 'Kusikiliza na kuelewa mazungumzo';
+const KW_S22 = 'Kusoma matini kwa ufasaha na ufahamu';
+const KW_S31 = 'Kutumia kamusi katika miktadha mbalimbali';
+const KW_S32 = 'Kuwasiliana kwa ufasaha kwa njia ya mazungumzo';
+const KW_S33 = 'Kuwasiliana kwa njia ya maandishi katika miktadha mbalimbali';
+
+const KW_CULT = ['Matini', 'Video zenye matumizi ya lugha kulingana na utamaduni wa Mtanzania', 'Vitu halisi'];
+const KW_SARUFI = ['Kinyonyi chenye mazungumzo yaliyorekodiwa', 'Matini za sarufi', 'Kamusi', 'Chati ya tungo'];
+const KW_WRITE = ['Matini za kuandika', 'Picha na michoro', 'Chati za miundo mbalimbali ya uandishi'];
+const KW_LISTEN = ['Kinyonyi kilichohifadhi mazungumzo changamani yaliyorekodiwa', 'Video za mazungumzo mbalimbali'];
+const KW_READ = ['Matini za kusoma', 'Kadi za maneno / tungo'];
+const KW_DICT = ['Kamusi', 'Matini za kusoma'];
+const KW_TALK = ['Video na kinyonyi kilichohifadhi mazungumzo ya mada mbalimbali'];
+const KW_STYLE = ['Video na kinyonyi kilichohifadhi mitindo mbalimbali ya lugha', 'Michoro'];
+
+Object.assign(UNITS, {
+  // ---- Kidato cha I ----
+  'KW1-1.1a': { mainCompetence: KW_MC1, specificCompetence: KW_S11, mainActivity: 'Kutumia Kiswahili katika mijadala mbalimbali kwa kuzingatia utamaduni wa Mtanzania (mf. matumizi ya tafsida na uteuzi wa maneno kulingana na mila na desturi za Mtanzania)', methods: ['groupDiscussion', 'debate'], resources: KW_CULT },
+  'KW1-1.2a': { mainCompetence: KW_MC1, specificCompetence: KW_S12, mainActivity: 'Kusimulia habari na matukio kwa kuzingatia kiimbo, mkazo na lafudhi pamoja na dhima zake', methods: ['narration'], resources: KW_SARUFI },
+  'KW1-1.2b': { mainCompetence: KW_MC1, specificCompetence: KW_S12, mainActivity: 'Kuandika hadithi kwa kuzingatia mpangilio na uhusiano sahihi wa maneno (nomino, vivumishi, vielezi, viwakilishi, vitenzi, vihisishi, vihusishi na viunganishi) katika sentensi', methods: ['textAnalysis', 'writePresent'], resources: KW_SARUFI },
+  'KW1-1.2c': { mainCompetence: KW_MC1, specificCompetence: KW_S12, mainActivity: 'Kuandika hadithi kwa kuzingatia mpangilio na uhusiano sahihi wa sentensi katika aya', methods: ['textAnalysis', 'projectActivity'], resources: KW_SARUFI },
+  'KW1-2.1a': { mainCompetence: KW_MC2, specificCompetence: KW_S21, mainActivity: 'Kusikiliza mazungumzo changamani na kujibu maswali', methods: ['fieldTrip', 'qa'], resources: KW_LISTEN },
+  'KW1-2.1b': { mainCompetence: KW_MC2, specificCompetence: KW_S21, mainActivity: 'Kueleza kwa muhtasari mazungumzo changamani aliyoyasikiliza', methods: ['groupDiscussion'], resources: KW_LISTEN },
+  'KW1-2.1c': { mainCompetence: KW_MC2, specificCompetence: KW_S21, mainActivity: 'Kushiriki katika majadiliano ya masuala mbalimbali kwa kuzingatia sifa za lugha ya mazungumzo (mf. lugha ya mkato, kupeana nafasi)', methods: ['groupDiscussion'], resources: KW_LISTEN },
+  'KW1-2.2a': { mainCompetence: KW_MC2, specificCompetence: KW_S22, mainActivity: 'Kusoma matini fupi changamani kwa kuzingatia alama za uandishi, kasi sahihi na kiimbo cha tungo', methods: ['games'], resources: KW_READ },
+  'KW1-2.2b': { mainCompetence: KW_MC2, specificCompetence: KW_S22, mainActivity: 'Kueleza namna alama za uandishi na kiimbo vinavyoathiri ujumbe katika usomaji wa matini fupi changamani', methods: ['textAnalysis'], resources: KW_READ },
+  'KW1-2.2c': { mainCompetence: KW_MC2, specificCompetence: KW_S22, mainActivity: 'Kuandika hoja kuu kutoka katika matini fupi changamani alizozisoma kwa kuzingatia sifa za lugha ya maandishi (mf. alama za uandishi, miunganiko sahihi ya tungo, usanifu)', methods: ['textAnalysis'], resources: KW_READ },
+  'KW1-2.2d': { mainCompetence: KW_MC2, specificCompetence: KW_S22, mainActivity: 'Kutumia TEHAMA kutafuta maana ya maneno mapya kutoka katika matini aliyoisoma', methods: ['research'], resources: ['Kompyuta mpakato / simu janja', 'Kamusi mtandao', 'Matini za kusoma'] },
+  'KW1-3.1a': { mainCompetence: KW_MC3, specificCompetence: KW_S31, mainActivity: 'Kutumia msamiati kwa usahihi katika mazungumzo na maandishi', methods: ['groupDiscussion', 'qa'], resources: KW_DICT },
+  'KW1-3.1b': { mainCompetence: KW_MC3, specificCompetence: KW_S31, mainActivity: 'Kutumia taarifa mbalimbali za kamusi katika mawasiliano ya mazungumzo na maandishi', methods: ['textAnalysis', 'qa'], resources: KW_DICT },
+  'KW1-3.2a': { mainCompetence: KW_MC3, specificCompetence: KW_S32, mainActivity: 'Kuzungumza kwa ufasaha katika miktadha mbalimbali (mf. nyumbani, shuleni na hospitalini)', methods: ['rolePlay'], resources: KW_TALK },
+  'KW1-3.2b': { mainCompetence: KW_MC3, specificCompetence: KW_S32, mainActivity: 'Kutumia lugha kwa ufasaha katika malumbano ya hoja', methods: ['debate', 'projectActivity'], resources: KW_TALK },
+  'KW1-3.3a': { mainCompetence: KW_MC3, specificCompetence: KW_S33, mainActivity: 'Kujieleza kwa ufasaha kwa maandishi katika miktadha mbalimbali', methods: ['writePresent'], resources: KW_WRITE },
+  // ---- Kidato cha II ----
+  'KW2-1.1a': { mainCompetence: KW_MC1, specificCompetence: KW_S12, mainActivity: 'Kuandika habari kwa kuzingatia upatanisho wa kisarufi (kwa kuzingatia ngeli za nomino na viambishi vya upatanisho)', methods: ['writePresent', 'fieldTrip'], resources: ['Chati za maneno / tungo', 'Matini za sarufi'] },
+  'KW2-1.1b': { mainCompetence: KW_MC1, specificCompetence: KW_S12, mainActivity: 'Kuzungumza kwa kutumia miundo changamani ya sentensi katika miktadha mbalimbali (sentensi ambatani na changamani)', methods: ['rolePlay'], resources: ['Chati za maneno / tungo', 'Matini za sarufi'] },
+  'KW2-1.1c': { mainCompetence: KW_MC1, specificCompetence: KW_S12, mainActivity: 'Kuandika matini fupi kwa kutumia miundo changamani ya sentensi', methods: ['textAnalysis', 'writePresent'], resources: ['Chati za maneno / tungo', 'Matini za sarufi'] },
+  'KW2-2.1a': { mainCompetence: KW_MC2, specificCompetence: KW_S21, mainActivity: 'Kusikiliza habari changamani kwa umakini, udadisi na kuuliza maswali', methods: ['narration', 'qa'], resources: ['Video na kinyonyi kilichohifadhi mazungumzo mbalimbali'] },
+  'KW2-2.1b': { mainCompetence: KW_MC2, specificCompetence: KW_S21, mainActivity: 'Kusikiliza mijadala/habari changamani na kuwasilisha mawazo makuu kwa kuzingatia uwazi na uwekevu', methods: ['groupDiscussion', 'narration'], resources: ['Video na kinyonyi kilichohifadhi mazungumzo mbalimbali'] },
+  'KW2-2.2a': { mainCompetence: KW_MC2, specificCompetence: KW_S22, mainActivity: 'Kusoma matini ndefu changamani kwa kina na utunduizi, kisha kueleza mambo makuu yaliyomo', methods: ['textAnalysis'], resources: ['Matini changamani za kusoma', 'Kadi za maneno / tungo'] },
+  'KW2-2.2b': { mainCompetence: KW_MC2, specificCompetence: KW_S22, mainActivity: 'Kusoma matini ndefu changamani, kuandika muhtasari wa hoja kuu zilizomo na kutoa maoni juu ya hoja hizo', methods: ['textAnalysis'], resources: ['Matini changamani za kusoma', 'Kadi za maneno / tungo'] },
+  'KW2-3.1a': { mainCompetence: KW_MC3, specificCompetence: KW_S32, mainActivity: 'Kuzungumza kwa kutumia mitindo mbalimbali ya lugha ya mazungumzo kwa kuzingatia miktadha, umri, jinsia na uhusiano', methods: ['rolePlay'], resources: KW_STYLE },
+  'KW2-3.1b': { mainCompetence: KW_MC3, specificCompetence: KW_S32, mainActivity: 'Kutumia kwa usahihi ishara zinazoambatana na mazungumzo katika kuwasiliana', methods: ['rolePlay'], resources: KW_STYLE },
+  'KW2-3.2a': { mainCompetence: KW_MC3, specificCompetence: KW_S33, mainActivity: 'Kuandika insha za wasifu na hoja (za kisanaa na zisizo za kisanaa)', methods: ['tips', 'research'], resources: KW_WRITE },
+  'KW2-3.2b': { mainCompetence: KW_MC3, specificCompetence: KW_S33, mainActivity: 'Kusikiliza hoja na kuandika kumbukumbu za kikao', methods: ['fieldTrip', 'rolePlay'], resources: KW_WRITE },
+});
+
+const PKWF = (form: 1 | 2) => (topic: string, subtopic: string, part: string, unit: string, ...specificActivities: string[]): LessonPart =>
+  ({ id: `kw${form}-${++_n}`, subject: 'Kiswahili', form, topic, subtopic, part, unit, specificActivities });
+const KW1 = PKWF(1);
+const KW2 = PKWF(2);
+
+LESSON_PARTS.push(
+  // ===== KIDATO CHA I =====
+  KW1('Lugha na utamaduni', 'Matumizi ya lugha ya Kiswahili kama utambulisho wa Mtanzania', 'Kiswahili kama utambulisho wa Mtanzania', 'KW1-1.1a', 'Kueleza jinsi Kiswahili kinavyotambulisha Mtanzania', 'Kutoa mifano ya matumizi ya Kiswahili kama utambulisho wa taifa'),
+  KW1('Lugha na utamaduni', 'Hadhi ya Kiswahili', 'Hadhi ya Kiswahili', 'KW1-1.1a', 'Kueleza hadhi ya Kiswahili ndani na nje ya Tanzania', 'Kubainisha nyanja zinazotumia Kiswahili'),
+  KW1('Lugha na utamaduni', 'Matumizi ya lugha ya Kiswahili kama kielelezo cha utamaduni wa Mtanzania', 'Kiswahili kama kielelezo cha utamaduni wa Mtanzania', 'KW1-1.1a', 'Kueleza jinsi lugha inavyoonesha utamaduni wa Mtanzania', 'Kutumia tafsida na uteuzi wa maneno unaofaa mila na desturi'),
+  KW1('Lugha na utamaduni', 'Umuhimu wa kujifunza Kiswahili', 'Umuhimu wa kujifunza Kiswahili', 'KW1-1.1a', 'Kueleza umuhimu wa kujifunza Kiswahili', 'Kujadili manufaa ya Kiswahili katika maisha ya kila siku'),
+
+  KW1('Sarufi ya Kiswahili', 'Matamshi', 'Matamshi ya Kiswahili', 'KW1-1.2a', 'Kutamka sauti na maneno ya Kiswahili ipasavyo', 'Kubaini makosa ya kawaida ya matamshi na kuyasahihisha'),
+  KW1('Sarufi ya Kiswahili', 'Kusimulia habari kwa kuzingatia lafudhi sahihi', 'Kusimulia habari kwa kuzingatia lafudhi sahihi', 'KW1-1.2a', 'Kueleza maana na dhima ya lafudhi', 'Kusimulia habari kwa kutumia lafudhi sahihi'),
+  KW1('Sarufi ya Kiswahili', 'Kusimulia habari kwa kuzingatia kiimbo', 'Kusimulia habari kwa kuzingatia kiimbo', 'KW1-1.2a', 'Kueleza maana na dhima ya kiimbo', 'Kusimulia habari kwa kutumia kiimbo sahihi'),
+  KW1('Sarufi ya Kiswahili', 'Kusimulia habari kwa kuzingatia mkazo', 'Kusimulia habari kwa kuzingatia mkazo', 'KW1-1.2a', 'Kueleza maana na dhima ya mkazo', 'Kusimulia habari kwa kutumia mkazo sahihi'),
+  KW1('Sarufi ya Kiswahili', 'Kuandika hadithi kwa kuzingatia uhusiano sahihi wa maneno katika sentensi', 'Uhusiano sahihi wa maneno katika sentensi', 'KW1-1.2b', 'Kubainisha aina za maneno katika sentensi', 'Kuandika hadithi kwa kuzingatia uhusiano sahihi wa maneno'),
+  KW1('Sarufi ya Kiswahili', 'Kuandika hadithi kwa kuzingatia mpangilio wa maneno katika sentensi', 'Mpangilio wa maneno katika sentensi', 'KW1-1.2b', 'Kupanga maneno katika sentensi kwa mpangilio sahihi', 'Kuandika hadithi kwa kuzingatia mpangilio wa maneno'),
+  KW1('Sarufi ya Kiswahili', 'Kuandika hadithi kwa kuzingatia uhusiano wa sentensi katika aya', 'Uhusiano wa sentensi katika aya', 'KW1-1.2c', 'Kubainisha uhusiano wa sentensi katika aya', 'Kuandika hadithi kwa kuzingatia mpangilio wa sentensi katika aya'),
+
+  KW1('Matumizi ya kamusi', 'Kutumia msamiati kwa usahihi', 'Kutumia msamiati kwa usahihi', 'KW1-3.1a', 'Kubainisha taarifa za kikamusi za maneno', 'Kutumia msamiati kwa usahihi katika mazungumzo na maandishi'),
+  KW1('Matumizi ya kamusi', 'Kutumia taarifa za kamusi katika mawasiliano', 'Kutumia taarifa za kamusi katika mawasiliano', 'KW1-3.1b', 'Kutafuta taarifa za maneno katika kamusi', 'Kutumia taarifa hizo katika mazungumzo na maandishi'),
+
+  KW1('Kusikiliza mazungumzo', 'Kusikiliza mazungumzo changamani', 'Kusikiliza mazungumzo changamani', 'KW1-2.1a', 'Kusikiliza mazungumzo changamani kwa makini', 'Kujibu maswali kutokana na mazungumzo yaliyosikilizwa'),
+  KW1('Kusikiliza mazungumzo', 'Sifa za lugha ya mazungumzo', 'Sifa za lugha ya mazungumzo', 'KW1-2.1c', 'Kubainisha sifa za lugha ya mazungumzo (mf. lugha ya mkato)', 'Kutoa mifano ya sifa hizo'),
+  KW1('Kusikiliza mazungumzo', 'Kufupisha mazungumzo changamani', 'Kufupisha mazungumzo changamani', 'KW1-2.1b', 'Kubainisha mawazo makuu ya mazungumzo', 'Kueleza kwa muhtasari mazungumzo yaliyosikilizwa'),
+  KW1('Kusikiliza mazungumzo', 'Kushiriki katika majadiliano ya miktadha mbalimbali', 'Kushiriki katika majadiliano ya miktadha mbalimbali', 'KW1-2.1c', 'Kushiriki katika majadiliano kwa kupeana nafasi', 'Kutumia lugha ya mazungumzo inayofaa muktadha'),
+
+  KW1('Kusoma kwa ufasaha na ufahamu', 'Kusoma matini fupi changamani kwa kuzingatia alama za uandishi, kasi stahiki na kiimbo', 'Kusoma matini fupi kwa alama za uandishi, kasi stahiki na kiimbo', 'KW1-2.2a', 'Kusoma matini fupi kwa kuzingatia alama za uandishi', 'Kusoma kwa kasi stahiki na kiimbo cha tungo'),
+  KW1('Kusoma kwa ufasaha na ufahamu', 'Umuhimu wa alama za uandishi na kiimbo katika usomaji', 'Umuhimu wa alama za uandishi na kiimbo katika usomaji', 'KW1-2.2b', 'Kueleza umuhimu wa alama za uandishi na kiimbo', 'Kutoa mifano katika matini fupi'),
+  KW1('Kusoma kwa ufasaha na ufahamu', 'Athari za alama za uandishi na kiimbo katika usomaji', 'Athari za alama za uandishi na kiimbo katika usomaji', 'KW1-2.2b', 'Kueleza namna alama za uandishi na kiimbo zinavyoathiri ujumbe', 'Kulinganisha maana kabla na baada ya kubadili alama au kiimbo'),
+  KW1('Kusoma kwa ufasaha na ufahamu', 'Kuandika hoja kuu kutoka katika matini fupi changamani', 'Kuandika hoja kuu kutoka katika matini fupi changamani', 'KW1-2.2c', 'Kubainisha hoja kuu katika matini fupi', 'Kuandika hoja kuu kwa lugha ya maandishi inayofaa'),
+  KW1('Kusoma kwa ufasaha na ufahamu', 'Kutumia vifaa vya TEHAMA kutafuta maana za maneno', 'Kutumia TEHAMA kutafuta maana za maneno', 'KW1-2.2d', 'Kutafuta maana za maneno mapya kwa kutumia TEHAMA', 'Kutumia maneno hayo katika sentensi'),
+
+  KW1('Kuwasiliana kwa njia ya mazungumzo', 'Kuzungumza kwa ufasaha katika miktadha mbalimbali', 'Kuzungumza kwa ufasaha katika miktadha mbalimbali', 'KW1-3.2a', 'Kuigiza mazungumzo ya nyumbani, shuleni na hospitalini', 'Kuzungumza kwa ufasaha kulingana na muktadha'),
+  KW1('Kuwasiliana kwa njia ya mazungumzo', 'Kutumia lugha kwa ufasaha katika mazungumzo', 'Kutumia lugha kwa ufasaha katika malumbano ya hoja', 'KW1-3.2b', 'Kutumia lugha fasaha kujenga hoja', 'Kutumia lugha fasaha kupinga hoja'),
+
+  KW1('Kuwasiliana kwa njia ya maandishi', 'Kujieleza kwa maandishi katika miktadha mbalimbali', 'Kujieleza kwa maandishi katika miktadha mbalimbali', 'KW1-3.3a', 'Kuandika kuhusu mada mahususi kwa ufasaha', 'Kuwasilisha kazi iliyoandikwa darasani'),
+
+  // ===== KIDATO CHA II =====
+  KW2('Kuwasiliana kwa kuzingatia upatanisho wa kisarufi', 'Dhana ya ngeli za nomino na upatanisho wa kisarufi', 'Dhana ya ngeli za nomino na upatanisho wa kisarufi', 'KW2-1.1a', 'Kueleza maana ya ngeli za nomino', 'Kueleza maana ya upatanisho wa kisarufi'),
+  KW2('Kuwasiliana kwa kuzingatia upatanisho wa kisarufi', 'Kuainisha ngeli za nomino kwa kuzingatia upatanisho wa kisarufi', 'Kuainisha ngeli za nomino', 'KW2-1.1a', 'Kuainisha nomino katika ngeli zake', 'Kutumia viambishi sahihi vya upatanisho'),
+  KW2('Kuwasiliana kwa kuzingatia upatanisho wa kisarufi', 'Kutumia urejeshi wa ngeli za nomino', 'Urejeshi wa ngeli za nomino', 'KW2-1.1a', 'Kueleza maana ya urejeshi katika ngeli za nomino', 'Kutumia urejeshi sahihi katika sentensi'),
+  KW2('Kuwasiliana kwa kuzingatia upatanisho wa kisarufi', 'Kuandika kifungu cha habari kwa kuzingatia upatanisho wa kisarufi', 'Kuandika kifungu cha habari kwa upatanisho wa kisarufi', 'KW2-1.1a', 'Kuandika kifungu cha habari kwa upatanisho sahihi wa kisarufi', 'Kuwasilisha kifungu hicho darasani'),
+
+  KW2('Kutumia miundo changamani katika miktadha mbalimbali', 'Kubaini vipashio vya kimuundo', 'Vipashio vya kimuundo', 'KW2-1.1b', 'Kubaini vipashio vya kimuundo (sentensi ambatani na changamani)', 'Kutofautisha sentensi ambatani na changamani'),
+  KW2('Kutumia miundo changamani katika miktadha mbalimbali', 'Kuzungumza kwa kutumia miundo changamani katika miktadha mbalimbali', 'Kuzungumza kwa miundo changamani ya sentensi', 'KW2-1.1b', 'Kuzungumza kwa kutumia miundo changamani ya sentensi', 'Kuigiza mada inayoruhusu kujenga hoja'),
+  KW2('Kutumia miundo changamani katika miktadha mbalimbali', 'Kuandika matini fupi kwa kutumia miundo changamani', 'Kuandika matini fupi kwa miundo changamani', 'KW2-1.1c', 'Kubainisha miundo changamani katika matini', 'Kuandika matini fupi kwa kutumia miundo hiyo'),
+
+  KW2('Kusikiliza mazungumzo', 'Kusikiliza mazungumzo changamani kwa umakini na udadisi', 'Kusikiliza mazungumzo changamani kwa umakini na udadisi', 'KW2-2.1a', 'Kusikiliza mazungumzo changamani kwa umakini na udadisi', 'Kuuliza maswali kuhusu yaliyosikilizwa'),
+  KW2('Kusikiliza mazungumzo', 'Kusikiliza mijadala changamani na kuwasilisha mawazo makuu', 'Kusikiliza mijadala changamani na kuwasilisha mawazo makuu', 'KW2-2.1b', 'Kusikiliza mijadala changamani na kubaini mawazo makuu', 'Kuwasilisha mawazo makuu kwa uwazi na uwekevu'),
+  KW2('Kusikiliza mazungumzo', 'Kusikiliza habari changamani na kuwasilisha mawazo makuu', 'Kusikiliza habari changamani na kuwasilisha mawazo makuu', 'KW2-2.1b', 'Kusikiliza habari changamani na kubaini mawazo makuu', 'Kusimulia habari hiyo kwa uwazi na uwekevu'),
+
+  KW2('Kuwasiliana kwa ufasaha kwa njia ya mazungumzo', 'Kuzungumza kwa kutumia mitindo mbalimbali ya lugha', 'Kuzungumza kwa mitindo mbalimbali ya lugha', 'KW2-3.1a', 'Kubainisha mitindo mbalimbali ya lugha ya mazungumzo', 'Kuigiza kwa kuzingatia muktadha, umri, jinsia na uhusiano'),
+  KW2('Kuwasiliana kwa ufasaha kwa njia ya mazungumzo', 'Kutumia ishara katika mazungumzo', 'Ishara zinazoambatana na mazungumzo', 'KW2-3.1b', 'Kubainisha ishara zinazoambatana na mazungumzo', 'Kutumia ishara hizo kwa usahihi katika kuigiza'),
+
+  KW2('Kusoma kwa ufasaha na ufahamu', 'Kusoma kitunduizi matini ndefu changamani', 'Kusoma kitunduizi matini ndefu changamani', 'KW2-2.2a', 'Kusoma matini ndefu changamani kwa kina na utunduizi', 'Kueleza mambo makuu yaliyomo katika matini'),
+  KW2('Kusoma kwa ufasaha na ufahamu', 'Kuandika muhtasari wa hoja kuu na kutoa maoni', 'Kuandika muhtasari wa hoja kuu na kutoa maoni', 'KW2-2.2b', 'Kuandika muhtasari wa hoja kuu za matini', 'Kutoa maoni juu ya hoja hizo'),
+
+  KW2('Kuwasiliana kwa njia ya maandishi', 'Kuandika insha za wasifu za kisanaa', 'Kuandika insha za wasifu za kisanaa', 'KW2-3.2a', 'Kubainisha vipengele vya insha za wasifu za kisanaa', 'Kuandika insha ya wasifu ya kisanaa'),
+  KW2('Kuwasiliana kwa njia ya maandishi', 'Kuandika insha za wasifu zisizo za kisanaa', 'Kuandika insha za wasifu zisizo za kisanaa', 'KW2-3.2a', 'Kubainisha vipengele vya insha za wasifu zisizo za kisanaa', 'Kuandika insha ya wasifu isiyo ya kisanaa'),
+  KW2('Kuwasiliana kwa njia ya maandishi', 'Kuandika insha za hoja za kisanaa', 'Kuandika insha za hoja za kisanaa', 'KW2-3.2a', 'Kubainisha vipengele vya insha za hoja za kisanaa', 'Kuandika insha ya hoja ya kisanaa'),
+  KW2('Kuwasiliana kwa njia ya maandishi', 'Kuandika insha za hoja zisizo za kisanaa', 'Kuandika insha za hoja zisizo za kisanaa', 'KW2-3.2a', 'Kubainisha vipengele vya insha za hoja zisizo za kisanaa', 'Kuandika insha ya hoja isiyo ya kisanaa'),
+  KW2('Kuwasiliana kwa njia ya maandishi', 'Kuandika kumbukumbu za kikao', 'Kuandika kumbukumbu za kikao', 'KW2-3.2b', 'Kusikiliza hoja katika kikao na kuziandika', 'Kuandika kumbukumbu za kikao kwa mpangilio sahihi'),
+);
+
+export const KISW_REFERENCES: Partial<Record<1 | 2 | 3 | 4, string>> = {
+  1: 'Taasisi ya Elimu Tanzania. (2023). Kiswahili kitabu cha mwanafunzi kwa shule za sekondari kidato cha kwanza. Taasisi ya Elimu Tanzania.',
+  2: 'Taasisi ya Elimu Tanzania. (2024). Kiswahili kitabu cha mwanafunzi kwa shule za sekondari kidato cha pili. Taasisi ya Elimu Tanzania.',
+};
 
 // References: fill from the copyright page of each book.
 export const REFERENCES: Record<1 | 2, string> = {
@@ -1952,7 +2090,7 @@ export const getReference = (subject: LessonPart['subject'], form: number): stri
   if (subject === 'Chemistry') return CHEMISTRY_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   if (subject === 'Biology') return BIOLOGY_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   if (subject === 'Historia ya Tanzania na Maadili') return HTM_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
-  if (subject === 'Kiswahili') return '';
+  if (subject === 'Kiswahili') return KISW_REFERENCES[form as 1 | 2 | 3 | 4] ?? '';
   return REFERENCES[form as 1 | 2] ?? '';
 };
 
@@ -1990,7 +2128,7 @@ export const getCommonResources = (subject: LessonPart['subject']): string[] =>
               : subject === 'Chemistry' ? CHEMISTRY_COMMON_RESOURCES
                 : subject === 'Biology' ? BIOLOGY_COMMON_RESOURCES
                   : subject === 'Historia ya Tanzania na Maadili' ? HTM_COMMON_RESOURCES
-                    : subject === 'Kiswahili' ? HTM_COMMON_RESOURCES
+                    : subject === 'Kiswahili' ? KISW_COMMON_RESOURCES
       : COMMON_RESOURCES;
 
 // Stage text templates per method. {part} is replaced with LessonPart.part.
@@ -2210,6 +2348,26 @@ export const METHOD_TEMPLATES_SW: Record<SwMethodKey, MethodTemplate> = {
     development: { teacher: 'Huuliza maswali ya kuwafanya wanafunzi kutafakari kuhusu "{part}"', learners: 'Wanafunzi hutafakari na kuandika mawazo yao' },
     design: { teacher: 'Huwaongoza wanafunzi kushirikishana mawazo na kutoa maoni', learners: 'Wanafunzi hushirikishana mawazo na kutoa maoni yao' },
     realization: { teacher: 'Hufanya muhtasari na kuwaongoza wanafunzi kupendekeza suluhisho', learners: 'Wanafunzi hueleza hitimisho na mapendekezo yao' },
+  },
+  narration: {
+    development: { teacher: 'Huwaongoza wanafunzi kusimulia visa au matukio kuhusu "{part}"', learners: 'Wanafunzi husimulia visa au matukio kwa kuzingatia vigezo vilivyotolewa' },
+    design: { teacher: 'Huwaelekeza wanafunzi kusikilizana na kurekebisha simulizi zao', learners: 'Wanafunzi husikiliza simulizi za wenzao na kutoa maoni' },
+    realization: { teacher: 'Hufanya muhtasari wa kipindi na kusahihisha makosa ya matamshi na sarufi', learners: 'Wanafunzi hurudia simulizi zao baada ya kusahihishwa' },
+  },
+  textAnalysis: {
+    development: { teacher: 'Huwaongoza wanafunzi kusoma matini inayohusu "{part}"', learners: 'Wanafunzi husoma matini kimya na kwa sauti' },
+    design: { teacher: 'Huwaongoza wanafunzi kuchambua matini na kubainisha vipengele muhimu', learners: 'Wanafunzi huchambua matini kwenye jozi au vikundi na kuandika walivyobaini' },
+    realization: { teacher: 'Hufanya muhtasari wa uchambuzi na kutoa zoezi la kuandika', learners: 'Wanafunzi huandika kwa kutumia walivyojifunza' },
+  },
+  games: {
+    development: { teacher: 'Hugawa wanafunzi katika makundi mawili ya ushindani na kueleza kanuni za mchezo kuhusu "{part}"', learners: 'Wanafunzi hukaa katika makundi ya ushindani na kusikiliza kanuni' },
+    design: { teacher: 'Husimamia mchezo na kuhakikisha kila mwanafunzi anashiriki', learners: 'Wanafunzi hushiriki mchezo kwa kupokezana' },
+    realization: { teacher: 'Hutangaza matokeo, hufanya muhtasari wa kipindi na kusahihisha makosa', learners: 'Wanafunzi hueleza walichojifunza kutokana na mchezo' },
+  },
+  writePresent: {
+    development: { teacher: 'Hutoa mada mahususi kuhusu "{part}" na kueleza vigezo vya kuandika', learners: 'Wanafunzi husikiliza na kuchagua mada' },
+    design: { teacher: 'Huwaongoza wanafunzi wanapoandika na kuwasaidia kurekebisha makosa', learners: 'Wanafunzi huandika kuhusu mada waliyopewa' },
+    realization: { teacher: 'Huwaalika wanafunzi kuwasilisha kazi zao darasani na kufanya muhtasari', learners: 'Wanafunzi huwasilisha kazi zao na kupokea mrejesho' },
   },
 };
 
