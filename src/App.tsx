@@ -35,7 +35,7 @@ import { offeredSubjectsForClass, submittedSubjectsForClass, upsertClassSubjectS
 
 // Permanent (default) subjects: cannot be deleted. The admin can only enable/disable them.
 // Disabled subjects are hidden from the system but ALL their data (scores, assignments) is kept.
-const DEFAULT_SCHOOL_SUBJECTS: string[] = ['Mathematics', 'English', 'Biology', 'Physics', 'Chemistry', 'History', 'Geography', 'Computer Science', 'Literature', 'Kiswahili', 'Civics', 'Book Keeping', 'Commerce', 'Bible Knowledge'];
+const DEFAULT_SCHOOL_SUBJECTS: string[] = ['Biology', 'Business studies', 'Chemistry', 'Computer Science', 'English', 'Geography', 'History', 'Kiswahili', 'Literature', 'Mathematics', 'Physics', 'historia ya tanzania na maadili'];
 const DISABLED_SUBJECTS_KEY = 'sms_disabled_subjects';
 // Stored as {"disabled":[...]} (never an empty []/{} so cloud sync never treats "all enabled" as "no data")
 const readStoredDisabledSubjects = (): string[] | null => {
@@ -272,7 +272,7 @@ function AppInner() {
       const savedSubjects = JSON.parse(localStorage.getItem('sms_school_subjects') || '[]');
       const defaults = Array.isArray(savedSubjects) && savedSubjects.length
         ? savedSubjects
-        : ['Mathematics', 'English', 'Biology', 'Physics', 'Chemistry', 'History', 'Geography', 'Computer Science', 'Literature', 'Kiswahili', 'Civics', 'Book Keeping', 'Commerce', 'Bible Knowledge'];
+        : [...DEFAULT_SCHOOL_SUBJECTS];
       return normalizeStudentRoster(saved, defaults);
     } catch { return {}; }
   });
@@ -713,6 +713,10 @@ function AppInner() {
           if (freshDisabled) setDisabledSubjects(prev => JSON.stringify(prev) !== JSON.stringify(freshDisabled) ? freshDisabled : prev);
         } catch {}
         try {
+          const freshCodes = JSON.parse(localStorage.getItem('sms_subject_codes') || '{}');
+          if (freshCodes && Object.keys(freshCodes).length) setSchoolSubjectCodes(prev => JSON.stringify(prev) !== JSON.stringify(freshCodes) ? freshCodes : prev);
+        } catch {}
+        try {
           const freshClasses = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
           const ts = localStorage.getItem('sms_school_classes_ts');
           const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
@@ -1063,21 +1067,26 @@ function AppInner() {
   const [schoolSubjects, setSchoolSubjects] = useState<string[]>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('sms_school_subjects') || '[]');
-      return saved.length > 0 ? saved : ['Mathematics', 'English', 'Biology', 'Physics', 'Chemistry', 'History', 'Geography', 'Computer Science', 'Literature', 'Kiswahili', 'Civics', 'Book Keeping', 'Commerce', 'Bible Knowledge'];
-    } catch { return ['Mathematics', 'English', 'Biology', 'Physics', 'Chemistry', 'History', 'Geography', 'Computer Science', 'Literature', 'Kiswahili', 'Civics', 'Book Keeping', 'Commerce', 'Bible Knowledge']; }
+      return saved.length > 0 ? saved : [...DEFAULT_SCHOOL_SUBJECTS];
+    } catch { return [...DEFAULT_SCHOOL_SUBJECTS]; }
   });
   // ✅ Subject codes: admin must provide code (e.g., MATH) - stored in sms_subject_codes
   const [schoolSubjectCodes, setSchoolSubjectCodes] = useState<Record<string,string>>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('sms_subject_codes') || '{}');
-      if (Object.keys(saved).length > 0) return saved;
+      if (Object.keys(saved).length > 0) {
+        // Historia ya Tanzania na Maadili must not share History's code (HIST) -> HTM. Only the display code changes; data is keyed by subject name.
+        const htm = 'historia ya tanzania na maadili';
+        if (saved[htm] && saved[htm] === saved['History']) return { ...saved, [htm]: 'HTM' };
+        return saved;
+      }
       // defaults from name -> code
       const def: Record<string,string> = {};
-      ['Mathematics','English','Biology','Physics','Chemistry','History','Geography','Computer Science','Literature','Kiswahili','Civics','Book Keeping','Commerce','Bible Knowledge'].forEach(n=>{
+      DEFAULT_SCHOOL_SUBJECTS.forEach(n=>{
         let c = n.substring(0,4).toUpperCase().replace(' ','');
-        if (n==='Book Keeping') c='BK';
+        if (n==='Business studies') c='BS';
         if (n==='Computer Science') c='COMP';
-        if (n==='Bible Knowledge') c='BKNO';
+        if (n==='historia ya tanzania na maadili') c='HTM';
         def[n]=c;
       });
       return def;
@@ -1102,11 +1111,26 @@ function AppInner() {
       const mapped = schoolSubjects.map(name => ({ name, code: schoolSubjectCodes[name] || name.substring(0,4).toUpperCase().replace(' ','') }));
       localStorage.setItem('tt_shared_subjects_codes', JSON.stringify(mapped));
     } catch {}
-    if (cloud.isCloudMode() && previous !== null && previous !== value) {
-      const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
+    // Admin is the source of the codes: push whenever the cloud copy differs from what this device shows.
+    if (cloud.isCloudMode() && user?.role === 'admin' && localStorage.getItem('sms_subject_codes_cloud_confirmed_value') !== value) {
+      cloud.markAppDataKeyDirty('sms_subject_codes', value);
+      const t = setTimeout(() => { cloud.syncToCloud().catch(error => console.error('Subject codes sync failed:', error)); }, 400);
       return () => clearTimeout(t);
     }
-  }, [schoolSubjectCodes, schoolSubjects]);
+  }, [schoolSubjectCodes, schoolSubjects, user]);
+
+  // Admin: change a subject's code. Only the display code changes — scores, assignments and students are keyed by subject NAME.
+  const editSubjectCode = (name: string) => {
+    const current = schoolSubjectCodes[name] || name.substring(0,4).toUpperCase().replace(' ','');
+    const input = window.prompt(`New code for "${name}" (2-6 letters/numbers). Only the code changes; no data is affected.`, current);
+    if (input === null) return;
+    const code = input.trim().toUpperCase().replace(/\s+/g, '');
+    if (code === current) return;
+    if (!/^[A-Z0-9]{2,6}$/.test(code)) { alert('Code must be 2-6 letters/numbers (e.g., MATH, HTM)'); return; }
+    const clash = [...new Set([...DEFAULT_SCHOOL_SUBJECTS, ...schoolSubjects])].find(s => s !== name && (schoolSubjectCodes[s] || s.substring(0,4).toUpperCase().replace(' ','')).toUpperCase() === code);
+    if (clash) { alert(`Code ${code} is already used by "${clash}".`); return; }
+    setSchoolSubjectCodes(prev => ({ ...prev, [name]: code }));
+  };
   const getSubjectCode = (name: string) => schoolSubjectCodes[name] || name.substring(0,4).toUpperCase().replace(' ','');
   const ALL_SUBJECTS = schoolSubjects;
 
@@ -1819,11 +1843,13 @@ function AppInner() {
               {DEFAULT_SCHOOL_SUBJECTS.map(sub => {
                 const enabled = !disabledSubjects.includes(sub);
                 return (
-                  <label key={sub} className={`flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer text-sm font-semibold ${enabled ? 'bg-indigo-50 border-indigo-300 text-indigo-800' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-                    <input type="checkbox" checked={enabled} onChange={() => toggleDefaultSubject(sub)} className="w-4 h-4 accent-indigo-600" />
-                    <span className="bg-white px-1.5 py-0.5 rounded font-mono text-[11px] border">{getSubjectCode(sub)}</span>
-                    <span className={enabled ? '' : 'line-through'}>{sub}</span>
-                  </label>
+                  <div key={sub} className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-semibold ${enabled ? 'bg-indigo-50 border-indigo-300 text-indigo-800' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                    <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                      <input type="checkbox" checked={enabled} onChange={() => toggleDefaultSubject(sub)} className="w-4 h-4 accent-indigo-600" />
+                      <span className={enabled ? '' : 'line-through'}>{sub}</span>
+                    </label>
+                    <button type="button" onClick={() => editSubjectCode(sub)} title="Edit code" className="bg-white px-1.5 py-0.5 rounded font-mono text-[11px] border hover:border-indigo-500 text-slate-700">{getSubjectCode(sub)} ✎</button>
+                  </div>
                 );
               })}
             </div>
@@ -1837,7 +1863,7 @@ function AppInner() {
             <div className="flex flex-wrap gap-1.5">
               {customSubjects.map(sub => (
                 <span key={sub} className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold border">
-                  <span className="bg-white px-1.5 py-0.5 rounded font-mono text-[11px] border">{getSubjectCode(sub)}</span> {sub}
+                  <button type="button" onClick={() => editSubjectCode(sub)} title="Edit code" className="bg-white px-1.5 py-0.5 rounded font-mono text-[11px] border hover:border-emerald-600">{getSubjectCode(sub)} ✎</button> {sub}
                   <button onClick={() => { if (window.confirm(`Delete "${sub}"? Added subjects are removed from the list.`)) removeSchoolSubject(sub); }} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
                 </span>
               ))}

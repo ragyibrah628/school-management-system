@@ -884,7 +884,7 @@ export const TimetableViewer: React.FC = () => {
                         const nextSubs = [...subs, name.trim()].sort();
                         cloud.saveAppDataKeyLocally('sms_school_subjects', JSON.stringify(nextSubs));
                         const nextCodes = {...codes, [name.trim()]: c};
-                        localStorage.setItem('sms_subject_codes', JSON.stringify(nextCodes));
+                        cloud.saveAppDataKeyLocally('sms_subject_codes', JSON.stringify(nextCodes));
                         // Also set as second subject if first already chosen
                         if (selectedSubject && !selectedSecondSubject) setSelectedSecondSubject(name.trim());
                         else setSelectedSubject(name.trim());
