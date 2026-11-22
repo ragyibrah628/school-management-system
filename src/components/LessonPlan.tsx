@@ -27,6 +27,7 @@ import {
   UNITS,
   type LessonLanguage,
 } from '../data/LessonPlanData';
+import { getDistrictLogo } from '../utils/letterhead';
 
 interface LessonPlanProps {
   teacherName: string;
@@ -337,6 +338,7 @@ export function LessonPlan({
   districtName,
   schoolLogo,
 }: LessonPlanProps) {
+  const districtLogo = getDistrictLogo();
   const registeredStudents = useMemo(
     () => readStoredJson<Record<string, RegisteredCounts>>('sms_registered_students', {}),
     [],
@@ -916,14 +918,16 @@ export function LessonPlan({
           <article ref={printSheetRef} className="lesson-plan-print">
             <header className="lesson-plan-header">
               <div className="lesson-plan-header-logo">
-                {schoolLogo && <img src={schoolLogo} alt="School logo" />}
+                {districtLogo && <img src={districtLogo} alt="District Council logo" />}
               </div>
               <div className="lesson-plan-header-copy">
                 <h1>{text.title}</h1>
                 <p className="lesson-plan-council">{lang === 'sw' ? swahiliCouncilName(districtName).toUpperCase() : districtName}</p>
                 <p className="lesson-plan-school-name">{lang === 'sw' ? swahiliSchoolName(schoolName).toUpperCase() : schoolName}</p>
               </div>
-              <div className="lesson-plan-header-spacer" aria-hidden="true" />
+              <div className="lesson-plan-header-logo lesson-plan-header-logo-right">
+                {schoolLogo && <img src={schoolLogo} alt="School logo" />}
+              </div>
             </header>
 
             <table className="lesson-plan-meta">

@@ -24,6 +24,7 @@ import { TimetableSubsystem } from './components/TimetableSubsystem';
 import { TeacherDutyForm, DutyReportPrint, AdminRegisteredStudents } from './components/DutyReport';
 import { LessonPlan } from './components/LessonPlan';
 import * as cloud from './lib/cloud';
+import { getDistrictLogo, letterheadOpen, letterheadClose } from './utils/letterhead';
 import { evaluateMark, gradeForPercentage, remarkForPercentage, sortStudentsForMarkEntry } from './utils/markEntry';
 import { rankResultsByAverage } from './utils/resultsRanking';
 import { assignedSubjectTeacherName, buildScoreSheetData, createScoreSheetsHtml, type ScoreSheetData } from './utils/scoreSheet';
@@ -186,6 +187,7 @@ function AppInner() {
     return () => window.removeEventListener('app-data-sync-status', onSyncStatus);
   }, []);
   const [schoolLogo, setSchoolLogo] = useState('');
+  const [districtLogo, setDistrictLogo] = useState('');
   const [academicName, setAcademicName] = useState('');
   const [headmasterName, setHeadmasterName] = useState('Saidi Mpambika');
   const [academicSig, setAcademicSig] = useState('');
@@ -200,6 +202,7 @@ function AppInner() {
     const loadLogo = () => {
       try {
         setSchoolLogo(localStorage.getItem('sms_school_logo') || '');
+        setDistrictLogo(localStorage.getItem('sms_district_logo') || '');
         setAcademicName(localStorage.getItem('sms_academic_name') || '');
         setHeadmasterName(localStorage.getItem('sms_headmaster_name') || 'Saidi Mpambika');
         setAcademicSig(localStorage.getItem('sms_academic_sig') || '');
@@ -215,6 +218,24 @@ function AppInner() {
     window.addEventListener('focus', loadLogo);
     return () => { window.removeEventListener('cloud-sync-complete', loadLogo); window.removeEventListener('focus', loadLogo); };
   }, []);
+
+  const handleDistrictLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 300000) alert('Logo is large (' + Math.round(file.size/1024) + 'KB). Try to use < 150KB for best display on all phones.');
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      localStorage.setItem('sms_district_logo', base64);
+      setDistrictLogo(base64);
+      if (cloud.isCloudMode()) {
+        cloud.markAppDataKeyDirty('sms_district_logo', base64);
+        setTimeout(() => cloud.syncToCloud().catch(error => console.error('District logo sync failed:', error)), 300);
+      }
+      alert('District Council logo updated! It will appear on all printed documents on every device after sync.');
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1854,6 +1875,21 @@ function AppInner() {
             </label>
           </div>
 
+          {/* District Council logo (printed on the LEFT of every document; school logo on the RIGHT) */}
+          <div className="bg-white p-4 rounded-2xl border flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              {districtLogo ? <SafeImg src={districtLogo} alt="District Council Logo" className="w-16 h-16 object-contain border rounded-xl p-1" /> : <div className="w-16 h-16 bg-slate-100 rounded-xl flex items-center justify-center text-2xl">🏛️</div>}
+              <div>
+                <h3 className="font-bold text-sm">District Council Logo</h3>
+                <p className="text-xs text-slate-500">Printed on the left of every document; the school logo is printed on the right.</p>
+              </div>
+            </div>
+            <label className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold cursor-pointer hover:bg-indigo-700">
+              {districtLogo ? 'Change Logo' : 'Upload Logo'}
+              <input type="file" accept="image/*" onChange={handleDistrictLogoUpload} className="hidden" />
+            </label>
+          </div>
+
           {/* Officials */}
           <div className="bg-white p-6 rounded-2xl border space-y-4">
             <h2 className="font-bold text-lg">School Officials</h2>
@@ -2357,11 +2393,11 @@ function AppInner() {
                   .pass { color: green; font-weight:bold; } .fail { color: red; font-weight:bold; }
                   @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
                 </style></head><body><div class="header">`);
-                if (logo) pw.document.write(`<img src="${logo}" />`);
+                pw.document.write(letterheadOpen(getDistrictLogo()));
                 pw.document.write(`<div style="font-size:14px;font-weight:bold;letter-spacing:1px">${districtName}</div>
                   <div style="font-size:18px;font-weight:bold;letter-spacing:1px">${schoolNameSetting}</div>
                   <div style="font-size:14px;font-weight:bold;text-decoration:underline;margin:3px 0">${examName} — GENERAL RESULTS</div>
-                  <div style="font-size:12px">${viewClass.startsWith('__') ? viewClass.replace('__', '').replace(/_/g, ' ') : viewClass || 'All Classes'}</div></div>`);
+                  <div style="font-size:12px">${viewClass.startsWith('__') ? viewClass.replace('__', '').replace(/_/g, ' ') : viewClass || 'All Classes'}</div>${letterheadClose(logo)}</div>`);
                 // Table header - subject columns show score AND grade
                 pw.document.write(`<table><thead><tr style="background:#d4edda">`);
                 pw.document.write(`<th style="font-size:${thFontSize}" rowspan="2">S/N</th>`);
@@ -2445,7 +2481,7 @@ function AppInner() {
                 setTimeout(() => { pw.focus(); pw.print(); }, 500);
               };
 
-              const buildReportCardHtml = (row: typeof allStudentRows[0], imageUrls: { logo: string; acSig: string; hmSig: string }, pageBreakAfter: boolean) => {
+              const buildReportCardHtml = (row: typeof allStudentRows[0], imageUrls: { logo: string; districtLogo: string; acSig: string; hmSig: string }, pageBreakAfter: boolean) => {
                 let reportHtml = '';
                 const pw: any = { document: { write: (html: string) => { reportHtml += html; } } };
                 const { logo, acSig, hmSig } = imageUrls;
@@ -2471,12 +2507,12 @@ function AppInner() {
                 ].filter(Boolean).join(' ');
 
                 pw.document.write(`<section class="${cardClasses}"><div class="header">`);
-                if (logo) pw.document.write(`<img class="school-logo" src="${logo}" alt="Logo ya shule" />`);
+                pw.document.write(letterheadOpen(imageUrls.districtLogo));
                 pw.document.write(`<div class="council-name" style="font-size:14px;font-weight:bold">${districtName}</div>
                   <div class="school-name" style="font-size:22px;font-weight:bold;margin:3px 0">${schoolNameSetting}</div>
                   <div style="font-size:11px;margin-bottom:4px">${schoolAddress}</div>
                   <div class="report-title" style="font-size:16px;font-weight:bold;text-decoration:underline;margin-top:4px">RIPOTI YA MAENDELEO YA MWANAFUNZI</div>
-                  <div class="exam-name" style="font-size:13px;margin-top:3px">${examName}</div></div>`);
+                  <div class="exam-name" style="font-size:13px;margin-top:3px">${examName}</div>${letterheadClose(logo)}</div>`);
 
                 // Student info grid — KISWAHILI
                 pw.document.write(`<div class="info-grid">
@@ -2575,6 +2611,7 @@ function AppInner() {
                 };
                 const imageUrls = {
                   logo: toObjectUrl(localStorage.getItem('sms_school_logo') || ''),
+                  districtLogo: toObjectUrl(getDistrictLogo()),
                   acSig: toObjectUrl(academicSignature),
                   hmSig: toObjectUrl(headmasterSignature)
                 };
@@ -2891,11 +2928,11 @@ function AppInner() {
                   .header img { height:50px; margin-bottom:3px; }
                   @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
                 </style></head><body><div class="header">`);
-                if (logo) pw.document.write(`<img src="${logo}" />`);
+                pw.document.write(letterheadOpen(getDistrictLogo()));
                 pw.document.write(`<div style="font-size:14px;font-weight:bold;letter-spacing:1px">${localStorage.getItem('sms_district_name') || 'RUANGWA DISTRICT COUNCIL'}</div>
                   <div style="font-size:18px;font-weight:bold;letter-spacing:1px">${localStorage.getItem('sms_school_name_setting') || 'NAMBAWALA SECONDARY SCHOOL'}</div>
                   <div style="font-size:14px;font-weight:bold;text-decoration:underline">TEACHER'S TIMETABLE</div>
-                  <div style="font-size:13px;margin-top:4px">Teacher: <strong>${user?.name}</strong></div></div>`);
+                  <div style="font-size:13px;margin-top:4px">Teacher: <strong>${user?.name}</strong></div>${letterheadClose(logo)}</div>`);
                 pw.document.write(`<table><thead><tr><th>TIME</th>`);
                 ttDays.forEach((d: string) => pw.document.write(`<th>${d}</th>`));
                 pw.document.write(`</tr></thead><tbody>`);
@@ -3690,8 +3727,8 @@ function AppInner() {
                     const acSigP = localStorage.getItem('sms_academic_sig') || '';
                     const hmSigP = localStorage.getItem('sms_headmaster_sig') || '';
                     pw.document.write(`<!DOCTYPE html><html><head><title>\u00A0</title><style>@page{size:A4 portrait;margin:10mm 12mm 8mm 12mm;}*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,sans-serif;font-size:13px;color:#000;}table{width:100%;border-collapse:collapse;margin:6px 0;}th,td{border:1px solid #000;padding:5px 8px;font-size:12px;}th{background:#d4edda;font-size:12px;}.header{text-align:center;margin-bottom:8px;border-bottom:3px double #000;padding-bottom:6px;}.header img{height:55px;margin-bottom:3px;}.info-grid{display:grid;grid-template-columns:1fr 1fr;border:2px solid #000;margin-bottom:8px;font-size:13px;}.info-cell{padding:6px 10px;border:1px solid #000;}.grade-box{border:3px solid #000;padding:8px;text-align:center;margin:8px 0;background:#d4edda;border-radius:6px;}.comment-box{border:1px solid #000;padding:8px;border-radius:6px;margin-bottom:6px;}.comment-title{font-size:11px;font-weight:bold;text-decoration:underline;margin-bottom:3px;}.comment-text{font-size:11px;line-height:1.4;}.sig-row{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;}.sig-img{height:50px; max-width:170px; object-fit:contain; display:block;}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body><div class="header">`);
-                    if (logo) pw.document.write(`<img src="${logo}" />`);
-                    pw.document.write(`<div style="font-size:14px;font-weight:bold">${dist}</div><div style="font-size:20px;font-weight:bold;margin:2px 0">${schoolNameP}</div><div style="font-size:10px">${addr}</div><div style="font-size:15px;font-weight:bold;text-decoration:underline;margin-top:4px">RIPOTI YA MAENDELEO YA MWANAFUNZI</div><div style="font-size:12px;margin-top:2px">${ex.name}</div></div>`);
+                    pw.document.write(letterheadOpen(getDistrictLogo()));
+                    pw.document.write(`<div style="font-size:14px;font-weight:bold">${dist}</div><div style="font-size:20px;font-weight:bold;margin:2px 0">${schoolNameP}</div><div style="font-size:10px">${addr}</div><div style="font-size:15px;font-weight:bold;text-decoration:underline;margin-top:4px">RIPOTI YA MAENDELEO YA MWANAFUNZI</div><div style="font-size:12px;margin-top:2px">${ex.name}</div>${letterheadClose(logo)}</div>`);
                     pw.document.write(`<div class="info-grid"><div class="info-cell">Jina la Mwanafunzi: <strong>${parentStudentName}</strong></div><div class="info-cell">Darasa: <strong>${parentStudentClass}</strong></div><div class="info-cell">Daraja: <strong>${div}</strong> | Pointi: <strong>${totalPts}</strong></div><div class="info-cell">Nafasi: <strong>—</strong></div></div>`);
                     pw.document.write(`<table><thead><tr><th style="text-align:left">Somo</th><th>Alama</th><th>Gredi</th><th>Pointi</th><th>Maelezo</th></tr></thead><tbody>`);
                     examScoresAll.forEach((s: any) => {

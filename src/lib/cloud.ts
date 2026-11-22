@@ -635,7 +635,7 @@ const SYNC_KEYS = [
   'sms_behavior', 'sms_messages', 'sms_registered_students',
   'sms_school_name_setting', 'sms_district_name', 'sms_school_address',
   'sms_school_motto', 'sms_academic_name', 'sms_headmaster_name',
-  'sms_school_logo', 'sms_academic_sig', 'sms_headmaster_sig',
+  'sms_school_logo', 'sms_district_logo', 'sms_academic_sig', 'sms_headmaster_sig',
   'tt_timetableData', 'tt_teachers', 'tt_subjects', 'tt_rooms',
   'tt_classes', 'tt_classSubjects', 'tt_timeSlots', 'tt_days',
   'tt_shared_subjects', 'tt_shared_teachers', 'tt_shared_classes'
