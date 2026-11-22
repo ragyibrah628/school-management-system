@@ -35,7 +35,7 @@ import { offeredSubjectsForClass, submittedSubjectsForClass, upsertClassSubjectS
 
 // Permanent (default) subjects: cannot be deleted. The admin can only enable/disable them.
 // Disabled subjects are hidden from the system but ALL their data (scores, assignments) is kept.
-const DEFAULT_SCHOOL_SUBJECTS: string[] = ['Biology', 'Business studies', 'Chemistry', 'Computer Science', 'English', 'Geography', 'History', 'Kiswahili', 'Literature', 'Mathematics', 'Physics', 'historia ya tanzania na maadili'];
+const DEFAULT_SCHOOL_SUBJECTS: string[] = ['Biology', 'Business studies', 'Chemistry', 'Civics', 'Computer Science', 'English', 'Geography', 'History', 'Kiswahili', 'Literature', 'Mathematics', 'Physics', 'historia ya tanzania na maadili'];
 const DISABLED_SUBJECTS_KEY = 'sms_disabled_subjects';
 // Stored as {"disabled":[...]} (never an empty []/{} so cloud sync never treats "all enabled" as "no data")
 const readStoredDisabledSubjects = (): string[] | null => {
@@ -324,7 +324,7 @@ function AppInner() {
     if (!cls || !sub) return;
     setTeachingAssignments(prev => {
       const existing = prev[teacherId] || [];
-      if (existing.some(a => a.cls === cls && a.sub === sub)) return prev;
+      if (existing.some(a => a.cls === cls && a.sub.trim().toLowerCase() === sub.trim().toLowerCase())) return prev;
       return { ...prev, [teacherId]: [...existing, { cls, sub }] };
     });
   };
@@ -1138,11 +1138,7 @@ function AppInner() {
   const [disabledSubjects, setDisabledSubjects] = useState<string[]>(() => {
     const stored = readStoredDisabledSubjects();
     if (stored) return stored;
-    // First run: defaults the school does not currently have start unticked (nothing changes for the school today)
-    try {
-      const current = JSON.parse(localStorage.getItem('sms_school_subjects') || '[]');
-      if (Array.isArray(current) && current.length > 0) return DEFAULT_SCHOOL_SUBJECTS.filter(s => !current.includes(s));
-    } catch {}
+    // First run: every default subject is enabled.
     return [];
   });
   const disabledBootstrapped = useRef(false);
@@ -1196,7 +1192,57 @@ function AppInner() {
     if (schoolSubjects.some(s => disabledSubjects.includes(s))) {
       setSchoolSubjects(prev => prev.filter(s => !disabledSubjects.includes(s)));
     }
-  }, [schoolSubjects, disabledSubjects]);
+    const missing = DEFAULT_SCHOOL_SUBJECTS.filter(s => !disabledSubjects.includes(s) && !schoolSubjects.includes(s));
+    if (missing.length > 0) setSchoolSubjects(prev => [...new Set([...prev, ...missing])].sort());
+  }, [schoolSubjects, disabledSubjects, user]);
+
+  // Teacher "qualified subjects" may hold old spellings ("Business Studies" vs "Business studies") or removed subjects.
+  // Display-only helpers: nothing stored is changed.
+  const subjectKey = (name: string) => String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const canonicalSubject = (name: string): string | null => schoolSubjects.find(s => subjectKey(s) === subjectKey(name)) || null;
+  // unique (ignoring upper/lower case), shown with the school's official spelling when it exists
+  const uniqueSubjectNames = (subs: string[]): string[] => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const s of subs || []) {
+      const k = subjectKey(s);
+      if (!k || seen.has(k)) continue;
+      seen.add(k);
+      out.push(canonicalSubject(s) || s);
+    }
+    return out;
+  };
+  // only subjects that are currently active at the school (no duplicates, no disabled/removed ones)
+  const activeSubjectOptions = (subs: string[]): string[] =>
+    uniqueSubjectNames(subs).filter(s => !!canonicalSubject(s));
+
+  // Subjects that still have teacher assignments / marks saved but are not in the school's subject list.
+  const orphanSubjects = (() => {
+    const known = new Set([...schoolSubjects, ...DEFAULT_SCHOOL_SUBJECTS].map(s => subjectKey(s)));
+    const found = new Map<string, { name: string; assignments: number; marks: number }>();
+    const bump = (raw: any, field: 'assignments' | 'marks') => {
+      const name = String(raw || '').trim();
+      const k = subjectKey(name);
+      if (!k || known.has(k)) return;
+      const row = found.get(k) || { name, assignments: 0, marks: 0 };
+      row[field] += 1;
+      found.set(k, row);
+    };
+    Object.values(teachingAssignments || {}).forEach((list: any) => (Array.isArray(list) ? list : []).forEach((x: any) => bump(x?.sub, 'assignments')));
+    (Array.isArray(scores) ? scores : []).forEach((x: any) => bump(x?.subject, 'marks'));
+    return [...found.values()].sort((x, y) => x.name.localeCompare(y.name));
+  })();
+  const restoreOrphanSubject = (name: string) => {
+    const suggested = name.replace(/[^A-Za-z0-9]/g, '').substring(0, 4).toUpperCase();
+    const input = window.prompt(`Add "${name}" back as a school subject. Code (2-6 letters/numbers):`, suggested);
+    if (input === null) return;
+    const code = input.trim().toUpperCase().replace(/\s+/g, '');
+    if (!/^[A-Z0-9]{2,6}$/.test(code)) { alert('Code must be 2-6 letters/numbers'); return; }
+    const clash = Object.entries(schoolSubjectCodes).find(([s, c]) => s !== name && String(c).toUpperCase() === code && schoolSubjects.includes(s));
+    if (clash) { alert(`Code ${code} is already used by "${clash[0]}".`); return; }
+    setSchoolSubjects(prev => prev.includes(name) ? prev : [...prev, name].sort());
+    setSchoolSubjectCodes(prev => ({ ...prev, [name]: code }));
+  };
 
   const toggleDefaultSubject = (name: string) => {
     if (!DEFAULT_SCHOOL_SUBJECTS.includes(name)) return;
@@ -1869,6 +1915,20 @@ function AppInner() {
               ))}
             </div>
             {customSubjects.length === 0 && <p className="text-xs text-slate-400">No added subjects yet.</p>}
+            {orphanSubjects.length > 0 && (
+              <div className="mt-5 p-3 rounded-xl border border-amber-300 bg-amber-50">
+                <p className="text-xs font-semibold text-amber-800 mb-2">Subjects with saved data that are not in the subject list:</p>
+                <div className="flex flex-wrap gap-2">
+                  {orphanSubjects.map(o => (
+                    <span key={o.name} className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs">
+                      <b>{o.name}</b> <span className="text-slate-500">{o.assignments} assignment(s), {o.marks} mark(s)</span>
+                      <button type="button" onClick={() => restoreOrphanSubject(o.name)} className="text-indigo-600 font-bold hover:underline">Add back</button>
+                    </span>
+                  ))}
+                </div>
+                <p className="text-[11px] text-amber-700 mt-2">"Add back" restores the subject with all its existing assignments and marks.</p>
+              </div>
+            )}
           </div>
           </>)}
 
@@ -1964,7 +2024,7 @@ function AppInner() {
                     <div>
                       <p className="font-semibold">{t.name}</p>
                       <p className="text-xs text-slate-500">Username: {t.username}{assignedClass ? ` | Class Teacher: ${assignedClass}` : ''}</p>
-                      <p className="text-xs text-slate-500">Subjects: {(t.subjects||[]).join(', ')||'None'}</p>
+                      <p className="text-xs text-slate-500">Subjects: {uniqueSubjectNames(t.subjects || []).join(', ')||'None'}</p>
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => isEditing ? setEditingTeacherId(null) : startEditSubjects(t)} className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-semibold border border-indigo-200">
@@ -2037,7 +2097,7 @@ function AppInner() {
                 return (
                   <div key={t.id} className="border rounded-xl p-4 mb-3">
                     <p className="font-bold text-sm">{t.name}</p>
-                    <p className="text-xs text-slate-500 mb-2">Qualified: {(t.subjects || []).join(', ') || 'None'}</p>
+                    <p className="text-xs text-slate-500 mb-2">Qualified: {uniqueSubjectNames(t.subjects || []).join(', ') || 'None'}</p>
 
                     {/* Current assignments */}
                     {assignments.length > 0 && (
@@ -2059,7 +2119,7 @@ function AppInner() {
                       </select>
                       <select id={`sub-${t.id}`} className="border px-2 py-1.5 rounded-lg text-xs flex-1">
                         <option value="">Subject...</option>
-                        {(t.subjects || []).filter((s: string) => !disabledSubjects.includes(s)).map((s: string) => <option key={s}>{s}</option>)}
+                        {activeSubjectOptions(t.subjects || []).map((s: string) => <option key={s}>{s}</option>)}
                       </select>
                       <button onClick={() => {
                         const clsEl = document.getElementById(`cls-${t.id}`) as HTMLSelectElement;
