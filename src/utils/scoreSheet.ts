@@ -12,6 +12,7 @@ export interface ScoreSheetData {
   schoolName: string;
   councilName: string;
   schoolLogo: string;
+  districtLogo?: string;
   className: string;
   subject: string;
   examName: string;
@@ -97,6 +98,7 @@ const scoreSheetStyles = `
   .score-sheet:last-child { break-after: auto; page-break-after: auto; }
   .sheet-header { display: grid; grid-template-columns: 19mm minmax(0, 1fr) 19mm; align-items: center; border-bottom: 1px solid #222; padding-bottom: 2mm; margin-bottom: 2mm; text-align: center; }
   .school-logo { width: 18mm; height: 18mm; object-fit: contain; justify-self: start; }
+  .school-logo-right { justify-self: end; }
   .header-spacer { width: 19mm; }
   .council { font-size: 8pt; margin: 0 0 1mm; }
   .school-name { font-size: 13pt; font-weight: 700; text-transform: uppercase; margin: 0 0 1mm; }
@@ -167,8 +169,12 @@ function renderScoreSheetMarkup(data: ScoreSheetData): string {
     grades[grade] += 1;
   }
 
-  const logo = data.schoolLogo
-    ? `<img class="school-logo" src="${escapeHtml(data.schoolLogo)}" alt="School logo">`
+  // District Council logo on the LEFT, school logo on the RIGHT
+  const districtLogoHtml = data.districtLogo
+    ? `<img class="school-logo" src="${escapeHtml(data.districtLogo)}" alt="District Council logo">`
+    : '<span class="header-spacer" aria-hidden="true"></span>';
+  const schoolLogoHtml = data.schoolLogo
+    ? `<img class="school-logo school-logo-right" src="${escapeHtml(data.schoolLogo)}" alt="School logo">`
     : '<span class="header-spacer" aria-hidden="true"></span>';
   const rows = data.students.map((student, index) => {
     const hasMark = student.score !== null && Number.isFinite(student.score);
@@ -199,9 +205,9 @@ function renderScoreSheetMarkup(data: ScoreSheetData): string {
 
   return `<main class="score-sheet">
   <header class="sheet-header">
-    ${logo}
+    ${districtLogoHtml}
     <div><p class="council">${escapeHtml(data.councilName)}</p><p class="school-name">${escapeHtml(data.schoolName)}</p><h1>${escapeHtml(data.className)} ${escapeHtml(data.subject)} Score Sheet</h1><p class="exam-line">${escapeHtml(data.examName)} | ${escapeHtml(data.term)} | ${escapeHtml(data.academicYear)}</p></div>
-    <span class="header-spacer" aria-hidden="true"></span>
+    ${schoolLogoHtml}
   </header>
   <div class="details"><span>Subject teacher: ${escapeHtml(data.teacherName)}</span><span>Date printed: ${escapeHtml(data.printedAt)}</span><span>Students: ${data.students.length}</span></div>
   <table>

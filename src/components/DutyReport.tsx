@@ -8,6 +8,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import * as cloud from '../lib/cloud';
+import { getDistrictLogo, letterheadOpen, letterheadClose } from '../utils/letterhead';
 
 function getSchoolLogo(): string {
   return localStorage.getItem('sms_school_logo') || '';
@@ -443,16 +444,20 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
   };
 
   const logo = getSchoolLogo();
+  const districtLogo = getDistrictLogo();
 
   return (
     <div className="space-y-6">
       <div className="bg-white p-6 rounded-2xl border">
-        <div className="text-center mb-4 border-b pb-4">
-          {logo && <img src={logo} alt="Logo" className="h-14 mx-auto mb-2" />}
+        <div className="mb-4 border-b pb-4 flex items-center justify-between gap-3">
+          <div className="w-16 h-16 flex items-center justify-center shrink-0">{districtLogo && <img src={districtLogo} alt="District Council Logo" style={{ maxHeight: 64, maxWidth: 64 }} className="object-contain" />}</div>
+          <div className="text-center flex-1 min-w-0">
           <p className="text-xs text-slate-500 uppercase font-semibold">{getDistrictName()}</p>
           <h2 className="font-bold text-lg">{getSchoolName()}</h2>
           <h3 className="font-bold">TEACHER'S DUTY REPORT</h3>
           {lastSync && <p className="text-[11px] text-emerald-600 mt-1">🔄 Registered synced from cloud at {lastSync} — {schoolClasses.length} classes (kama admin alivyosajili) — auto-updates every 30s</p>}
+          </div>
+          <div className="w-16 h-16 flex items-center justify-center shrink-0">{logo && <img src={logo} alt="School Logo" style={{ maxHeight: 64, maxWidth: 64 }} className="object-contain" />}</div>
         </div>
         <div className="flex justify-between items-center mb-4">
           <div className="text-sm"><span className="font-semibold">TEACHER ON DUTY:</span> {teacherName}</div>
@@ -496,12 +501,15 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
       </div>
 
       <div className="bg-white p-6 rounded-2xl border">
-        <div className="text-center mb-4 border-b pb-4">
-          {logo && <img src={logo} alt="Logo" className="h-14 mx-auto mb-2" />}
+        <div className="mb-4 border-b pb-4 flex items-center justify-between gap-3">
+          <div className="w-16 h-16 flex items-center justify-center shrink-0">{districtLogo && <img src={districtLogo} alt="District Council Logo" style={{ maxHeight: 64, maxWidth: 64 }} className="object-contain" />}</div>
+          <div className="text-center flex-1 min-w-0">
           <p className="text-xs text-slate-500 uppercase font-semibold">{getDistrictName()}</p>
           <h2 className="font-bold text-lg">{getSchoolName()}</h2>
           <h3 className="font-bold">TEACHER'S DUTY REPORT</h3>
           <p className="text-sm mt-1">STUDENTS ATTENDANCE ON <strong>{date}</strong> • {schoolClasses.length} classes</p>
+          </div>
+          <div className="w-16 h-16 flex items-center justify-center shrink-0">{logo && <img src={logo} alt="School Logo" style={{ maxHeight: 64, maxWidth: 64 }} className="object-contain" />}</div>
         </div>
 
         <div className="overflow-x-auto">
@@ -678,10 +686,10 @@ export function DutyReportPrint({ report, onClose }: { report: any; onClose: () 
   }
 </style></head><body>`);
     printWindow.document.write(`<div class="header">`);
-    if (logo) printWindow.document.write(`<img src="${logo}" alt="Logo" />`);
+    printWindow.document.write(letterheadOpen(getDistrictLogo()));
     printWindow.document.write(`<div class="council">${getDistrictName()}</div>
       <div class="school">${getSchoolName()}</div>
-      <div class="title">TEACHER'S DUTY REPORT</div></div>
+      <div class="title">TEACHER'S DUTY REPORT</div>${letterheadClose(logo)}</div>
       <div class="meta"><span>TEACHER ON DUTY: <strong>${report.teacher_name}</strong></span>
       <span>DATE: <strong>${report.date}</strong></span></div>`);
     REPORT_SECTIONS.forEach(s => {
