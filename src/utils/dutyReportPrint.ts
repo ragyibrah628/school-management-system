@@ -66,6 +66,9 @@ export function createDutyReportHtml(report: any, o: DutyPrintOptions): string {
   .header { text-align: center; padding-bottom: 0.45em; border-bottom: 3px double #1f3a5f; }
   .header .council { font-size: 1.1em; font-weight: bold; letter-spacing: 0.08em; color: #333; }
   .header .school { font-size: 1.55em; font-weight: bold; letter-spacing: 0.06em; color: #1f3a5f; margin-top: 0.1em; }
+  /* larger logos for this document only (they scale with the page font) */
+  .header .lh-side { width: 6.8em; height: 5.8em; }
+  .header .lh-side img { max-width: 6.8em !important; max-height: 5.8em !important; }
   .title-bar { background: #1f3a5f; color: #fff; text-align: center; font-weight: bold; font-size: 1.25em; letter-spacing: 0.14em; padding: 0.3em 0.5em; border-radius: 0.2em; }
   .meta { display: flex; justify-content: space-between; align-items: center; font-size: 1.05em; background: #eef2f7; border-left: 0.3em solid #1f3a5f; padding: 0.4em 0.7em; }
   .sections { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; border: 1px solid #7b8794; }
