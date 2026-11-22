@@ -8,7 +8,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import * as cloud from '../lib/cloud';
-import { getDistrictLogo, letterheadOpen, letterheadClose } from '../utils/letterhead';
+import { getDistrictLogo } from '../utils/letterhead';
+import { createDutyReportHtml } from '../utils/dutyReportPrint';
 
 function getSchoolLogo(): string {
   return localStorage.getItem('sms_school_logo') || '';
@@ -589,7 +590,7 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
 
         <div className="mt-4 p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
           <p className="font-bold text-sm">PERCENTAGE OF ATTENDANCE: <span className="text-indigo-700 text-lg">{percentage}%</span></p>
-          <p className="text-xs text-slate-500">(Present / Total) × 100 = ({totalPres} / {totalReg}) × 100</p>
+          <p className="text-xs text-slate-500">(Present ÷ Registered) × 100 = ({totalPres} ÷ {totalReg}) × 100</p>
         </div>
 
         <div className="mt-4 space-y-2">
@@ -653,82 +654,14 @@ export function DutyReportPrint({ report, onClose }: { report: any; onClose: () 
   const handlePrint = () => {
     const printWindow = window.open('', '', 'width=800,height=1000');
     if (!printWindow) { window.print(); return; }
-    printWindow.document.write(`<!DOCTYPE html><html><head><title> </title>
-<style>
-  @page { size: A4 portrait; margin: 10mm 12mm 6mm 12mm; }
-  @page { @top-left { content: ''; } @top-right { content: ''; } @bottom-left { content: ''; } @bottom-right { content: ''; } }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Times New Roman', Times, serif; color: #000; background: #fff; font-size: 12px; line-height: 1.4; }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { border: 1px solid #000; padding: 3px 2px; text-align: center; font-size: 11px; }
-  .total-row td { border: 2px solid #000; font-weight: bold; font-size: 11px; }
-  .header { text-align: center; margin-bottom: 6px; }
-  .header img { height: 60px; margin-bottom: 3px; }
-  .header .council { font-size: 14px; font-weight: bold; letter-spacing: 1px; }
-  .header .school { font-size: 17px; font-weight: bold; letter-spacing: 1px; margin: 2px 0; }
-  .header .title { font-size: 15px; font-weight: bold; text-decoration: underline; }
-  .meta { display: flex; justify-content: space-between; font-size: 12px; border-bottom: 1.5px solid #000; padding-bottom: 5px; margin-bottom: 8px; }
-  .section { margin-bottom: 6px; display: flex; gap: 6px; align-items: baseline; }
-  .section-title { font-size: 12px; font-weight: bold; white-space: nowrap; min-width: 180px; }
-  .section-text { font-size: 12px; border-bottom: 1px dotted #666; flex: 1; padding-bottom: 2px; line-height: 1.5; }
-  .att-title { font-size: 12px; font-weight: bold; text-align: center; margin: 10px 0 6px; text-decoration: underline; }
-  .pct-box { border: 1.5px solid #000; padding: 5px 10px; margin: 8px 0; font-size: 12px; font-weight: bold; }
-  .pct-value { font-size: 15px; }
-  .comment-block { margin-bottom: 10px; }
-  .comment-title { font-size: 12px; font-weight: bold; margin-bottom: 3px; }
-  .comment-text { font-size: 12px; border-bottom: 1px dotted #444; padding-bottom: 4px; min-height: 24px; line-height: 1.5; }
-  .sig-row { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; }
-  .sig-name { font-weight: bold; border-bottom: 1px dotted #000; padding: 0 8px 2px; }
-  .divider { border-top: 1.5px solid #aaa; padding-top: 8px; margin-top: 4px; }
-  @media print {
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    @page { margin-top: 5mm; margin-bottom: 5mm; }
-  }
-</style></head><body>`);
-    printWindow.document.write(`<div class="header">`);
-    printWindow.document.write(letterheadOpen(getDistrictLogo()));
-    printWindow.document.write(`<div class="council">${getDistrictName()}</div>
-      <div class="school">${getSchoolName()}</div>
-      <div class="title">TEACHER'S DUTY REPORT</div>${letterheadClose(logo)}</div>
-      <div class="meta"><span>TEACHER ON DUTY: <strong>${report.teacher_name}</strong></span>
-      <span>DATE: <strong>${report.date}</strong></span></div>`);
-    REPORT_SECTIONS.forEach(s => {
-      const val = sections[s.id] || '.............................................................................................';
-      printWindow.document.write(`<div class="section"><div class="section-title">${s.label}</div><div class="section-text">${val}</div></div>`);
-    });
-    printWindow.document.write(`<div class="att-title">STUDENTS ATTENDANCE ON ${report.date}</div>`);
-    printWindow.document.write(`<table><thead><tr>
-      <th rowspan="2" style="font-size:9px;padding:3px">CLASS</th><th colspan="3" style="font-size:9px">REGISTERED</th><th colspan="3" style="font-size:9px">PRESENTS</th>
-      <th colspan="3" style="font-size:9px">ABSENTS</th><th colspan="3" style="font-size:9px">SICK</th><th colspan="3" style="font-size:9px">PERMITTED</th><th rowspan="2" style="font-size:9px">TOTAL</th></tr>
-      <tr>${['B','G','T','B','G','T','B','G','T','B','G','T','B','G','T'].map(h => `<th style="font-size:9px">${h}</th>`).join('')}</tr></thead><tbody>`);
-    att.forEach((r: any) => {
-      printWindow.document.write(`<tr>
-        <td style="font-weight:bold;font-size:9px">${r.className}</td>
-        <td>${r.regB}</td><td>${r.regG}</td><td style="font-weight:bold">${r.regB+r.regG}</td>
-        <td>${r.presB}</td><td>${r.presG}</td><td style="font-weight:bold">${r.presB+r.presG}</td>
-        <td>${r.absB}</td><td>${r.absG}</td><td style="font-weight:bold">${r.absB+r.absG}</td>
-        <td>${r.sickB}</td><td>${r.sickG}</td><td style="font-weight:bold">${r.sickB+r.sickG}</td>
-        <td>${r.permB}</td><td>${r.permG}</td><td style="font-weight:bold">${r.permB+r.permG}</td>
-        <td style="font-weight:bold">${r.regB+r.regG}</td></tr>`);
-    });
-    printWindow.document.write(`<tr class="total-row">
-      <td>TOTAL</td>
-      <td>${totals.regB}</td><td>${totals.regG}</td><td>${totalReg}</td>
-      <td>${totals.presB}</td><td>${totals.presG}</td><td>${totalPres}</td>
-      <td>${totals.absB}</td><td>${totals.absG}</td><td>${totals.absB+totals.absG}</td>
-      <td>${totals.sickB}</td><td>${totals.sickG}</td><td>${totals.sickB+totals.sickG}</td>
-      <td>${totals.permB}</td><td>${totals.permG}</td><td>${totals.permB+totals.permG}</td>
-      <td>${totalReg}</td></tr></tbody></table>`);
-    printWindow.document.write(`<div class="pct-box">PERCENTAGE OF ATTENDANCE: PRESENT / TOTAL × 100 = <span class="pct-value">${pct}%</span></div>`);
-    printWindow.document.write(`<div class="comment-block">
-      <div class="comment-title">T.O.D'S COMMENT(S):</div>
-      <div class="comment-text">${report.tod_comment || '.....................................................................................................................'}</div>
-      <div class="sig-row"><span>NAME: <span class="sig-name">${report.tod_name || ''}</span></span><span>SIGNATURE: ____________________________</span></div></div>`);
-    printWindow.document.write(`<div class="comment-block divider">
-      <div class="comment-title">HEADMASTER'S COMMENT(S):</div>
-      <div class="comment-text">${report.headmaster_comment || '.....................................................................................................................'}</div>
-      <div class="sig-row"><span>NAME: <span class="sig-name">${report.headmaster_name || ''}</span></span><span>SIGNATURE: ____________________________</span></div></div>`);
-    printWindow.document.write(`<div style="text-align:center;margin-top:15px;font-size:10px;color:#555;font-style:italic;border-top:1px solid #ccc;padding-top:6px">${getSchoolName()}: ${localStorage.getItem('sms_school_motto') || 'Honor All Build Together'}</div></body></html>`);
+    printWindow.document.write(createDutyReportHtml(report, {
+      districtName: getDistrictName(),
+      schoolName: getSchoolName(),
+      motto: localStorage.getItem('sms_school_motto') || 'Honor All Build Together',
+      schoolLogo: logo,
+      districtLogo: getDistrictLogo(),
+      sections: REPORT_SECTIONS,
+    }));
     printWindow.document.close();
     setTimeout(() => { printWindow.focus(); printWindow.print(); }, 500);
   };
