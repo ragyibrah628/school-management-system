@@ -878,6 +878,7 @@ export const TimetableViewer: React.FC = () => {
                       try {
                         const subs = JSON.parse(localStorage.getItem('sms_school_subjects')||'[]');
                         if (subs.includes(name.trim())) { alert('Subject already exists'); return; }
+                        try { const dis = JSON.parse(localStorage.getItem('sms_disabled_subjects')||'{}'); const dl = Array.isArray(dis) ? dis : (dis.disabled||[]); if (dl.includes(name.trim())) { alert('This subject exists but is disabled. Admin: tick it in Subjects to enable it.'); return; } } catch {}
                         const codes = JSON.parse(localStorage.getItem('sms_subject_codes')||'{}');
                         if (Object.values(codes).includes(c)) { alert('Code already exists'); return; }
                         const nextSubs = [...subs, name.trim()].sort();

@@ -630,7 +630,7 @@ export async function releaseTerm(term: string, adminName: string) {
 // ==================== APP DATA SYNC (Timetable, Settings, etc.) ====================
 
 const SYNC_KEYS = [
-  'sms_school_subjects', 'sms_school_classes',
+  'sms_school_subjects', 'sms_disabled_subjects', 'sms_school_classes',
   'sms_students', 'sms_exams', 'sms_exam_submissions',
   'sms_behavior', 'sms_messages', 'sms_registered_students',
   'sms_school_name_setting', 'sms_district_name', 'sms_school_address',

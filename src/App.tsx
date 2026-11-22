@@ -33,6 +33,21 @@ import { classLevel, isPracticalSubject, practicalFinalPercentage, practicalMode
 import { hasUnsavedExamScoreChanges, subjectsForClass } from './utils/teachingAssignments';
 import { offeredSubjectsForClass, submittedSubjectsForClass, upsertClassSubjectSubmission, type ExamSubjectSubmission } from './utils/resultSubmissions';
 
+// Permanent (default) subjects: cannot be deleted. The admin can only enable/disable them.
+// Disabled subjects are hidden from the system but ALL their data (scores, assignments) is kept.
+const DEFAULT_SCHOOL_SUBJECTS: string[] = ['Mathematics', 'English', 'Biology', 'Physics', 'Chemistry', 'History', 'Geography', 'Computer Science', 'Literature', 'Kiswahili', 'Civics', 'Book Keeping', 'Commerce', 'Bible Knowledge'];
+const DISABLED_SUBJECTS_KEY = 'sms_disabled_subjects';
+// Stored as {"disabled":[...]} (never an empty []/{} so cloud sync never treats "all enabled" as "no data")
+const readStoredDisabledSubjects = (): string[] | null => {
+  try {
+    const raw = localStorage.getItem(DISABLED_SUBJECTS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const list = Array.isArray(parsed) ? parsed : parsed?.disabled;
+    return Array.isArray(list) ? list.filter((s: any) => typeof s === 'string' && DEFAULT_SCHOOL_SUBJECTS.includes(s)) : [];
+  } catch { return []; }
+};
+
 // Safe image component that won't crash
 function SafeImg({ src, alt, className }: { src: string; alt: string; className?: string }) {
   if (!src) return null;
@@ -328,7 +343,7 @@ function AppInner() {
 
   // Get subjects this teacher teaches in a specific class
   const getTeacherSubjectsForClass = (teacherId: string, cls: string): string[] => {
-    return subjectsForClass(teachingAssignments[teacherId] || [], cls);
+    return subjectsForClass(teachingAssignments[teacherId] || [], cls).filter(s => !disabledSubjects.includes(s));
   };
 
   const assignClassTeacher = (className: string, teacherId: string) => {
@@ -692,6 +707,10 @@ function AppInner() {
         try {
           const freshSubjects = JSON.parse(localStorage.getItem('sms_school_subjects') || '[]');
           if (freshSubjects.length) setSchoolSubjects(prev => JSON.stringify(prev) !== JSON.stringify(freshSubjects) ? freshSubjects : prev);
+        } catch {}
+        try {
+          const freshDisabled = readStoredDisabledSubjects();
+          if (freshDisabled) setDisabledSubjects(prev => JSON.stringify(prev) !== JSON.stringify(freshDisabled) ? freshDisabled : prev);
         } catch {}
         try {
           const freshClasses = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
@@ -1090,6 +1109,82 @@ function AppInner() {
   }, [schoolSubjectCodes, schoolSubjects]);
   const getSubjectCode = (name: string) => schoolSubjectCodes[name] || name.substring(0,4).toUpperCase().replace(' ','');
   const ALL_SUBJECTS = schoolSubjects;
+
+  // ---- Default subject enable/disable (tick) ----
+  const [disabledSubjects, setDisabledSubjects] = useState<string[]>(() => {
+    const stored = readStoredDisabledSubjects();
+    if (stored) return stored;
+    // First run: defaults the school does not currently have start unticked (nothing changes for the school today)
+    try {
+      const current = JSON.parse(localStorage.getItem('sms_school_subjects') || '[]');
+      if (Array.isArray(current) && current.length > 0) return DEFAULT_SCHOOL_SUBJECTS.filter(s => !current.includes(s));
+    } catch {}
+    return [];
+  });
+  const disabledBootstrapped = useRef(false);
+  const isSubjectDisabled = (name: string) => disabledSubjects.includes(name);
+  const customSubjects = schoolSubjects.filter(s => !DEFAULT_SCHOOL_SUBJECTS.includes(s));
+
+  // Admin: pick up the value already in the cloud (if any), otherwise save the first-run value.
+  useEffect(() => {
+    if (user?.role !== 'admin' || disabledBootstrapped.current) return;
+    disabledBootstrapped.current = true;
+    (async () => {
+      try {
+        if (localStorage.getItem(DISABLED_SUBJECTS_KEY) === null && cloud.isCloudMode()) {
+          await cloud.refreshAppDataKey(DISABLED_SUBJECTS_KEY, true);
+        }
+      } catch {}
+      const stored = readStoredDisabledSubjects();
+      if (stored) {
+        setDisabledSubjects(prev => JSON.stringify(prev) !== JSON.stringify(stored) ? stored : prev);
+      } else {
+        const value = JSON.stringify({ disabled: disabledSubjects });
+        localStorage.setItem(DISABLED_SUBJECTS_KEY, value);
+        if (cloud.isCloudMode()) {
+          cloud.markAppDataKeyDirty(DISABLED_SUBJECTS_KEY, value);
+          cloud.syncToCloud().catch(error => console.error('Disabled subjects sync failed:', error));
+        }
+      }
+    })();
+  }, [user]);
+
+  // Admin: save changes of the disabled list.
+  useEffect(() => {
+    if (user?.role !== 'admin' || !disabledBootstrapped.current) return;
+    const value = JSON.stringify({ disabled: disabledSubjects });
+    const previous = localStorage.getItem(DISABLED_SUBJECTS_KEY);
+    if (previous === null) return; // bootstrap effect saves the first value
+    let previousList: string[] = [];
+    try { const p = JSON.parse(previous); previousList = (Array.isArray(p) ? p : p?.disabled) || []; } catch {}
+    if (JSON.stringify(previousList) === JSON.stringify(disabledSubjects)) return;
+    localStorage.setItem(DISABLED_SUBJECTS_KEY, value);
+    if (cloud.isCloudMode()) {
+      cloud.markAppDataKeyDirty(DISABLED_SUBJECTS_KEY, value);
+      const t = setTimeout(() => { cloud.syncToCloud().catch(error => console.error('Disabled subjects sync failed:', error)); }, 400);
+      return () => clearTimeout(t);
+    }
+  }, [disabledSubjects]);
+
+  // Admin: a disabled default subject must never sit in the active list (e.g. re-created from the timetable).
+  useEffect(() => {
+    if (user?.role !== 'admin') return;
+    if (schoolSubjects.some(s => disabledSubjects.includes(s))) {
+      setSchoolSubjects(prev => prev.filter(s => !disabledSubjects.includes(s)));
+    }
+  }, [schoolSubjects, disabledSubjects]);
+
+  const toggleDefaultSubject = (name: string) => {
+    if (!DEFAULT_SCHOOL_SUBJECTS.includes(name)) return;
+    if (disabledSubjects.includes(name)) {
+      setDisabledSubjects(prev => prev.filter(s => s !== name));
+      setSchoolSubjects(prev => prev.includes(name) ? prev : [...prev, name].sort());
+    } else {
+      if (!window.confirm(`Disable "${name}"? It will be hidden from timetable, teacher assignments and results. No data is deleted — enabling it again brings everything back.`)) return;
+      setDisabledSubjects(prev => prev.includes(name) ? prev : [...prev, name]);
+      setSchoolSubjects(prev => prev.filter(s => s !== name));
+    }
+  };
   const [newSubjectName, setNewSubjectName] = useState('');
   const [newSubjectCode, setNewSubjectCode] = useState('');
 
@@ -1098,6 +1193,7 @@ function AppInner() {
     const name = newSubjectName.trim();
     const code = newSubjectCode.trim().toUpperCase().replace(/\s+/g,'');
     if (schoolSubjects.includes(name)) { alert('Subject already exists'); return; }
+    if (DEFAULT_SCHOOL_SUBJECTS.includes(name) || disabledSubjects.includes(name)) { alert('This is a default subject. Tick it in the Default Subjects list instead.'); return; }
     if (Object.values(schoolSubjectCodes).includes(code)) { alert('Code already exists'); return; }
     if (code.length < 2 || code.length > 6) { alert('Code must be 2-6 letters (e.g., MATH, BIO, KISW)'); return; }
     setSchoolSubjects(prev => [...prev, name].sort());
@@ -1107,6 +1203,7 @@ function AppInner() {
   };
 
   const removeSchoolSubject = (sub: string) => {
+    if (DEFAULT_SCHOOL_SUBJECTS.includes(sub)) { alert('Default subjects cannot be deleted. Untick it to hide it instead.'); return; }
     setSchoolSubjects(prev => prev.filter(s => s !== sub));
     setSchoolSubjectCodes(prev => { const n={...prev}; delete n[sub]; return n; });
   };
@@ -1715,22 +1812,37 @@ function AppInner() {
           {/* Subject Management */}
           {activeMenu === 'subjects' && (<>
           <div className="bg-white p-6 rounded-2xl border">
-            <h2 className="font-bold text-lg mb-2">School Subjects ({schoolSubjects.length})</h2>
-            <p className="text-xs text-slate-500 mb-3">Add subjects with code (e.g., Mathematics — <b>MATH</b>). Code appears on timetable & general results instead of full name. These appear in timetable, teacher assignments, and student registration.</p>
+            <h2 className="font-bold text-lg mb-2">School Subjects ({schoolSubjects.length} active)</h2>
+            <p className="text-xs text-slate-500 mb-3">Tick the default subjects that exist at your school. Unticking a subject only hides it (timetable, teacher assignments, student registration, results) — <b>no data is deleted</b>, and ticking it again brings back all scores and assignments. Default subjects cannot be deleted.</p>
+            <h3 className="font-semibold text-sm mb-2">Default Subjects</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 mb-5">
+              {DEFAULT_SCHOOL_SUBJECTS.map(sub => {
+                const enabled = !disabledSubjects.includes(sub);
+                return (
+                  <label key={sub} className={`flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer text-sm font-semibold ${enabled ? 'bg-indigo-50 border-indigo-300 text-indigo-800' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                    <input type="checkbox" checked={enabled} onChange={() => toggleDefaultSubject(sub)} className="w-4 h-4 accent-indigo-600" />
+                    <span className="bg-white px-1.5 py-0.5 rounded font-mono text-[11px] border">{getSubjectCode(sub)}</span>
+                    <span className={enabled ? '' : 'line-through'}>{sub}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <h3 className="font-semibold text-sm mb-1">Add Another Subject</h3>
+            <p className="text-xs text-slate-500 mb-2">Add subjects with code (e.g., Agriculture — <b>AGRI</b>). Only subjects added here can be deleted.</p>
             <div className="flex gap-2 mb-3">
-              <input placeholder="Subject name (e.g. Mathematics)" value={newSubjectName} onChange={e => setNewSubjectName(e.target.value)} className="flex-1 border px-3 py-2 rounded-xl text-sm" />
-              <input placeholder="Code (e.g. MATH)" value={newSubjectCode} onChange={e => setNewSubjectCode(e.target.value.toUpperCase())} className="w-28 border px-3 py-2 rounded-xl text-sm font-mono font-bold" maxLength={6} />
+              <input placeholder="Subject name (e.g. Agriculture)" value={newSubjectName} onChange={e => setNewSubjectName(e.target.value)} className="flex-1 border px-3 py-2 rounded-xl text-sm" />
+              <input placeholder="Code (e.g. AGRI)" value={newSubjectCode} onChange={e => setNewSubjectCode(e.target.value.toUpperCase())} className="w-28 border px-3 py-2 rounded-xl text-sm font-mono font-bold" maxLength={6} />
               <button onClick={addSchoolSubject} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">+ Add</button>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {schoolSubjects.map(sub => (
-                <span key={sub} className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-100 text-indigo-800 rounded-lg text-xs font-semibold border">
+              {customSubjects.map(sub => (
+                <span key={sub} className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold border">
                   <span className="bg-white px-1.5 py-0.5 rounded font-mono text-[11px] border">{getSubjectCode(sub)}</span> {sub}
-                  <button onClick={() => removeSchoolSubject(sub)} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
+                  <button onClick={() => { if (window.confirm(`Delete "${sub}"? Added subjects are removed from the list.`)) removeSchoolSubject(sub); }} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
                 </span>
               ))}
             </div>
-            {schoolSubjects.length===0 && <p className="text-xs text-amber-600 mt-2">No subjects yet — add at least one with code.</p>}
+            {customSubjects.length === 0 && <p className="text-xs text-slate-400">No added subjects yet.</p>}
           </div>
           </>)}
 
@@ -1921,7 +2033,7 @@ function AppInner() {
                       </select>
                       <select id={`sub-${t.id}`} className="border px-2 py-1.5 rounded-lg text-xs flex-1">
                         <option value="">Subject...</option>
-                        {(t.subjects || []).map((s: string) => <option key={s}>{s}</option>)}
+                        {(t.subjects || []).filter((s: string) => !disabledSubjects.includes(s)).map((s: string) => <option key={s}>{s}</option>)}
                       </select>
                       <button onClick={() => {
                         const clsEl = document.getElementById(`cls-${t.id}`) as HTMLSelectElement;
@@ -2041,7 +2153,7 @@ function AppInner() {
                     submittedSubjectsForClass(viewExamId, cls, scores, examSubmissions)
                   ))];
                   const offeredSubjects = [...new Set(classesInScope.flatMap(cls =>
-                    offeredSubjectsForClass(cls, teachingAssignments)
+                    offeredSubjectsForClass(cls, teachingAssignments).filter(s => !disabledSubjects.includes(s))
                   ))];
                   const canApprove = offeredSubjects.length > 0 && submittedSubjects.length >= offeredSubjects.length;
                   const subjectsRemaining = Math.max(0, offeredSubjects.length - submittedSubjects.length);
@@ -2083,7 +2195,7 @@ function AppInner() {
                 cls,
                 submittedSubjectsForClass(viewExamId, cls, filtered, examSubmissions)
               ]));
-              const allSubjects = [...new Set([...submittedByClass.values()].flat())].sort();
+              const allSubjects = [...new Set([...submittedByClass.values()].flat())].filter(s => !disabledSubjects.includes(s)).sort();
               const selectedClassSubmittedSubjects = CLASSES.includes(viewClass)
                 ? submittedByClass.get(viewClass) || []
                 : [];
@@ -3387,7 +3499,8 @@ function AppInner() {
                     s.exam_id === selectedParentExam &&
                     s.student_name === parentStudentName &&
                     s.class_name === parentStudentClass &&
-                    classSubmittedSubjects.has(s.subject)
+                    classSubmittedSubjects.has(s.subject) &&
+                    !disabledSubjects.includes(s.subject)
                   );
                   if (examScoresAll.length === 0) return <p className="text-sm text-slate-500">No results found for this exam.</p>;
 
