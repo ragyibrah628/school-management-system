@@ -1974,6 +1974,7 @@ function AppInner() {
                 <span key={cls} className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold">
                   {cls}
                   <button onClick={() => {
+                    if (!window.confirm(`Are you sure you want to delete the class "${cls}"?`)) return;
                     const updatedClasses = schoolClasses.filter(c => c !== cls);
                     localStorage.setItem('sms_school_classes', JSON.stringify(updatedClasses));
                     localStorage.setItem('tt_shared_classes', JSON.stringify(updatedClasses));
@@ -2037,7 +2038,7 @@ function AppInner() {
                         try { if (cloud.isCloudMode()) { await cloud.deleteUser(t.id); await cloud.createUser(updated.find((u: any) => u.id === t.id)); } } catch {}
                         alert(`Password reset to Teacher@123 for ${t.name}`);
                       }} className="px-3 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-semibold border border-amber-200">🔑 Reset Password</button>
-                      <button onClick={() => deleteTeacher(t.id)} className="px-3 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-semibold border border-red-200">Remove</button>
+                      <button onClick={() => { if (window.confirm(`Are you sure you want to remove the teacher "${t.name}"?`)) deleteTeacher(t.id); }} className="px-3 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-semibold border border-red-200">Remove</button>
                     </div>
                   </div>
                   {isEditing && (
@@ -2105,7 +2106,7 @@ function AppInner() {
                         {assignments.map((a, i) => (
                           <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-lg text-xs font-semibold">
                             {a.cls} — {a.sub}
-                            <button onClick={() => removeTeachingAssignment(t.id, a.cls, a.sub)} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
+                            <button onClick={() => { if (window.confirm(`Are you sure you want to remove ${a.sub} (${a.cls}) from ${t.name}?`)) removeTeachingAssignment(t.id, a.cls, a.sub); }} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
                           </span>
                         ))}
                       </div>
@@ -2172,7 +2173,7 @@ function AppInner() {
                           {isOpen ? `⏰ ${timeLeft}` : '❌ Expired'}
                         </p>
                       </div>
-                      <button onClick={() => deleteExam(ex.id)} className="px-2 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-semibold border border-red-200">Delete</button>
+                      <button onClick={() => { if (window.confirm(`Are you sure you want to delete the exam "${ex.name || ex.term || 'this exam'}"?`)) deleteExam(ex.id); }} className="px-2 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-semibold border border-red-200">Delete</button>
                     </div>
 
                     {/* Submission status */}
@@ -3055,7 +3056,7 @@ function AppInner() {
                           </div>
                           <div className="flex gap-1">
                             <button onClick={() => beginStudentEdit(s)} className="text-indigo-600 text-xs font-bold hover:text-indigo-800">Edit</button>
-                            <button onClick={() => removeStudent(myClass, s)} className="text-red-500 text-xs font-bold hover:text-red-700">✕</button>
+                            <button onClick={() => { if (window.confirm(`Are you sure you want to remove ${s.name} from ${myClass}?`)) removeStudent(myClass, s); }} className="text-red-500 text-xs font-bold hover:text-red-700">✕</button>
                           </div>
                         </div>
                         {editingStudentId === s.id ? (
