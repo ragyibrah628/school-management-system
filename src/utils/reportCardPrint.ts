@@ -12,7 +12,8 @@ type TrimImage = {
 
 type TrimCanvasContext = {
   getImageData(x: number, y: number, width: number, height: number): { data: Uint8ClampedArray };
-  drawImage(image: TrimImage, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number): void;
+  putImageData?(data: any, x: number, y: number): void;
+  drawImage(image: any, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number): void;
 };
 
 type TrimCanvas = {
@@ -27,6 +28,13 @@ export type SignatureTrimEnvironment = {
   createCanvas(): TrimCanvas;
 };
 
+const SIGNATURE_MAX_WIDTH = 480;
+
+// Prepares a signature image for storing/printing:
+//  - white / near-white paper background becomes transparent (photos and scans are opaque),
+//  - ink is darkened so it stays strong on a black & white printer,
+//  - empty margins are cropped away so the signature fills its box,
+//  - the picture is shrunk to a small PNG (a few KB instead of several MB).
 export async function trimSignatureDataUrl(
   source: string,
   environment: SignatureTrimEnvironment = {
@@ -50,34 +58,59 @@ export async function trimSignatureDataUrl(
     canvas.height = image.naturalHeight;
     const context = canvas.getContext('2d');
     if (!context) return source;
+    context.drawImage(image, 0, 0, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
 
-    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    const imageData: any = context.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
     let left = canvas.width;
     let top = canvas.height;
     let right = -1;
     let bottom = -1;
+    const canRewrite = typeof context.putImageData === 'function';
 
     for (let y = 0; y < canvas.height; y++) {
       for (let x = 0; x < canvas.width; x++) {
-        if (pixels[(y * canvas.width + x) * 4 + 3] > 10) {
-          left = Math.min(left, x);
-          top = Math.min(top, y);
-          right = Math.max(right, x);
-          bottom = Math.max(bottom, y);
+        const i = (y * canvas.width + x) * 4;
+        let alpha = pixels[i + 3];
+        if (canRewrite && alpha > 0) {
+          const lum = 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
+          const strength = Math.max(0, Math.min(1, (235 - lum) / 85));
+          alpha = Math.round(alpha * strength);
+          pixels[i] = pixels[i] * 0.55;
+          pixels[i + 1] = pixels[i + 1] * 0.55;
+          pixels[i + 2] = pixels[i + 2] * 0.55;
+          pixels[i + 3] = alpha;
+        }
+        if (alpha > 25) {
+          if (x < left) left = x;
+          if (y < top) top = y;
+          if (x > right) right = x;
+          if (y > bottom) bottom = y;
         }
       }
     }
 
     if (right < left || bottom < top) return '';
+    if (canRewrite) context.putImageData!(imageData, 0, 0);
 
+    const pad = 4;
+    left = Math.max(0, left - pad);
+    top = Math.max(0, top - pad);
+    right = Math.min(canvas.width - 1, right + pad);
+    bottom = Math.min(canvas.height - 1, bottom + pad);
     const cropWidth = right - left + 1;
     const cropHeight = bottom - top + 1;
-    canvas.width = cropWidth;
-    canvas.height = cropHeight;
-    const croppedContext = canvas.getContext('2d');
-    if (!croppedContext) return source;
-    croppedContext.drawImage(image, left, top, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
-    return canvas.toDataURL('image/png');
+    const scale = Math.min(1, SIGNATURE_MAX_WIDTH / cropWidth);
+    const outWidth = Math.max(1, Math.round(cropWidth * scale));
+    const outHeight = Math.max(1, Math.round(cropHeight * scale));
+
+    const output = environment.createCanvas();
+    output.width = outWidth;
+    output.height = outHeight;
+    const outContext = output.getContext('2d');
+    if (!outContext) return source;
+    outContext.drawImage(canvas, left, top, cropWidth, cropHeight, 0, 0, outWidth, outHeight);
+    return output.toDataURL('image/png');
   } catch {
     return source;
   }
@@ -277,7 +310,7 @@ export function createReportCardPrintDocument(cardsHtml: string): string {
     display: block;
     width: auto;
     height: 20mm;
-    max-width: 50mm;
+    max-width: 52mm;
     max-height: 20mm;
     object-fit: contain;
     object-position: bottom right;
