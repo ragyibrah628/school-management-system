@@ -25,6 +25,7 @@ import { TeacherDutyForm, DutyReportPrint, AdminRegisteredStudents } from './com
 import { LessonPlan } from './components/LessonPlan';
 import * as cloud from './lib/cloud';
 import { getDistrictLogo, letterheadOpen, letterheadClose } from './utils/letterhead';
+import { TT_PRINT_CSS, TT_FIT_SCRIPT } from './utils/timetablePrint';
 import { evaluateMark, gradeForPercentage, remarkForPercentage, sortStudentsForMarkEntry } from './utils/markEntry';
 import { rankResultsByAverage } from './utils/resultsRanking';
 import { assignedSubjectTeacherName, buildScoreSheetData, createScoreSheetsHtml, type ScoreSheetData } from './utils/scoreSheet';
@@ -2915,59 +2916,55 @@ function AppInner() {
               }, { periods: 0, sessions: 0 });
 
               const printMyTimetable = () => {
-                const pw = window.open('', '', 'width=900,height=700');
+                const pw = window.open('', '', 'width=1200,height=800');
                 if (!pw) return;
                 const logo = localStorage.getItem('sms_school_logo') || '';
-                pw.document.write(`<!DOCTYPE html><html><head><title>\u00A0</title><style>
-                  @page { size: A4 landscape; margin: 10mm 10mm 6mm 10mm; }
-                  @page { @top-left { content: ''; } @top-right { content: ''; } @bottom-left { content: ''; } @bottom-right { content: ''; } }
-                  * { margin:0; padding:0; box-sizing:border-box; }
-                  body { font-family: 'Times New Roman', serif; font-size: 12px; color: #000; }
-                  table { width:100%; border-collapse:collapse; margin-top:10px; }
-                  th,td { border:1px solid #000; padding:5px 4px; text-align:center; font-size:11px; }
-                  th { background:#f0f0f0; font-size:12px; }
-                  .header { text-align:center; margin-bottom:8px; border-bottom:2px solid #000; padding-bottom:6px; }
-                  .header img { height:50px; margin-bottom:3px; }
-                  @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
-                </style></head><body><div class="header">`);
-                pw.document.write(letterheadOpen(getDistrictLogo()));
-                pw.document.write(`<div style="font-size:14px;font-weight:bold;letter-spacing:1px">${localStorage.getItem('sms_district_name') || 'RUANGWA DISTRICT COUNCIL'}</div>
-                  <div style="font-size:18px;font-weight:bold;letter-spacing:1px">${localStorage.getItem('sms_school_name_setting') || 'NAMBAWALA SECONDARY SCHOOL'}</div>
-                  <div style="font-size:14px;font-weight:bold;text-decoration:underline">TEACHER'S TIMETABLE</div>
-                  <div style="font-size:13px;margin-top:4px">Teacher: <strong>${user?.name}</strong></div>${letterheadClose(logo)}</div>`);
-                pw.document.write(`<table><thead><tr><th>TIME</th>`);
-                ttDays.forEach((d: string) => pw.document.write(`<th>${d}</th>`));
-                pw.document.write(`</tr></thead><tbody>`);
+                const sName = localStorage.getItem('sms_school_name_setting') || 'NAMBAWALA SECONDARY SCHOOL';
+                const dName = localStorage.getItem('sms_district_name') || 'RUANGWA DISTRICT COUNCIL';
+                const addr = localStorage.getItem('sms_school_address') || 'P.O. Box 51, Ruangwa - Lindi';
+                const title = `${user?.name || ''} Teaching Timetable`;
+                let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>${TT_PRINT_CSS}</style></head><body><div class="header">`;
+                html += letterheadOpen(getDistrictLogo());
+                html += `<div style="font-size:12px;font-weight:700;letter-spacing:1px">${dName}</div><h1>${sName}</h1><div style="font-size:10px;color:#333">${addr}</div><h2>${title}</h2><p>Weekly Teaching Timetable \u2022 Teacher \u2022 A4 Landscape \u2022 ${new Date().toLocaleDateString()}</p>`;
+                html += letterheadClose(logo) + `</div>`;
+                html += `<table><thead><tr><th style="width:90px">Day / Time</th>`;
                 ttSlots.forEach((p: any) => {
+                  const time = p.startTime && p.endTime ? `${p.startTime}-${p.endTime}` : '';
                   if (p.isBreak) {
                     const isLunch = p.id === 'lunch' || p.name?.toLowerCase().includes('lunch');
                     const breakName = isLunch ? 'Lunch' : 'Morning Break';
-                    const breakTime = p.startTime && p.endTime
-                      ? `${p.startTime}-${p.endTime}`
-                      : (isLunch ? '14:30-15:30' : '10:40-11:10');
-                    pw.document.write(`<tr style="background:#e3e3e3"><td style="font-weight:bold">${breakName}<br/><span style="font-size:9px">${breakTime}</span></td><td colspan="${ttDays.length}" style="font-weight:bold;color:#000">${breakName} • ${breakTime}</td></tr>`);
-                    return;
+                    const breakTime = time || (isLunch ? '14:30-15:30' : '10:40-11:10');
+                    html += `<th class="breakCell"><div>${breakName}</div><div style="font-weight:400;font-size:8px">${breakTime}</div></th>`;
+                  } else {
+                    html += `<th><div>${p.name}</div><div style="font-weight:400;font-size:8px;opacity:.85">${time}</div></th>`;
                   }
-                  pw.document.write(`<tr><td style="font-weight:bold;font-size:10px">${p.name}<br/>${p.startTime}-${p.endTime}</td>`);
-                  ttDays.forEach((d: string) => {
+                });
+                html += `</tr></thead><tbody>`;
+                ttDays.forEach((d: string) => {
+                  html += `<tr><td class="dayCol">${d}</td>`;
+                  ttSlots.forEach((p: any) => {
+                    if (p.isBreak) {
+                      const isLunch = p.id === 'lunch' || p.name?.toLowerCase().includes('lunch');
+                      const breakName = isLunch ? 'Lunch' : 'Morning Break';
+                      html += `<td class="breakCell">${breakName}</td>`;
+                      return;
+                    }
                     if (isDoubleContinuation(d, p.id)) return;
                     const found = myPeriods.find(mp => mp.day === d && mp.period?.id === p.id);
-                    if (found) {
-                      const sub = ttSubjects.find((s: any) => s.id === found.cell.subjectId);
-                      const secondSub = ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId || s.name === found.cell.secondSubjectName);
-                      const subjectDisplay = found.cell.isCombined && secondSub
-                        ? `${sub?.code || sub?.name?.substring(0, 4) || ''}/${secondSub.code || secondSub.name?.substring(0, 4) || ''}`
-                        : (sub?.code || sub?.name || '');
-                      const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
-                      const doubleSpan = isDoubleStart(d, p.id, found.cell);
-                      pw.document.write(`<td${doubleSpan ? ' rowspan="2"' : ''} style="font-weight:bold;background:#efefef"><strong>${subjectDisplay}</strong><br/><span style="font-size:9px">${cls?.name || ''}</span></td>`);
-                    } else {
-                      pw.document.write(`<td style="color:#888">—</td>`);
-                    }
+                    if (!found) { html += `<td></td>`; return; }
+                    const sub = ttSubjects.find((s: any) => s.id === found.cell.subjectId);
+                    const secondSub = ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId || s.name === found.cell.secondSubjectName);
+                    const subjectDisplay = found.cell.isCombined && secondSub
+                      ? `${sub?.code || sub?.name?.substring(0, 4) || ''}/${secondSub.code || secondSub.name?.substring(0, 4) || ''}`
+                      : (sub?.code || sub?.name || '');
+                    const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
+                    const dbl = isDoubleStart(d, p.id, found.cell);
+                    html += `<td${dbl ? ' colspan="2"' : ''}><div class="subject">${subjectDisplay}</div><div class="subteacher">${cls?.name || ''}</div></td>`;
                   });
-                  pw.document.write(`</tr>`);
+                  html += `</tr>`;
                 });
-                pw.document.write(`</tbody></table><div style="text-align:center;margin-top:20px;font-size:11px;color:#222;font-style:italic;border-top:1px solid #888;padding-top:8px">${localStorage.getItem('sms_school_name_setting') || 'Nambawala Secondary School'}: ${localStorage.getItem('sms_school_motto') || 'Honor All Build Together'}</div></body></html>`);
+                html += `</tbody></table><div class="ttfoot">${sName}: ${localStorage.getItem('sms_school_motto') || 'Honor All Build Together'}</div>${TT_FIT_SCRIPT}</body></html>`;
+                pw.document.write(html);
                 pw.document.close();
                 setTimeout(() => { pw.focus(); pw.print(); }, 500);
               };
@@ -3362,8 +3359,8 @@ function AppInner() {
                               <col style={{ width: '14%' }} />
                               <col style={{ width: '14%' }} />
                               <col style={{ width: '12%' }} />
-                              <col style={{ width: '9%' }} />
-                              <col style={{ width: '19%' }} />
+                              <col style={{ width: '11%' }} />
+                              <col style={{ width: '17%' }} />
                             </colgroup>
                             <thead>
                               <tr className="bg-slate-100 border-b">
@@ -3372,8 +3369,8 @@ function AppInner() {
                                 <th className="px-1 py-2 text-center">Theory /100</th>
                                 <th className="px-1 py-2 text-center">Practical /50</th>
                                 <th className="px-1 py-2 text-center">Final %</th>
-                                <th className="px-1 py-2 text-center">Grade</th>
-                                <th className="px-1 py-2 text-left">Remarks</th>
+                                <th className="px-1 py-2 text-center text-[10px] sm:text-sm">Grade</th>
+                                <th className="px-1 py-2 text-left text-[10px] sm:text-sm">Remarks</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -3430,21 +3427,21 @@ function AppInner() {
                         ) : (
                         <table className="w-full table-fixed border text-[11px] sm:text-sm">
                           <colgroup>
-                            <col style={{ width: '6%' }} />
-                            <col style={{ width: '31%' }} />
+                            <col style={{ width: '5%' }} />
+                            <col style={{ width: '28%' }} />
                             <col style={{ width: '15%' }} />
-                            <col style={{ width: '9%' }} />
-                            <col style={{ width: '8%' }} />
-                            <col style={{ width: '31%' }} />
+                            <col style={{ width: '11%' }} />
+                            <col style={{ width: '12%' }} />
+                            <col style={{ width: '29%' }} />
                           </colgroup>
                           <thead>
                             <tr className="bg-slate-100 border-b">
                               <th className="text-center px-1 py-2">#</th>
                               <th className="text-left px-1 py-2">Student</th>
                               <th className="text-center px-1 py-2">Mark</th>
-                              <th className="text-center px-1 py-2">Max</th>
-                              <th className="text-center px-1 py-2">Grade</th>
-                              <th className="text-left px-1 py-2">Remarks</th>
+                              <th className="text-center px-1 py-2 text-[10px] sm:text-sm">Max</th>
+                              <th className="text-center px-1 py-2 text-[10px] sm:text-sm">Grade</th>
+                              <th className="text-left px-1 py-2 text-[10px] sm:text-sm">Remarks</th>
                             </tr>
                           </thead>
                           <tbody>
