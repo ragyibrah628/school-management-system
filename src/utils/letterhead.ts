@@ -13,8 +13,8 @@ export const getSchoolLogo = (): string => {
 export const LETTERHEAD_CSS = `
 .lh-row{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%}
 .lh-center{flex:1 1 auto;min-width:0;text-align:center}
-.lh-side{flex:0 0 auto;width:80px;height:64px;display:flex;align-items:center;justify-content:center}
-.lh-side img{display:block;width:auto!important;height:auto!important;max-width:80px!important;max-height:64px!important;object-fit:contain;margin:0!important}
+.lh-side{flex:0 0 auto;width:100px;height:84px;display:flex;align-items:center;justify-content:center}
+.lh-side img{display:block;width:auto!important;height:auto!important;max-width:100px!important;max-height:84px!important;object-fit:contain;margin:0!important}
 `;
 
 const side = (src: string) => src

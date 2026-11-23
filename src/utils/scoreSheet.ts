@@ -92,14 +92,14 @@ const scoreSheetStyles = `
     }
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; color: #111; font-family: Arial, Helvetica, sans-serif; }
+  html, body { margin: 0; padding: 0; color: #000; font-family: Arial, Helvetica, sans-serif; }
   body { font-size: 8pt; line-height: 1.1; }
   .score-sheet { position: relative; width: 100%; padding: 8mm 12mm 10mm; break-after: page; page-break-after: always; }
   .score-sheet:last-child { break-after: auto; page-break-after: auto; }
-  .sheet-header { display: grid; grid-template-columns: 19mm minmax(0, 1fr) 19mm; align-items: center; border-bottom: 1px solid #222; padding-bottom: 2mm; margin-bottom: 2mm; text-align: center; }
-  .school-logo { width: 18mm; height: 18mm; object-fit: contain; justify-self: start; }
+  .sheet-header { display: grid; grid-template-columns: 23mm minmax(0, 1fr) 23mm; align-items: center; border-bottom: 2px solid #000; padding-bottom: 2mm; margin-bottom: 2mm; text-align: center; }
+  .school-logo { width: 22mm; height: 22mm; object-fit: contain; justify-self: start; }
   .school-logo-right { justify-self: end; }
-  .header-spacer { width: 19mm; }
+  .header-spacer { width: 23mm; }
   .council { font-size: 8pt; margin: 0 0 1mm; }
   .school-name { font-size: 13pt; font-weight: 700; text-transform: uppercase; margin: 0 0 1mm; }
   h1 { font-size: 12pt; margin: 1mm 0; }
@@ -108,8 +108,8 @@ const scoreSheetStyles = `
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   thead { display: table-header-group; }
   tr { break-inside: avoid; page-break-inside: avoid; }
-  th, td { border: 0.5pt solid #333; padding: 0.8mm 1mm; text-align: left; vertical-align: middle; overflow-wrap: anywhere; }
-  th { font-size: 7.5pt; background: #eee; }
+  th, td { border: 0.5pt solid #000; padding: 0.8mm 1mm; text-align: left; vertical-align: middle; overflow-wrap: anywhere; }
+  th { font-size: 7.5pt; background: #d9d9d9; }
   .number { text-align: center; }
   .summary-signature { break-inside: avoid; page-break-inside: avoid; margin-top: 2mm; }
   .summary { border: 1px solid #333; padding: 1.5mm; }

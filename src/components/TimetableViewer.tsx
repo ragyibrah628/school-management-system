@@ -159,23 +159,23 @@ export const TimetableViewer: React.FC = () => {
         @page { size: A4 landscape; margin: 8mm 9mm; }
         * { margin:0; padding:0; box-sizing:border-box; }
         html, body { width:100%; background:#fff; }
-        body { font-family: Arial, Helvetica, sans-serif; font-size: 9px; color:#172033; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 9px; color:#000; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
         a, a:visited, a:hover, a:active { color:inherit !important; text-decoration:none !important; }
         table { width:100%; border-collapse:collapse; table-layout:fixed; page-break-inside:auto; }
         thead { display:table-header-group; }
         tr { page-break-inside:avoid; page-break-after:auto; }
-        th, td { border:1px solid #b8c2d1; padding: 5px 4px; text-align:center; vertical-align:middle; }
-        th { background:#e8eef8; font-weight:800; font-size: 9px; color:#172033; }
+        th, td { border:1px solid #555; padding: 5px 4px; text-align:center; vertical-align:middle; }
+        th { background:#d9d9d9; font-weight:800; font-size: 9px; color:#000; }
         td { font-size: 9px; line-height:1.2; }
-        .header { text-align:center; margin-bottom:8px; border-bottom:2px solid #274c77; padding-bottom:7px; page-break-after:avoid; }
+        .header { text-align:center; margin-bottom:8px; border-bottom:2px solid #000; padding-bottom:7px; page-break-after:avoid; }
         .header img { height:42px; max-width:90px; object-fit:contain; margin-bottom:3px; }
-        .header h1 { font-size:17px; font-weight:900; letter-spacing:.5px; color:#14213d; }
-        .header h2 { font-size:12px; font-weight:800; color:#274c77; margin-top:3px; }
-        .header p { font-size:8px; color:#53657d; margin-top:2px; }
-        .subject { font-weight:800; font-size:11px; color:#14213d; line-height:1.15; }
-        .subteacher { font-weight:600; font-size:9px; color:#40516a; margin-top:2px; }
-        .breakCell { background:#fff3df; color:#8a4b08; font-weight:800; font-size:8px; }
-        .dayCol { background:#f1f5fa; font-weight:900; font-size:10px; color:#274c77; }
+        .header h1 { font-size:17px; font-weight:900; letter-spacing:.5px; color:#000; }
+        .header h2 { font-size:12px; font-weight:800; color:#000; margin-top:3px; }
+        .header p { font-size:8px; color:#222; margin-top:2px; }
+        .subject { font-weight:800; font-size:11px; color:#000; line-height:1.15; }
+        .subteacher { font-weight:600; font-size:9px; color:#222; margin-top:2px; }
+        .breakCell { background:#e3e3e3; color:#000; font-weight:800; font-size:8px; }
+        .dayCol { background:#ececec; font-weight:900; font-size:10px; color:#000; }
         @media print {
           body { margin:0; padding:0; }
           a, a::after, a::before { content:none !important; }
@@ -186,7 +186,7 @@ export const TimetableViewer: React.FC = () => {
       html += letterheadOpen(getDistrictLogo());
       html += `<div style="font-size:12px; font-weight:700; letter-spacing:1px;">${district}</div>`;
       html += `<h1>${sName}</h1>`;
-      html += `<div style="font-size:10px; color:#64748b;">${address}</div>`;
+      html += `<div style="font-size:10px; color:#333;">${address}</div>`;
       html += `<h2>${title}</h2>`;
       html += `<p>Weekly Teaching Timetable • ${isClass ? 'Class' : 'Teacher'} • A4 Landscape • ${new Date().toLocaleDateString()}</p>`;
       html += letterheadClose(logo);
@@ -221,7 +221,7 @@ export const TimetableViewer: React.FC = () => {
               }
             }
             if (!cellAct || !isActivityCell(cellAct, p)) html += `<td></td>`;
-            else html += `<td style="background:#eef2ff;"><div class="subject">${cellAct.activity || 'Activity'}</div></td>`;
+            else html += `<td style="background:#ececec;"><div class="subject">${cellAct.activity || 'Activity'}</div></td>`;
             continue;
           }
           let cell: any = null;

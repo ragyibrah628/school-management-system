@@ -2390,9 +2390,9 @@ function AppInner() {
                   thead { display:table-header-group; }
                   th,td { border:1px solid #000; padding:3px 4px; text-align:center; font-size: ${thFontSize}; }
                   .total-row td { font-weight:bold; border:2px solid #000; }
-                  .header { text-align:center; margin-bottom:8px; }
+                  .header { text-align:center; margin-bottom:8px; border-bottom:2px solid #000; padding-bottom:6px; }
                   .header img { height:50px; margin-bottom:3px; }
-                  .pass { color: green; font-weight:bold; } .fail { color: red; font-weight:bold; }
+                  .pass { color: #000; font-weight:bold; } .fail { color: red; font-weight:bold; }
                   @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
                 </style></head><body><div class="header">`);
                 pw.document.write(letterheadOpen(getDistrictLogo()));
@@ -2401,7 +2401,7 @@ function AppInner() {
                   <div style="font-size:14px;font-weight:bold;text-decoration:underline;margin:3px 0">${examName} — GENERAL RESULTS</div>
                   <div style="font-size:12px">${viewClass.startsWith('__') ? viewClass.replace('__', '').replace(/_/g, ' ') : viewClass || 'All Classes'}</div>${letterheadClose(logo)}</div>`);
                 // Table header - subject columns show score AND grade
-                pw.document.write(`<table><thead><tr style="background:#d4edda">`);
+                pw.document.write(`<table><thead><tr style="background:#d9d9d9">`);
                 pw.document.write(`<th style="font-size:${thFontSize}" rowspan="2">S/N</th>`);
                 pw.document.write(`<th style="text-align:left;font-size:${thFontSize}" rowspan="2">Student Name</th>`);
                 allSubjects.forEach(s => pw.document.write(`<th style="font-size:8px" colspan="2">${getSubjectCode(s)}</th>`));
@@ -2411,7 +2411,7 @@ function AppInner() {
                 pw.document.write(`<th style="font-size:${thFontSize}" rowspan="2">Position</th>`);
                 pw.document.write(`<th style="font-size:${thFontSize}" rowspan="2">Points</th>`);
                 pw.document.write(`<th style="font-size:${thFontSize}" rowspan="2">Division</th>`);
-                pw.document.write(`</tr><tr style="background:#d4edda">`);
+                pw.document.write(`</tr><tr style="background:#d9d9d9">`);
                 allSubjects.forEach(() => pw.document.write(`<th style="font-size:7px">100</th><th style="font-size:7px"></th>`));
                 pw.document.write(`</tr></thead><tbody>`);
                 allStudentRows.forEach((r, index) => {
@@ -2421,10 +2421,10 @@ function AppInner() {
                     const v = r.scores[sub];
                     if (v !== null) {
                       const g = getGrade(v);
-                      const color = v >= 45 ? 'green' : 'red';
-                      pw.document.write(`<td style="color:${color}">${v}</td><td style="font-weight:bold;color:${color}">${g}</td>`);
+                      const deco = v >= 45 ? '' : 'font-weight:bold;text-decoration:underline;';
+                      pw.document.write(`<td style="${deco}">${v}</td><td style="font-weight:bold;${deco}">${g}</td>`);
                     } else {
-                      pw.document.write(`<td style="color:#ccc">—</td><td></td>`);
+                      pw.document.write(`<td style="color:#888">—</td><td></td>`);
                     }
                   });
                   pw.document.write(`<td style="font-weight:bold">${r.total.toFixed(2)}</td>`);
@@ -2456,11 +2456,11 @@ function AppInner() {
                 }).filter(s => s.total > 0).sort((a, b) => a.gpa - b.gpa);
 
                 pw.document.write(`<div style="display:flex;gap:15px;margin-top:12px;page-break-inside:avoid">`);
-                pw.document.write(`<div style="flex:2"><table><thead><tr style="background:#d4edda"><th colspan="10" style="text-align:left;font-size:12px;font-weight:bold">SUBJECT PERFORMANCE</th></tr><tr style="background:#e8e8e8"><th style="text-align:left;font-size:10px">SUBJECT NAME</th><th style="font-size:10px">PASS</th><th style="font-size:10px">FAIL</th><th style="font-size:10px">A</th><th style="font-size:10px">B</th><th style="font-size:10px">C</th><th style="font-size:10px">D</th><th style="font-size:10px">F</th><th style="font-size:10px">GPA</th><th style="font-size:10px">RANK</th></tr></thead><tbody>`);
+                pw.document.write(`<div style="flex:2"><table><thead><tr style="background:#d9d9d9"><th colspan="10" style="text-align:left;font-size:12px;font-weight:bold">SUBJECT PERFORMANCE</th></tr><tr style="background:#ececec"><th style="text-align:left;font-size:10px">SUBJECT NAME</th><th style="font-size:10px">PASS</th><th style="font-size:10px">FAIL</th><th style="font-size:10px">A</th><th style="font-size:10px">B</th><th style="font-size:10px">C</th><th style="font-size:10px">D</th><th style="font-size:10px">F</th><th style="font-size:10px">GPA</th><th style="font-size:10px">RANK</th></tr></thead><tbody>`);
                 subjectStats.forEach((s, idx) => {
                   const passPct = s.total > 0 ? ((s.passCount / s.total) * 100).toFixed(0) : '0';
                   const failPct = s.total > 0 ? ((s.failCount / s.total) * 100).toFixed(0) : '0';
-                  pw.document.write(`<tr><td style="text-align:left;font-size:10px;font-weight:bold">${s.sub.toUpperCase()}</td><td style="font-size:10px">${passPct}%</td><td style="font-size:10px">${failPct}%</td><td style="font-size:10px;color:green">${s.aCount}</td><td style="font-size:10px;color:green">${s.bCount}</td><td style="font-size:10px">${s.cCount}</td><td style="font-size:10px;color:orange">${s.dCount}</td><td style="font-size:10px;color:red">${s.fCount}</td><td style="font-size:10px;font-weight:bold">${s.gpa.toFixed(1)}</td><td style="font-size:10px;font-weight:bold">${idx + 1}</td></tr>`);
+                  pw.document.write(`<tr><td style="text-align:left;font-size:10px;font-weight:bold">${s.sub.toUpperCase()}</td><td style="font-size:10px">${passPct}%</td><td style="font-size:10px">${failPct}%</td><td style="font-size:10px;color:#000">${s.aCount}</td><td style="font-size:10px;color:#000">${s.bCount}</td><td style="font-size:10px">${s.cCount}</td><td style="font-size:10px;color:orange">${s.dCount}</td><td style="font-size:10px;color:red">${s.fCount}</td><td style="font-size:10px;font-weight:bold">${s.gpa.toFixed(1)}</td><td style="font-size:10px;font-weight:bold">${idx + 1}</td></tr>`);
                 });
                 pw.document.write(`</tbody></table></div>`);
 
@@ -2474,11 +2474,11 @@ function AppInner() {
                 const divAbs = allStudentRows.filter(r => Object.values(r.scores).every(v => v === null)).length;
                 const divTotal = allStudentRows.length;
 
-                pw.document.write(`<div style="flex:1"><table><thead><tr style="background:#d4edda"><th colspan="8" style="text-align:left;font-size:12px;font-weight:bold">DIVISION PERFORMANCE</th></tr><tr style="background:#e8e8e8"><th style="font-size:10px">DIV I</th><th style="font-size:10px">DIV II</th><th style="font-size:10px">DIV III</th><th style="font-size:10px">DIV IV</th><th style="font-size:10px">DIV 0</th><th style="font-size:10px">ABS</th><th style="font-size:10px">TOTAL</th></tr></thead><tbody>`);
-                pw.document.write(`<tr><td style="font-size:12px;font-weight:bold;color:green">${divI}</td><td style="font-size:12px;font-weight:bold">${divII}</td><td style="font-size:12px;font-weight:bold">${divIII}</td><td style="font-size:12px;font-weight:bold">${divIV}</td><td style="font-size:12px;font-weight:bold;color:red">${div0}</td><td style="font-size:12px;font-weight:bold">${divAbs}</td><td style="font-size:12px;font-weight:bold">${divTotal}</td></tr>`);
+                pw.document.write(`<div style="flex:1"><table><thead><tr style="background:#d9d9d9"><th colspan="8" style="text-align:left;font-size:12px;font-weight:bold">DIVISION PERFORMANCE</th></tr><tr style="background:#ececec"><th style="font-size:10px">DIV I</th><th style="font-size:10px">DIV II</th><th style="font-size:10px">DIV III</th><th style="font-size:10px">DIV IV</th><th style="font-size:10px">DIV 0</th><th style="font-size:10px">ABS</th><th style="font-size:10px">TOTAL</th></tr></thead><tbody>`);
+                pw.document.write(`<tr><td style="font-size:12px;font-weight:bold;color:#000">${divI}</td><td style="font-size:12px;font-weight:bold">${divII}</td><td style="font-size:12px;font-weight:bold">${divIII}</td><td style="font-size:12px;font-weight:bold">${divIV}</td><td style="font-size:12px;font-weight:bold;color:red">${div0}</td><td style="font-size:12px;font-weight:bold">${divAbs}</td><td style="font-size:12px;font-weight:bold">${divTotal}</td></tr>`);
                 pw.document.write(`</tbody></table></div></div>`);
 
-                pw.document.write(`<div style="text-align:center;margin-top:15px;font-size:11px;color:#555;font-style:italic;border-top:1px solid #ccc;padding-top:8px">${schoolNameSetting}: ${schoolMotto}</div></body></html>`);
+                pw.document.write(`<div style="text-align:center;margin-top:15px;font-size:11px;color:#222;font-style:italic;border-top:1px solid #888;padding-top:8px">${schoolNameSetting}: ${schoolMotto}</div></body></html>`);
                 pw.document.close();
                 setTimeout(() => { pw.focus(); pw.print(); }, 500);
               };
@@ -2576,7 +2576,7 @@ function AppInner() {
                 pw.document.write(`</div>`);
 
                 // Footer
-                pw.document.write(`<div class="footer" style="text-align:center;margin-top:12px;font-size:11px;color:#555;font-style:italic;border-top:2px solid #ccc;padding-top:6px"><strong>${schoolNameSetting}</strong>: ${schoolMotto}</div>`);
+                pw.document.write(`<div class="footer" style="text-align:center;margin-top:12px;font-size:11px;color:#222;font-style:italic;border-top:2px solid #888;padding-top:6px"><strong>${schoolNameSetting}</strong>: ${schoolMotto}</div>`);
                 pw.document.write(`</section>`);
                 return reportHtml;
               };
@@ -2926,7 +2926,7 @@ function AppInner() {
                   table { width:100%; border-collapse:collapse; margin-top:10px; }
                   th,td { border:1px solid #000; padding:5px 4px; text-align:center; font-size:11px; }
                   th { background:#f0f0f0; font-size:12px; }
-                  .header { text-align:center; margin-bottom:8px; }
+                  .header { text-align:center; margin-bottom:8px; border-bottom:2px solid #000; padding-bottom:6px; }
                   .header img { height:50px; margin-bottom:3px; }
                   @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
                 </style></head><body><div class="header">`);
@@ -2945,7 +2945,7 @@ function AppInner() {
                     const breakTime = p.startTime && p.endTime
                       ? `${p.startTime}-${p.endTime}`
                       : (isLunch ? '14:30-15:30' : '10:40-11:10');
-                    pw.document.write(`<tr style="background:#fff7e6"><td style="font-weight:bold">${breakName}<br/><span style="font-size:9px">${breakTime}</span></td><td colspan="${ttDays.length}" style="font-weight:bold;color:#8a4b08">${breakName} • ${breakTime}</td></tr>`);
+                    pw.document.write(`<tr style="background:#e3e3e3"><td style="font-weight:bold">${breakName}<br/><span style="font-size:9px">${breakTime}</span></td><td colspan="${ttDays.length}" style="font-weight:bold;color:#000">${breakName} • ${breakTime}</td></tr>`);
                     return;
                   }
                   pw.document.write(`<tr><td style="font-weight:bold;font-size:10px">${p.name}<br/>${p.startTime}-${p.endTime}</td>`);
@@ -2960,14 +2960,14 @@ function AppInner() {
                         : (sub?.code || sub?.name || '');
                       const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
                       const doubleSpan = isDoubleStart(d, p.id, found.cell);
-                      pw.document.write(`<td${doubleSpan ? ' rowspan="2"' : ''} style="font-weight:bold;background:#e8f5e9"><strong>${subjectDisplay}</strong><br/><span style="font-size:9px">${cls?.name || ''}</span></td>`);
+                      pw.document.write(`<td${doubleSpan ? ' rowspan="2"' : ''} style="font-weight:bold;background:#efefef"><strong>${subjectDisplay}</strong><br/><span style="font-size:9px">${cls?.name || ''}</span></td>`);
                     } else {
-                      pw.document.write(`<td style="color:#ccc">—</td>`);
+                      pw.document.write(`<td style="color:#888">—</td>`);
                     }
                   });
                   pw.document.write(`</tr>`);
                 });
-                pw.document.write(`</tbody></table><div style="text-align:center;margin-top:20px;font-size:11px;color:#555;font-style:italic;border-top:1px solid #ccc;padding-top:8px">${localStorage.getItem('sms_school_name_setting') || 'Nambawala Secondary School'}: ${localStorage.getItem('sms_school_motto') || 'Honor All Build Together'}</div></body></html>`);
+                pw.document.write(`</tbody></table><div style="text-align:center;margin-top:20px;font-size:11px;color:#222;font-style:italic;border-top:1px solid #888;padding-top:8px">${localStorage.getItem('sms_school_name_setting') || 'Nambawala Secondary School'}: ${localStorage.getItem('sms_school_motto') || 'Honor All Build Together'}</div></body></html>`);
                 pw.document.close();
                 setTimeout(() => { pw.focus(); pw.print(); }, 500);
               };
@@ -3728,26 +3728,26 @@ function AppInner() {
                     const dist = localStorage.getItem('sms_district_name') || '';
                     const acSigP = localStorage.getItem('sms_academic_sig') || '';
                     const hmSigP = localStorage.getItem('sms_headmaster_sig') || '';
-                    pw.document.write(`<!DOCTYPE html><html><head><title>\u00A0</title><style>@page{size:A4 portrait;margin:10mm 12mm 8mm 12mm;}*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,sans-serif;font-size:13px;color:#000;}table{width:100%;border-collapse:collapse;margin:6px 0;}th,td{border:1px solid #000;padding:5px 8px;font-size:12px;}th{background:#d4edda;font-size:12px;}.header{text-align:center;margin-bottom:8px;border-bottom:3px double #000;padding-bottom:6px;}.header img{height:55px;margin-bottom:3px;}.info-grid{display:grid;grid-template-columns:1fr 1fr;border:2px solid #000;margin-bottom:8px;font-size:13px;}.info-cell{padding:6px 10px;border:1px solid #000;}.grade-box{border:3px solid #000;padding:8px;text-align:center;margin:8px 0;background:#d4edda;border-radius:6px;}.comment-box{border:1px solid #000;padding:8px;border-radius:6px;margin-bottom:6px;}.comment-title{font-size:11px;font-weight:bold;text-decoration:underline;margin-bottom:3px;}.comment-text{font-size:11px;line-height:1.4;}.sig-row{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;}.sig-img{height:50px; max-width:170px; object-fit:contain; display:block;}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body><div class="header">`);
+                    pw.document.write(`<!DOCTYPE html><html><head><title>\u00A0</title><style>@page{size:A4 portrait;margin:10mm 12mm 8mm 12mm;}*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,sans-serif;font-size:13px;color:#000;}table{width:100%;border-collapse:collapse;margin:6px 0;}th,td{border:1px solid #000;padding:5px 8px;font-size:12px;}th{background:#d9d9d9;font-size:12px;}.header{text-align:center;margin-bottom:8px;border-bottom:3px double #000;padding-bottom:6px;}.header img{height:55px;margin-bottom:3px;}.info-grid{display:grid;grid-template-columns:1fr 1fr;border:2px solid #000;margin-bottom:8px;font-size:13px;}.info-cell{padding:6px 10px;border:1px solid #000;}.grade-box{border:3px solid #000;padding:8px;text-align:center;margin:8px 0;background:#d9d9d9;border-radius:6px;}.comment-box{border:1px solid #000;padding:8px;border-radius:6px;margin-bottom:6px;}.comment-title{font-size:11px;font-weight:bold;text-decoration:underline;margin-bottom:3px;}.comment-text{font-size:11px;line-height:1.4;}.sig-row{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;}.sig-img{height:50px; max-width:170px; object-fit:contain; display:block;}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body><div class="header">`);
                     pw.document.write(letterheadOpen(getDistrictLogo()));
                     pw.document.write(`<div style="font-size:14px;font-weight:bold">${dist}</div><div style="font-size:20px;font-weight:bold;margin:2px 0">${schoolNameP}</div><div style="font-size:10px">${addr}</div><div style="font-size:15px;font-weight:bold;text-decoration:underline;margin-top:4px">RIPOTI YA MAENDELEO YA MWANAFUNZI</div><div style="font-size:12px;margin-top:2px">${ex.name}</div>${letterheadClose(logo)}</div>`);
                     pw.document.write(`<div class="info-grid"><div class="info-cell">Jina la Mwanafunzi: <strong>${parentStudentName}</strong></div><div class="info-cell">Darasa: <strong>${parentStudentClass}</strong></div><div class="info-cell">Daraja: <strong>${div}</strong> | Pointi: <strong>${totalPts}</strong></div><div class="info-cell">Nafasi: <strong>—</strong></div></div>`);
                     pw.document.write(`<table><thead><tr><th style="text-align:left">Somo</th><th>Alama</th><th>Gredi</th><th>Pointi</th><th>Maelezo</th></tr></thead><tbody>`);
                     examScoresAll.forEach((s: any) => {
-                      const c = s.score >= 45 ? '#006600' : '#cc0000';
+                      const c = '#000';
                       pw.document.write(`<tr><td style="text-align:left;font-weight:bold">${s.subject}</td><td style="text-align:center;color:${c};font-weight:bold">${s.score}</td><td style="text-align:center;font-weight:bold;color:${c}">${getGradeP(s.score)}</td><td style="text-align:center">${getPointP(s.score)}</td><td style="text-align:center">${getRemarkP(s.score)}</td></tr>`);
                     });
-                    pw.document.write(`<tr style="font-weight:bold;background:#d4edda"><td style="text-align:left">TOTAL (${examScoresAll.length})</td><td style="text-align:center">${totalScore}</td><td style="text-align:center">${getGradeP(avg)}</td><td style="text-align:center">${totalPts}</td><td style="text-align:center">${getRemarkP(avg)}</td></tr></tbody></table>`);
+                    pw.document.write(`<tr style="font-weight:bold;background:#d9d9d9"><td style="text-align:left">TOTAL (${examScoresAll.length})</td><td style="text-align:center">${totalScore}</td><td style="text-align:center">${getGradeP(avg)}</td><td style="text-align:center">${totalPts}</td><td style="text-align:center">${getRemarkP(avg)}</td></tr></tbody></table>`);
                     pw.document.write(`<div class="grade-box"><strong style="font-size:13px">Wastani: ${avg.toFixed(1)}% | Gredi: ${getGradeP(avg)} | Pointi: ${totalPts} | Daraja: ${div}</strong></div>`);
                     if (Object.keys(studentBehaviorP).length > 0) {
-                      pw.document.write(`<table><thead><tr><th colspan="11" style="text-align:left;font-size:11px;background:#e3e3e3">TATHMINI YA TABIA — Mwalimu wa Darasa: ${ctNameP}</th></tr><tr style="background:#fff3cd">`);
-                      behaviorCatsP.forEach(c => pw.document.write(`<th style="font-size:8px;padding:3px;background:#fff3cd">${c}</th>`));
+                      pw.document.write(`<table><thead><tr><th colspan="11" style="text-align:left;font-size:11px;background:#e3e3e3">TATHMINI YA TABIA — Mwalimu wa Darasa: ${ctNameP}</th></tr><tr style="background:#e3e3e3">`);
+                      behaviorCatsP.forEach(c => pw.document.write(`<th style="font-size:8px;padding:3px;background:#e3e3e3">${c}</th>`));
                       pw.document.write(`</tr></thead><tbody><tr>`);
-                      behaviorCatsP.forEach(c => { const v = studentBehaviorP[c]||'-'; pw.document.write(`<td style="font-size:9px;text-align:center;font-weight:bold;color:${v==='Excellent'?'#006600':v==='Needs Improvement'?'#cc0000':'#333'}">${v}</td>`); });
+                      behaviorCatsP.forEach(c => { const v = studentBehaviorP[c]||'-'; pw.document.write(`<td style="font-size:9px;text-align:center;font-weight:bold;color:${v==='Excellent'?'#000':v==='Needs Improvement'?'#000':'#000'}">${v}</td>`); });
                       pw.document.write(`</tr></tbody></table>`);
                     }
                     pw.document.write(`<div style="display:flex;gap:8px;margin-top:6px"><div class="comment-box" style="flex:1"><div class="comment-title">ACADEMIC MASTER:</div><div class="comment-text">${acCommentP}</div><div class="sig-row"><span>Name: <strong>${acNameP||'____'}</strong></span><span>${acSigP?`<img src="${acSigP}" class="sig-img"/>`:' Sign:____'}</span></div></div><div class="comment-box" style="flex:1"><div class="comment-title">HEADMASTER:</div><div class="comment-text">${hmCommentP}</div><div class="sig-row"><span>Name: <strong>${hmNameP}</strong></span><span>${hmSigP?`<img src="${hmSigP}" class="sig-img"/>`:' Sign:____'}</span></div></div></div>`);
-                    pw.document.write(`<div style="text-align:center;margin-top:10px;font-size:10px;color:#555;font-style:italic;border-top:2px solid #ccc;padding-top:5px"><strong>${schoolNameP}</strong>: ${mottoP}</div></body></html>`);
+                    pw.document.write(`<div style="text-align:center;margin-top:10px;font-size:10px;color:#222;font-style:italic;border-top:2px solid #888;padding-top:5px"><strong>${schoolNameP}</strong>: ${mottoP}</div></body></html>`);
                     pw.document.close();
                     setTimeout(() => { pw.focus(); pw.print(); }, 500);
                   };

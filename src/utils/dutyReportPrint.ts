@@ -63,45 +63,45 @@ export function createDutyReportHtml(report: any, o: DutyPrintOptions): string {
   html, body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body { font-family: 'Times New Roman', Times, serif; color: #111; line-height: 1.35; }
   .page { display: flex; flex-direction: column; padding: 9mm 12mm 8mm; gap: 0.55em; }
-  .header { text-align: center; padding-bottom: 0.45em; border-bottom: 3px double #1f3a5f; }
-  .header .council { font-size: 1.1em; font-weight: bold; letter-spacing: 0.08em; color: #333; }
-  .header .school { font-size: 1.55em; font-weight: bold; letter-spacing: 0.06em; color: #1f3a5f; margin-top: 0.1em; }
+  .header { text-align: center; padding-bottom: 0.45em; border-bottom: 3px double #000; }
+  .header .council { font-size: 1.1em; font-weight: bold; letter-spacing: 0.08em; color: #111; }
+  .header .school { font-size: 1.55em; font-weight: bold; letter-spacing: 0.06em; color: #000; margin-top: 0.1em; }
   /* larger logos for this document only (they scale with the page font) */
   .header .lh-side { width: 6.8em; height: 5.8em; }
   .header .lh-side img { max-width: 6.8em !important; max-height: 5.8em !important; }
-  .title-bar { background: #1f3a5f; color: #fff; text-align: center; font-weight: bold; font-size: 1.25em; letter-spacing: 0.14em; padding: 0.3em 0.5em; border-radius: 0.2em; }
-  .meta { display: flex; justify-content: space-between; align-items: center; font-size: 1.05em; background: #eef2f7; border-left: 0.3em solid #1f3a5f; padding: 0.4em 0.7em; }
-  .sections { display: flex; flex-direction: column; border: 1px solid #7b8794; }
+  .title-bar { background: #000; color: #fff; text-align: center; font-weight: bold; font-size: 1.25em; letter-spacing: 0.14em; padding: 0.3em 0.5em; border-radius: 0.2em; }
+  .meta { display: flex; justify-content: space-between; align-items: center; font-size: 1.05em; background: #e0e0e0; border-left: 0.3em solid #000; padding: 0.4em 0.7em; }
+  .sections { display: flex; flex-direction: column; border: 1px solid #222; }
   .sec { display: flex; align-items: center; min-height: 2em; }
-  .sec:nth-child(even) { background: #f8fafc; }
-  .sec-label { flex: 0 0 31%; align-self: stretch; display: flex; align-items: center; font-weight: bold; font-size: 1.02em; padding: 0 0.7em; background: #eef2f7; border-right: 1px solid #b8c2cc; color: #1f3a5f; }
-  .sec-label, .sec-text { border-bottom: 1px solid #b8c2cc; }
+  .sec:nth-child(even) { background: #f5f5f5; }
+  .sec-label { flex: 0 0 31%; align-self: stretch; display: flex; align-items: center; font-weight: bold; font-size: 1.02em; padding: 0 0.7em; background: #e0e0e0; border-right: 1px solid #666; color: #000; }
+  .sec-label, .sec-text { border-bottom: 1px solid #666; }
   .sec:last-child .sec-label, .sec:last-child .sec-text { border-bottom: 0; }
   .sec-text { flex: 1; align-self: stretch; display: flex; align-items: center; font-size: 1.05em; padding: 0 0.7em; }
-  .att-title { text-align: center; font-weight: bold; font-size: 1.1em; letter-spacing: 0.04em; color: #1f3a5f; }
+  .att-title { text-align: center; font-weight: bold; font-size: 1.1em; letter-spacing: 0.04em; color: #000; }
   table { width: 100%; border-collapse: collapse; }
-  th, td { border: 1px solid #5b6b7c; text-align: center; padding: 0.28em 0.1em; font-size: 0.95em; }
-  th { background: #1f3a5f; color: #fff; font-size: 0.8em; letter-spacing: 0.03em; }
-  th.sub { background: #dbe4f0; color: #1f3a5f; font-size: 0.8em; }
-  td.cls { font-weight: bold; background: #eef2f7; font-size: 0.85em; }
+  th, td { border: 1px solid #222; text-align: center; padding: 0.28em 0.1em; font-size: 0.95em; }
+  th { background: #000; color: #fff; font-size: 0.8em; letter-spacing: 0.03em; }
+  th.sub { background: #cfcfcf; color: #000; font-size: 0.8em; }
+  td.cls { font-weight: bold; background: #e0e0e0; font-size: 0.85em; }
   td.b { font-weight: bold; }
-  td.abs { color: #a61e1e; }
-  td.tot { background: #eef2f7; }
-  tbody tr:nth-child(even) td { background-color: #fafbfd; }
-  tbody tr:nth-child(even) td.cls, tbody tr:nth-child(even) td.tot { background-color: #eef2f7; }
-  tr.total-row td { background: #cfd9e6 !important; font-weight: bold; border-top: 2px solid #1f3a5f; border-bottom: 2px solid #1f3a5f; }
-  .pct-box { display: flex; align-items: center; justify-content: space-between; gap: 0.8em; border: 1.5px solid #1f3a5f; border-radius: 0.3em; padding: 0.4em 0.8em; background: #f3f6fa; }
-  .pct-label { font-weight: bold; font-size: 1.05em; color: #1f3a5f; }
-  .pct-formula { font-size: 0.88em; color: #444; margin-top: 0.1em; }
-  .pct-value { font-size: 1.9em; font-weight: bold; color: #fff; background: #1f3a5f; padding: 0.02em 0.5em; border-radius: 0.25em; }
+  td.abs { color: #000; font-weight: 700; text-decoration: underline; }
+  td.tot { background: #e0e0e0; }
+  tbody tr:nth-child(even) td { background-color: #fff; }
+  tbody tr:nth-child(even) td.cls, tbody tr:nth-child(even) td.tot { background-color: #e0e0e0; }
+  tr.total-row td { background: #888 !important; font-weight: bold; border-top: 2px solid #000; border-bottom: 2px solid #000; }
+  .pct-box { display: flex; align-items: center; justify-content: space-between; gap: 0.8em; border: 1.5px solid #000; border-radius: 0.3em; padding: 0.4em 0.8em; background: #f0f0f0; }
+  .pct-label { font-weight: bold; font-size: 1.05em; color: #000; }
+  .pct-formula { font-size: 0.88em; color: #222; margin-top: 0.1em; }
+  .pct-value { font-size: 1.9em; font-weight: bold; color: #fff; background: #000; padding: 0.02em 0.5em; border-radius: 0.25em; }
   .comments { display: flex; flex-direction: column; gap: 0.5em; }
-  .card { border: 1px solid #7b8794; border-radius: 0.25em; overflow: hidden; }
-  .card-title { background: #dbe4f0; color: #1f3a5f; font-weight: bold; font-size: 1em; letter-spacing: 0.04em; padding: 0.22em 0.7em; border-bottom: 1px solid #7b8794; }
+  .card { border: 1px solid #222; border-radius: 0.25em; overflow: hidden; }
+  .card-title { background: #cfcfcf; color: #000; font-weight: bold; font-size: 1em; letter-spacing: 0.04em; padding: 0.22em 0.7em; border-bottom: 1px solid #222; }
   .card-text { font-size: 1.02em; padding: 0.35em 0.7em 0.2em; min-height: 2.4em; line-height: 1.4; }
   .sig-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 1em; padding: 0.2em 0.7em 0.45em; font-size: 1em; }
   .sig-name { font-weight: bold; border-bottom: 1px dotted #000; padding: 0 0.5em 0.05em; }
   .sig-line { display: inline-block; width: 11em; border-bottom: 1px solid #000; }
-  .footer { text-align: center; font-size: 0.9em; color: #555; font-style: italic; border-top: 1px solid #b8c2cc; padding-top: 0.35em; }
+  .footer { text-align: center; font-size: 0.9em; color: #222; font-style: italic; border-top: 1px solid #666; padding-top: 0.35em; }
 </style></head><body><div class="page">
   <div class="header">${letterheadOpen(o.districtLogo)}<div class="council">${esc(o.districtName)}</div><div class="school">${esc(o.schoolName)}</div>${letterheadClose(o.schoolLogo)}</div>
   <div class="title-bar">TEACHER'S DUTY REPORT</div>
