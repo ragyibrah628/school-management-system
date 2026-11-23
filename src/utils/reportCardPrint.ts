@@ -266,7 +266,7 @@ export function createReportCardPrintDocument(cardsHtml: string): string {
     justify-content: space-between;
     gap: 1mm;
     min-width: 0;
-    min-height: 17mm;
+    min-height: 23mm;
     margin-top: 2mm;
     font-size: 9pt;
   }
@@ -276,9 +276,9 @@ export function createReportCardPrintDocument(cardsHtml: string): string {
   .sig-img {
     display: block;
     width: auto;
-    height: 13mm;
-    max-width: 38mm;
-    max-height: 13mm;
+    height: 20mm;
+    max-width: 50mm;
+    max-height: 20mm;
     object-fit: contain;
     object-position: bottom right;
     margin-bottom: 0;
@@ -332,8 +332,8 @@ export function createReportCardPrintDocument(cardsHtml: string): string {
     .grade-box { margin: 2.5mm 0; padding: 2.5mm; }
     .comment-title { padding-top: 1.8mm; padding-bottom: 1.5mm; }
     .comment-text { font-size: 9.5pt; line-height: 1.25; }
-    .sig-row { min-height: 16mm; }
-    .sig-img { max-height: 13mm; }
+    .sig-row { min-height: 22mm; }
+    .sig-img { max-height: 20mm; }
     .footer { margin-top: 3mm; padding-top: 2mm; }
     .report-card--compact .header { margin-bottom: 2mm; padding-bottom: 2mm; }
     .report-card--compact .school-name { font-size: 16pt !important; }
@@ -344,8 +344,8 @@ export function createReportCardPrintDocument(cardsHtml: string): string {
     .report-card--compact .grade-box { margin: 1.8mm 0; padding: 1.8mm; }
     .report-card--compact .comment-box { padding-bottom: 1.5mm; }
     .report-card--compact .comment-text { font-size: 9pt; line-height: 1.15; }
-    .report-card--compact .sig-row { min-height: 16mm; font-size: 9pt; }
-    .report-card--compact .sig-img { max-height: 13mm; }
+    .report-card--compact .sig-row { min-height: 21mm; font-size: 9pt; }
+    .report-card--compact .sig-img { max-height: 19mm; }
     .report-card--long-comments .header { margin-bottom: 1mm; padding-bottom: 1mm; }
     .report-card--long-comments .info-cell { padding: 1mm 2mm; }
     .report-card--long-comments .subjects-table { margin: 1mm 0; }
