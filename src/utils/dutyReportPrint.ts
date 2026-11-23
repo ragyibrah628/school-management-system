@@ -55,14 +55,14 @@ export function createDutyReportHtml(report: any, o: DutyPrintOptions): string {
 
   const subHead = ['B', 'G', 'T', 'B', 'G', 'T', 'B', 'G', 'T', 'B', 'G', 'T', 'B', 'G', 'T'].map(h => `<th class="sub">${h}</th>`).join('');
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title> </title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=816"><title> </title>
 <style>
   @page { size: A4 portrait; margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { font-size: ${fs}px; }
   html, body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   body { font-family: 'Times New Roman', Times, serif; color: #111; line-height: 1.35; }
-  .page { display: flex; flex-direction: column; height: calc(100vh - 0.5mm); padding: 9mm 12mm 8mm; overflow: hidden; gap: 0.55em; }
+  .page { display: flex; flex-direction: column; padding: 9mm 12mm 8mm; gap: 0.55em; }
   .header { text-align: center; padding-bottom: 0.45em; border-bottom: 3px double #1f3a5f; }
   .header .council { font-size: 1.1em; font-weight: bold; letter-spacing: 0.08em; color: #333; }
   .header .school { font-size: 1.55em; font-weight: bold; letter-spacing: 0.06em; color: #1f3a5f; margin-top: 0.1em; }
@@ -71,8 +71,8 @@ export function createDutyReportHtml(report: any, o: DutyPrintOptions): string {
   .header .lh-side img { max-width: 6.8em !important; max-height: 5.8em !important; }
   .title-bar { background: #1f3a5f; color: #fff; text-align: center; font-weight: bold; font-size: 1.25em; letter-spacing: 0.14em; padding: 0.3em 0.5em; border-radius: 0.2em; }
   .meta { display: flex; justify-content: space-between; align-items: center; font-size: 1.05em; background: #eef2f7; border-left: 0.3em solid #1f3a5f; padding: 0.4em 0.7em; }
-  .sections { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; border: 1px solid #7b8794; }
-  .sec { display: flex; align-items: center; flex: 1 1 0; max-height: 3.3em; min-height: 1.7em; }
+  .sections { display: flex; flex-direction: column; border: 1px solid #7b8794; }
+  .sec { display: flex; align-items: center; min-height: 2em; }
   .sec:nth-child(even) { background: #f8fafc; }
   .sec-label { flex: 0 0 31%; align-self: stretch; display: flex; align-items: center; font-weight: bold; font-size: 1.02em; padding: 0 0.7em; background: #eef2f7; border-right: 1px solid #b8c2cc; color: #1f3a5f; }
   .sec-label, .sec-text { border-bottom: 1px solid #b8c2cc; }
@@ -127,5 +127,37 @@ export function createDutyReportHtml(report: any, o: DutyPrintOptions): string {
       <div class="sig-row"><span>NAME: <span class="sig-name">${esc(report.headmaster_name)}</span></span><span>SIGNATURE: <span class="sig-line"></span></span></div></div>
   </div>
   <div class="footer">${esc(o.schoolName)}: ${esc(o.motto)}</div>
-</div></body></html>`;
+</div>
+<script>
+// Fit the report to ONE page on any device/paper: pick the largest font size whose content still fits
+// (Letter is the shortest common paper, so it also fits A4). Runs on load, after fonts load and before printing.
+(function () {
+  var TARGET_MM = 273;
+  function mmToPx(mm) {
+    var d = document.createElement('div');
+    d.style.cssText = 'position:absolute;visibility:hidden;width:1px;height:' + mm + 'mm';
+    document.body.appendChild(d);
+    var h = d.getBoundingClientRect().height;
+    document.body.removeChild(d);
+    return h;
+  }
+  function fit() {
+    var page = document.querySelector('.page');
+    if (!page) return;
+    var root = document.documentElement;
+    var target = mmToPx(TARGET_MM);
+    var lo = 8, hi = 18, best = lo;
+    for (var i = 0; i < 16; i++) {
+      var mid = (lo + hi) / 2;
+      root.style.fontSize = mid + 'px';
+      if (page.scrollHeight <= target) { best = mid; lo = mid; } else { hi = mid; }
+    }
+    root.style.fontSize = best + 'px';
+  }
+  fit();
+  window.addEventListener('load', fit);
+  window.addEventListener('beforeprint', fit);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+})();
+</script></body></html>`;
 }
