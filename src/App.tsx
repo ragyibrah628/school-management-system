@@ -2510,9 +2510,9 @@ function AppInner() {
 
                 pw.document.write(`<section class="${cardClasses}"><div class="header">`);
                 pw.document.write(letterheadOpen(imageUrls.districtLogo));
-                pw.document.write(`<div class="council-name" style="font-size:14px;font-weight:bold">${districtName}</div>
-                  <div class="school-name" style="font-size:22px;font-weight:bold;margin:3px 0">${schoolNameSetting}</div>
-                  <div style="font-size:11px;margin-bottom:4px">${schoolAddress}</div>
+                pw.document.write(`<div class="council-name" style="font-size:14px;font-weight:bold">HALMASHAURI YA WILAYA YA RUANGWA</div>
+                  <div class="school-name" style="font-size:22px;font-weight:bold;margin:3px 0">SHULE YA SEKONDARI NAMBAWALA</div>
+                  <div style="font-size:11px;margin-bottom:4px;font-weight:bold">S.L.P 51 RUANGWA-LINDI</div>
                   <div class="report-title" style="font-size:16px;font-weight:bold;text-decoration:underline;margin-top:4px">RIPOTI YA MAENDELEO YA MWANAFUNZI</div>
                   <div class="exam-name" style="font-size:13px;margin-top:3px">${examName}</div>${letterheadClose(logo)}</div>`);
 
@@ -2532,14 +2532,14 @@ function AppInner() {
                     const g = grade(v);
                     const p = point(v);
                     const r = remark(v);
-                    const color = v >= 45 ? '#006600' : '#cc0000';
+                    const color = '#000';
                     const gradeClass = g === 'D' || g === 'F' ? 'grade-low' : '';
                     pw.document.write(`<tr><td style="text-align:left;font-weight:bold">${sub}</td><td style="text-align:center;color:${color};font-weight:bold;font-size:14px">${v}</td><td style="text-align:center;font-weight:bold;color:${color};font-size:14px"><span class="${gradeClass}">${g}</span></td><td style="text-align:center;font-size:13px">${p}</td><td style="text-align:center">${r}</td></tr>`);
                   }
                 });
                 const averageGrade = grade(row.avg);
                 const averageGradeClass = averageGrade === 'D' || averageGrade === 'F' ? 'grade-low' : '';
-                pw.document.write(`<tr style="font-weight:bold;background:#d4edda"><td style="text-align:left">JUMLA (Masomo ${validCount})</td><td style="text-align:center;font-size:14px">${row.total}</td><td style="text-align:center;font-size:14px"><span class="${averageGradeClass}">${averageGrade}</span></td><td style="text-align:center;font-size:13px">${rr.totalPoints}</td><td style="text-align:center">${remark(row.avg)}</td></tr>`);
+                pw.document.write(`<tr style="font-weight:bold;background:#d9d9d9"><td style="text-align:left">JUMLA (Masomo ${validCount})</td><td style="text-align:center;font-size:14px">${row.total}</td><td style="text-align:center;font-size:14px"><span class="${averageGradeClass}">${averageGrade}</span></td><td style="text-align:center;font-size:13px">${rr.totalPoints}</td><td style="text-align:center">${remark(row.avg)}</td></tr>`);
                 pw.document.write(`</tbody></table>`);
 
                 // Overall box — KISWAHILI
@@ -2554,8 +2554,8 @@ function AppInner() {
 
                 const behaviorCats = ['Nidhamu', 'Kuwahi', 'Mahudhurio', 'Heshima', 'Uwajibikaji', 'Ushiriki Darasani', 'Ushirikiano', 'Usafi', 'Kujidhibiti', 'Uongozi'];
                 if (Object.keys(studentBehavior).length > 0) {
-                  pw.document.write(`<div style="margin:8px 0"><table class="behavior-table"><thead><tr><th colspan="10" style="text-align:left;font-size:12px;background:#fff3cd">TATHMINI YA TABIA — Mwalimu wa Darasa: <strong>${ctName}</strong></th></tr><tr style="background:#fff3cd">`);
-                  behaviorCats.forEach(c => pw.document.write(`<th style="font-size:9px;padding:4px;background:#fff3cd">${c}</th>`));
+                  pw.document.write(`<div style="margin:8px 0"><table class="behavior-table"><thead><tr><th colspan="10" style="text-align:left;font-size:12px;background:#e3e3e3">TATHMINI YA TABIA — Mwalimu wa Darasa: <strong>${ctName}</strong></th></tr><tr style="background:#e3e3e3">`);
+                  behaviorCats.forEach(c => pw.document.write(`<th style="font-size:9px;padding:4px;background:#e3e3e3">${c}</th>`));
                   pw.document.write(`</tr></thead><tbody><tr>`);
                   const engCats = ['Discipline', 'Punctuality', 'Attendance', 'Respectfulness', 'Responsibility', 'Class Participation', 'Cooperation', 'Neatness', 'Self-Control', 'Leadership & Initiative'];
                   const swValMap: Record<string,string> = { 'Excellent':'Bora Sana', 'Very Good':'Vizuri Sana', 'Good':'Vizuri', 'Satisfactory':'Wastani', 'Needs Improvement':'Inahitaji Kuboreshwa' };
@@ -2563,7 +2563,7 @@ function AppInner() {
                     const engKey = engCats[idx];
                     const raw = studentBehavior[engKey] || studentBehavior[c] || '-';
                     const val = (swValMap as any)[raw] || raw;
-                    const color = raw === 'Excellent' ? '#006600' : raw === 'Needs Improvement' ? '#cc0000' : '#333';
+                    const color = '#000';
                     pw.document.write(`<td style="font-size:10px;text-align:center;color:${color};padding:4px;font-weight:bold">${val}</td>`);
                   });
                   pw.document.write(`</tr></tbody></table></div>`);
@@ -3740,7 +3740,7 @@ function AppInner() {
                     pw.document.write(`<tr style="font-weight:bold;background:#d4edda"><td style="text-align:left">TOTAL (${examScoresAll.length})</td><td style="text-align:center">${totalScore}</td><td style="text-align:center">${getGradeP(avg)}</td><td style="text-align:center">${totalPts}</td><td style="text-align:center">${getRemarkP(avg)}</td></tr></tbody></table>`);
                     pw.document.write(`<div class="grade-box"><strong style="font-size:13px">Wastani: ${avg.toFixed(1)}% | Gredi: ${getGradeP(avg)} | Pointi: ${totalPts} | Daraja: ${div}</strong></div>`);
                     if (Object.keys(studentBehaviorP).length > 0) {
-                      pw.document.write(`<table><thead><tr><th colspan="11" style="text-align:left;font-size:11px;background:#fff3cd">TATHMINI YA TABIA — Mwalimu wa Darasa: ${ctNameP}</th></tr><tr style="background:#fff3cd">`);
+                      pw.document.write(`<table><thead><tr><th colspan="11" style="text-align:left;font-size:11px;background:#e3e3e3">TATHMINI YA TABIA — Mwalimu wa Darasa: ${ctNameP}</th></tr><tr style="background:#fff3cd">`);
                       behaviorCatsP.forEach(c => pw.document.write(`<th style="font-size:8px;padding:3px;background:#fff3cd">${c}</th>`));
                       pw.document.write(`</tr></thead><tbody><tr>`);
                       behaviorCatsP.forEach(c => { const v = studentBehaviorP[c]||'-'; pw.document.write(`<td style="font-size:9px;text-align:center;font-weight:bold;color:${v==='Excellent'?'#006600':v==='Needs Improvement'?'#cc0000':'#333'}">${v}</td>`); });
