@@ -23,6 +23,7 @@ import {
 import { TimetableSubsystem } from './components/TimetableSubsystem';
 import { TeacherDutyForm, DutyReportPrint, AdminRegisteredStudents } from './components/DutyReport';
 import { LessonPlan } from './components/LessonPlan';
+import { LogBook } from './components/LogBook';
 import * as cloud from './lib/cloud';
 import { getDistrictLogo, letterheadOpen, letterheadClose } from './utils/letterhead';
 import { TT_PRINT_CSS, TT_FIT_SCRIPT } from './utils/timetablePrint';
@@ -1756,6 +1757,7 @@ function AppInner() {
   const teacherMenus = [
     { id: 'my_timetable', label: 'My Timetable', icon: CalendarDays },
     { id: 'lesson_plan', label: 'Lesson Plan', icon: NotebookPen },
+    { id: 'logbook', label: 'Log Book', icon: BookOpen },
     ...(myClass ? [{ id: 'students', label: `Register Students (${myClass})`, icon: UserRoundPlus }] : []),
     ...(myClass ? [{ id: 'behavior', label: 'Behavior Assessment', icon: ClipboardCheck }] : []),
     { id: 'exams', label: 'Exams & Scores', icon: ChartNoAxesCombined },
@@ -2855,6 +2857,17 @@ function AppInner() {
 
           {activeMenu === 'lesson_plan' && user?.role === 'teacher' && (
             <LessonPlan
+              teacherName={user?.name || ''}
+              assignments={teachingAssignments[user?.id] || []}
+              schoolName={schoolNameSetting}
+              districtName={districtName}
+              schoolLogo={schoolLogo}
+            />
+          )}
+
+          {activeMenu === 'logbook' && user?.role === 'teacher' && (
+            <LogBook
+              teacherId={user?.id || ''}
               teacherName={user?.name || ''}
               assignments={teachingAssignments[user?.id] || []}
               schoolName={schoolNameSetting}
