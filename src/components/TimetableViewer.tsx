@@ -70,7 +70,7 @@ function findTeacherForSubjectClass(subjectName: string, className: string): { i
     const users = JSON.parse(localStorage.getItem('sms_users') || '[]');
     for (const [tid, arr] of Object.entries(ta as any)) {
       const list = arr as any[];
-      if (list.some((a: any) => a.cls === className && a.sub === subjectName)) {
+      if (list.some((a: any) => a.cls === className && String(a.sub || '').trim().toLowerCase() === String(subjectName || '').trim().toLowerCase())) {
         const u = users.find((x: any) => x.id === tid);
         if (u) return { id: tid, name: u.name };
       }
@@ -78,6 +78,11 @@ function findTeacherForSubjectClass(subjectName: string, className: string): { i
   } catch {}
   return null;
 }
+
+const readTeachingAssignments = (): Record<string, any[]> => {
+  try { return JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}') || {}; } catch { return {}; }
+};
+const normSubject = (value: any) => String(value || '').trim().toLowerCase();
 
 export const TimetableViewer: React.FC = () => {
   const { 
@@ -281,13 +286,9 @@ export const TimetableViewer: React.FC = () => {
 
   const getTeacherForSubject = (subjectValue: string): string => {
     if (!subjectValue || subjectValue === 'ps') return '';
-    const classId = selectedId;
     const subject = subjects.find((item: any) => item.id === subjectValue || item.name === subjectValue);
-    const assignment = classSubjects.find((item: any) => item.classId === classId && (
-      item.subjectId === subjectValue || item.subjectId === subject?.id || subjects.find((s: any) => s.id === item.subjectId)?.name === subjectValue
-    ));
-    if (assignment?.teacherId) return assignment.teacherId;
-    const className = classes.find((item: any) => item.id === classId)?.name || '';
+    const className = classes.find((item: any) => item.id === selectedId)?.name || '';
+    // Only the admin's Teaching Assignments decide who teaches a subject in a class.
     return findTeacherForSubjectClass(subject?.name || subjectValue, className)?.id || '';
   };
 
@@ -596,8 +597,15 @@ export const TimetableViewer: React.FC = () => {
           </h2>
           <div className="space-y-8 print:space-y-12">
             {classes.map((cls) => {
-              const clsSubs = classSubjects.filter(cs => cs.classId === cls.id);
-              const totalP = clsSubs.reduce((acc, s) => acc + s.periodsPerWeek, 0);
+              // Subjects of this class come from the admin's Teaching Assignments
+              const assignedSubjects = new Set<string>();
+              Object.values(readTeachingAssignments()).forEach((list: any) => (list || []).forEach((item: any) => {
+                if (item?.cls === cls.name && item?.sub) assignedSubjects.add(normSubject(item.sub));
+              }));
+              const clsSubs = Array.from(assignedSubjects);
+              const totalP = classSubjects
+                .filter(cs => cs.classId === cls.id && assignedSubjects.has(normSubject(subjects.find((s: any) => s.id === cs.subjectId)?.name)))
+                .reduce((acc, s) => acc + (Number(s.periodsPerWeek) || 0), 0);
               
               return (
                 <div key={cls.id} className="break-after-page print:break-after-page border border-slate-200 rounded-xl p-4 bg-white print:border-slate-300 print:p-6 print:mb-8">
@@ -693,7 +701,7 @@ export const TimetableViewer: React.FC = () => {
           <h2 className="text-lg font-bold text-slate-800 mb-4 print:hidden">Print All Teacher Timetables</h2>
           <div className="space-y-8 print:space-y-12">
             {teachers.map((t) => {
-              const tSubs = classSubjects.filter(cs => cs.teacherId === t.id);
+              const tSubs = Array.from(new Set(((readTeachingAssignments()[t.id] || []) as any[]).map(item => `${item?.cls}|${normSubject(item?.sub)}`)));
               return (
                 <div key={t.id} className="break-after-page print:break-after-page border border-slate-200 rounded-xl p-4 bg-white print:border-slate-300 print:p-6 print:mb-8">
                   {/* Print-only School Header */}
@@ -979,17 +987,9 @@ export const TimetableViewer: React.FC = () => {
                       if (foundSub2) { secondSubjId = foundSub2.id; secondSubjName = foundSub2.name; }
                       else if (selectedSecondSubject==='ps') { secondSubjId='ps'; secondSubjName='PS'; }
                       // Find teacher for second subject
-                      try {
-                        const cs2 = classSubjects.find((c:any)=> c.classId===selectedId && (c.subjectId===secondSubjId || subjects.find((s:any)=>s.id===c.subjectId)?.name===secondSubjName));
-                        if (cs2) secondTeacherId = cs2.teacherId;
-                      } catch {}
                       if (!secondTeacherId && secondSubjName) {
                         const res2 = findTeacherForSubjectClass(secondSubjName!, classes.find((c:any)=>c.id===selectedId)?.name || '');
                         if (res2) { secondTeacherId = res2.id; secondTeacherName = res2.name; }
-                      }
-                      if (!secondTeacherId && secondSubjId) {
-                        const t2 = teachers.find((x:any)=> x.qualifiedSubjects?.includes(secondSubjId!));
-                        if (t2) secondTeacherId = t2.id;
                       }
                       if (secondSubjName && secondSubjName!=='PS' && !secondTeacherId) {
                         setCollisionMsg('No teacher for second subject ' + secondSubjName + ' in ' + (classes.find((c:any)=>c.id===selectedId)?.name || selectedId) + '.');
@@ -998,17 +998,9 @@ export const TimetableViewer: React.FC = () => {
                     }
                     let teacherId = '';
                     let teacherName = '';
-                    try {
-                      const cs = classSubjects.find((c:any)=> c.classId===selectedId && (c.subjectId===subjId || subjects.find((s:any)=>s.id===c.subjectId)?.name===subjName));
-                      if (cs) teacherId = cs.teacherId;
-                    } catch {}
                     if (!teacherId) {
                       const res = findTeacherForSubjectClass(subjName, classes.find((c:any)=>c.id===selectedId)?.name || '');
                       if (res) { teacherId = res.id; teacherName = res.name; }
-                    }
-                    if (!teacherId) {
-                      const t = teachers.find((x:any)=> x.qualifiedSubjects?.includes(subjId));
-                      if (t) teacherId = t.id;
                     }
                     if (!teacherId) {
                       setCollisionMsg('No teacher assigned to teach ' + subjName + ' in ' + (classes.find((c:any)=>c.id===selectedId)?.name || selectedId) + '. Go to Assign Teaching Classes & Subjects first.');
