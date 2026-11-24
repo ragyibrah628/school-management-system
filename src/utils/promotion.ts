@@ -105,7 +105,7 @@ export function buildPromotionPlan(students: Roster, schoolClasses: string[], no
     const target = nextClassName(cls)!;
     if (!allClasses.includes(target) && rows.length > 0) plan.missingTargets.push(`${cls} -> ${target}`);
     // promoted students get new ids so the old class record can be deleted without removing them from the new class
-    plan.next[target] = [
+    if (rows.length > 0 || allClasses.includes(target)) plan.next[target] = [
       ...(plan.next[target] || []),
       ...rows.map(s => ({ ...s, id: `pr-${now.toString(36)}-${(counter++).toString(36)}`, updatedAt: new Date(now).toISOString() }))
     ];

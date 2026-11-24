@@ -25,7 +25,7 @@ import { TeacherDutyForm, DutyReportPrint, AdminRegisteredStudents } from './com
 import { LessonPlan } from './components/LessonPlan';
 import { LogBook } from './components/LogBook';
 import { PromoteStudents } from './components/PromoteStudents';
-import { ClassManager } from './components/ClassManager';
+import { SchoolClassManager } from './components/SchoolClassManager';
 import { PromotionPlan, remainingNames, withBaseForms, baseOf } from './utils/promotion';
 import * as cloud from './lib/cloud';
 import { getDistrictLogo, letterheadOpen, letterheadClose } from './utils/letterhead';
@@ -2034,7 +2034,7 @@ function AppInner() {
             schoolLogo={schoolLogo}
             onApply={applyPromotion}
           />
-          <ClassManager
+          <SchoolClassManager
             schoolClasses={schoolClasses}
             studentCounts={Object.fromEntries(Object.entries(students).map(([cls, rows]) => [cls, (rows as any[]).length]))}
             onSave={(updatedClasses: string[]) => {

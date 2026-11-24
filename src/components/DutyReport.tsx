@@ -32,8 +32,8 @@ function getSchoolClasses(): string[] {
       const saved = JSON.parse(savedValue);
       if (Array.isArray(saved)) return saved;
     }
-  } catch { return ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC']; }
-  return ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
+  } catch { return ['Form I', 'Form II', 'Form III', 'Form IV']; }
+  return ['Form I', 'Form II', 'Form III', 'Form IV'];
 }
 
 const SECTION_OPTIONS: Record<string, string[]> = {

@@ -71,7 +71,7 @@ export function PromoteStudents({ students, schoolClasses, scores, exams, behavi
         <div className={overlay}><div className={card}>
           <h3 className="font-bold text-lg mb-2">You are about to promote students</h3>
           <ul className="text-sm text-slate-600 mb-4 list-disc pl-5 space-y-1">
-            {plan.moves.map(m => <li key={m.from}>{m.from} &rarr; {m.to} ({m.count})</li>)}
+            {plan.moves.filter(m => m.count > 0).map(m => <li key={m.from}>{m.from} &rarr; {m.to} ({m.count})</li>)}
             <li>Form IV leave the system ({graduateCount}). Their exam results stay in the system.</li>
           </ul>
           <div className="flex gap-2 justify-end">
