@@ -25,7 +25,8 @@ import { TeacherDutyForm, DutyReportPrint, AdminRegisteredStudents } from './com
 import { LessonPlan } from './components/LessonPlan';
 import { LogBook } from './components/LogBook';
 import { PromoteStudents } from './components/PromoteStudents';
-import { PromotionPlan, remainingNames } from './utils/promotion';
+import { ClassManager } from './components/ClassManager';
+import { PromotionPlan, remainingNames, withBaseForms, baseOf } from './utils/promotion';
 import * as cloud from './lib/cloud';
 import { getDistrictLogo, letterheadOpen, letterheadClose } from './utils/letterhead';
 import { TT_PRINT_CSS, TT_FIT_SCRIPT } from './utils/timetablePrint';
@@ -793,7 +794,7 @@ function AppInner() {
           if (isRecent) {
             // admin just edited (add/delete), don't overwrite — let syncToCloud push local
           } else if (Array.isArray(freshClasses) && freshClasses.length) {
-            setSchoolClasses((prev: any) => JSON.stringify(prev) !== JSON.stringify(freshClasses) ? freshClasses : prev);
+            setSchoolClasses((prev: any) => { const fixed = withBaseForms(Array.isArray(freshClasses) ? freshClasses : []); return JSON.stringify(prev) !== JSON.stringify(fixed) ? fixed : prev; });
           } else if (Array.isArray(freshClasses) && freshClasses.length === 0) {
             setSchoolClasses([]);
           }
@@ -1550,10 +1551,10 @@ function AppInner() {
       const savedValue = localStorage.getItem('sms_school_classes');
       if (savedValue !== null) {
         const saved = JSON.parse(savedValue);
-        if (Array.isArray(saved)) return saved;
+        if (Array.isArray(saved)) return withBaseForms(saved);
       }
     } catch {}
-    return ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
+    return withBaseForms([]);
   });
   useEffect(() => {
     if (user) setSchoolClassesReady(true);
@@ -2033,63 +2034,22 @@ function AppInner() {
             schoolLogo={schoolLogo}
             onApply={applyPromotion}
           />
-          <div className="bg-white p-6 rounded-2xl border">
-            <h2 className="font-bold text-lg mb-2">School Classes & Streams ({schoolClasses.length})</h2>
-            <p className="text-xs text-slate-500 mb-3">Register classes with streams. Format: Form IA, Form IB, etc. These appear in timetable, teacher assignments, and student registration.</p>
-            <div className="flex gap-2 mb-3">
-              <input placeholder="Class name (e.g. Form VA)" value={newClassName} onChange={e => setNewClassName(e.target.value)} className="flex-1 border px-3 py-2 rounded-xl text-sm" />
-              <button onClick={() => {
-                if (!newClassName.trim()) return;
-                if (schoolClasses.includes(newClassName.trim())) { alert('Class already exists'); return; }
-                const updatedClasses = [...schoolClasses, newClassName.trim()].sort();
-                localStorage.setItem('sms_school_classes', JSON.stringify(updatedClasses));
-                localStorage.setItem('tt_shared_classes', JSON.stringify(updatedClasses));
-                localStorage.setItem('sms_school_classes_ts', String(Date.now()));
-                if (cloud.isCloudMode()) {
-                  const value = JSON.stringify(updatedClasses);
-                  cloud.markAppDataKeyDirty('sms_school_classes', value);
-                  cloud.markAppDataKeyDirty('tt_shared_classes', value);
-                }
-                setSchoolClasses(updatedClasses);
-                if (cloud.isCloudMode()) cloud.syncToCloud().catch(() => {});
-                setNewClassName('');
-              }} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">+ Add</button>
-              <button onClick={() => {
-                if (schoolClasses.length === 0) { alert('No classes to clear'); return; }
-                if (!confirm('Futa madarasa yote ya mwanzo (' + schoolClasses.length + ') na ubaki na yaliyoandikwa upya tu?')) return;
-                localStorage.setItem('sms_school_classes', '[]');
-                localStorage.setItem('tt_shared_classes', '[]');
-                localStorage.setItem('sms_school_classes_ts', String(Date.now()));
-                if (cloud.isCloudMode()) {
-                  cloud.markAppDataKeyDirty('sms_school_classes', '[]');
-                  cloud.markAppDataKeyDirty('tt_shared_classes', '[]');
-                }
-                setSchoolClasses([]);
-                if (cloud.isCloudMode()) cloud.syncToCloud().catch(() => {});
-              }} className="bg-white border border-red-200 text-red-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-red-50" title="Futa yote ya mwanzo">🗑️ Clear All</button>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {schoolClasses.map(cls => (
-                <span key={cls} className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold">
-                  {cls}
-                  <button onClick={() => {
-                    if (!window.confirm(`Are you sure you want to delete the class "${cls}"?`)) return;
-                    const updatedClasses = schoolClasses.filter(c => c !== cls);
-                    localStorage.setItem('sms_school_classes', JSON.stringify(updatedClasses));
-                    localStorage.setItem('tt_shared_classes', JSON.stringify(updatedClasses));
-                    localStorage.setItem('sms_school_classes_ts', String(Date.now()));
-                    if (cloud.isCloudMode()) {
-                      const value = JSON.stringify(updatedClasses);
-                      cloud.markAppDataKeyDirty('sms_school_classes', value);
-                      cloud.markAppDataKeyDirty('tt_shared_classes', value);
-                    }
-                    setSchoolClasses(updatedClasses);
-                    if (cloud.isCloudMode()) cloud.syncToCloud().catch(() => {});
-                  }} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
-                </span>
-              ))}
-            </div>
-          </div>
+          <ClassManager
+            schoolClasses={schoolClasses}
+            studentCounts={Object.fromEntries(Object.entries(students).map(([cls, rows]) => [cls, (rows as any[]).length]))}
+            onSave={(updatedClasses: string[]) => {
+              const value = JSON.stringify(updatedClasses);
+              localStorage.setItem('sms_school_classes', value);
+              localStorage.setItem('tt_shared_classes', value);
+              localStorage.setItem('sms_school_classes_ts', String(Date.now()));
+              if (cloud.isCloudMode()) {
+                cloud.markAppDataKeyDirty('sms_school_classes', value);
+                cloud.markAppDataKeyDirty('tt_shared_classes', value);
+              }
+              setSchoolClasses(updatedClasses);
+              if (cloud.isCloudMode()) cloud.syncToCloud().catch(() => {});
+            }}
+          />
           </>)}
 
           {activeMenu === 'teachers' && (<>
@@ -2319,10 +2279,10 @@ function AppInner() {
                 <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">View Mode</label>
                 <select value={viewClass} onChange={e => setViewClass(e.target.value)} className="w-full border px-3 py-2.5 rounded-xl">
                   <option value="">-- All Classes (General) --</option>
-                  {[...new Set(CLASSES.map(c => c.replace(/\s*[A-C]$/, '')))].map(form => (
+                  {[...new Set(CLASSES.map(c => baseOf(c)))].map(form => (
                     <option key={form} value={`__${form.replace(/\s/g, '_')}`}>{form} (All Streams)</option>
                   ))}
-                  {CLASSES.map(c => <option key={c} value={c}>{c} (Stream)</option>)}
+                  {CLASSES.filter(c => baseOf(c) !== c).map(c => <option key={c} value={c}>{c} (Stream)</option>)}
                 </select>
               </div>
               <div className="flex items-end">
@@ -2333,7 +2293,7 @@ function AppInner() {
                   const classesInScope = viewClass === ''
                     ? CLASSES
                     : viewClass.startsWith('__')
-                      ? CLASSES.filter(cls => cls.toLowerCase().startsWith(viewClass.slice(2).replace(/_/g, ' ').toLowerCase()))
+                      ? CLASSES.filter(cls => baseOf(cls).toLowerCase() === viewClass.slice(2).replace(/_/g, ' ').toLowerCase())
                       : [viewClass];
                   const submittedSubjects = [...new Set(classesInScope.flatMap(cls =>
                     submittedSubjectsForClass(viewExamId, cls, scores, examSubmissions)
@@ -2372,7 +2332,7 @@ function AppInner() {
               const classesToShow = viewClass === ''
                 ? CLASSES
                 : viewClass.startsWith('__')
-                  ? CLASSES.filter(cls => cls.toLowerCase().startsWith(viewClass.slice(2).replace(/_/g, ' ').toLowerCase()))
+                  ? CLASSES.filter(cls => baseOf(cls).toLowerCase() === viewClass.slice(2).replace(/_/g, ' ').toLowerCase())
                   : [viewClass];
 
               // Get all students and scores for these classes

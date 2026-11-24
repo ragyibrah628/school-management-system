@@ -27,6 +27,48 @@ export function nextClassName(name: string): string | null {
   return `${parsed.prefix}${parsed.roman ? ROMAN[nextLevel] : nextLevel}${parsed.suffix}`;
 }
 
+
+export const BASE_FORMS = ['Form I', 'Form II', 'Form III', 'Form IV'];
+
+// "Form IIB" -> "Form II"; "Form II Red" -> "Form II"; "Form II" -> "Form II"
+export function baseOf(name: string): string {
+  const parsed = parseClass(name);
+  if (!parsed) return name;
+  return `${parsed.prefix}${parsed.roman ? ROMAN[parsed.level] : parsed.level}`;
+}
+
+// base "Form I" + stream "A" -> "Form IA"; stream "Red" -> "Form I Red"
+export function buildClassName(base: string, stream: string): string {
+  const clean = stream.trim();
+  if (!clean) return base;
+  return /^[A-Za-z]{1,2}$/.test(clean) ? `${base}${clean.toUpperCase()}` : `${base} ${clean}`;
+}
+
+export function sortClasses(list: string[]): string[] {
+  return [...list].sort((a, b) => {
+    const pa = parseClass(a), pb = parseClass(b);
+    if (pa && pb && pa.level !== pb.level) return pa.level - pb.level;
+    if (pa && !pb) return -1;
+    if (!pa && pb) return 1;
+    return a.localeCompare(b);
+  });
+}
+
+// Form I - Form IV always exist: a level with no class at all gets its plain class back.
+export function withBaseForms(list: string[]): string[] {
+  const out = [...new Set(list)];
+  BASE_FORMS.forEach((base, index) => {
+    if (!out.some(c => parseClass(c)?.level === index + 1)) out.push(base);
+  });
+  return sortClasses(out);
+}
+
+// Streams of one level ("" is never returned; a level without streams gives []).
+export function streamsOf(list: string[], level: number): string[] {
+  const base = BASE_FORMS[level - 1];
+  return list.filter(c => parseClass(c)?.level === level && c !== base).map(c => c.slice(base.length).trim());
+}
+
 export const levelOfClass = (name: string): number => parseClass(name)?.level || 0;
 
 export interface PromotionPlan {
