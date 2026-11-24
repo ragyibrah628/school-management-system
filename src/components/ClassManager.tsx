@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Pencil } from 'lucide-react';
-import { BASE_FORMS, buildClassName, parseClass, sortClasses, streamsOf } from '../utils/promotion';
+import { baseFor, buildClassName, parseClass, sortClasses, streamsOf } from '../utils/promotion';
 
 interface ClassManagerProps {
   schoolClasses: string[];
   studentCounts: Record<string, number>;
-  onSave: (classes: string[]) => void;
+  onSave: (classes: string[], moves: { from: string; to: string }[]) => void;
 }
 
 export function ClassManager({ schoolClasses, studentCounts, onSave }: ClassManagerProps) {
@@ -29,9 +29,9 @@ export function ClassManager({ schoolClasses, studentCounts, onSave }: ClassMana
   const addStream = () => {
     const name = draft.trim();
     if (!name) return;
-    const full = buildClassName(BASE_FORMS[(editing || 1) - 1], name);
+    const full = buildClassName(baseFor(editing || 1, schoolClasses), name);
     if (parseClass(full)?.level !== editing) { setError(`"${name}" cannot be used as a stream name.`); return; }
-    if (streams.some(s => buildClassName(BASE_FORMS[(editing || 1) - 1], s) === full)) { setError('This stream already exists.'); return; }
+    if (streams.some(s => buildClassName(baseFor(editing || 1, schoolClasses), s) === full)) { setError('This stream already exists.'); return; }
     setStreams([...streams, name]);
     setDraft('');
     setError('');
@@ -39,7 +39,7 @@ export function ClassManager({ schoolClasses, studentCounts, onSave }: ClassMana
 
   const save = () => {
     if (editing === null) return;
-    const base = BASE_FORMS[editing - 1];
+    const base = baseFor(editing, schoolClasses);
     const pending = draft.trim() ? [...streams, draft.trim()] : streams;
     const names = pending.map(s => buildClassName(base, s));
     const bad = pending.find((s, i) => parseClass(names[i])?.level !== editing || names.indexOf(names[i]) !== i);
@@ -48,13 +48,14 @@ export function ClassManager({ schoolClasses, studentCounts, onSave }: ClassMana
     const wanted = hasStreams ? pending.map(s => buildClassName(base, s)) : [base];
     const current = classesOfLevel(editing);
     const removed = current.filter(c => !wanted.includes(c));
-    const blocked = removed.filter(c => (studentCounts[c] || 0) > 0);
-    if (blocked.length > 0) {
-      setError(`These classes still have students: ${blocked.map(c => `${c} (${studentCounts[c]})`).join(', ')}. Move or remove the students first.`);
-      return;
+    // students of removed streams join the plain class (or the first remaining stream)
+    const moves = removed.filter(c => (studentCounts[c] || 0) > 0).map(c => ({ from: c, to: wanted[0] }));
+    if (moves.length > 0) {
+      const total = moves.reduce((sum, m) => sum + (studentCounts[m.from] || 0), 0);
+      if (!window.confirm(`${total} students from ${moves.map(m => m.from).join(', ')} will move to ${wanted[0]}. Continue?`)) return;
     }
     const others = schoolClasses.filter(c => parseClass(c)?.level !== editing);
-    onSave(sortClasses([...others, ...wanted]));
+    onSave(sortClasses([...others, ...wanted]), moves);
     setEditing(null);
   };
 
@@ -63,8 +64,8 @@ export function ClassManager({ schoolClasses, studentCounts, onSave }: ClassMana
       <h2 className="font-bold text-lg mb-1">School Classes</h2>
       <p className="text-xs text-slate-500 mb-3">Form I to Form IV always exist. Tap a class to say whether it has streams. Results of a class add up all its streams.</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {BASE_FORMS.map((base, index) => {
-          const level = index + 1;
+        {[1, 2, 3, 4].map(level => {
+          const base = baseFor(level, schoolClasses);
           const list = classesOfLevel(level);
           return (
             <div key={base} className="border rounded-xl p-3">
@@ -85,7 +86,7 @@ export function ClassManager({ schoolClasses, studentCounts, onSave }: ClassMana
       {editing !== null && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
-            <h3 className="font-bold text-lg mb-3">{BASE_FORMS[editing - 1]}</h3>
+            <h3 className="font-bold text-lg mb-3">{baseFor(editing, schoolClasses)}</h3>
             <label className="flex items-center gap-2 text-sm mb-3">
               <input type="checkbox" checked={hasStreams} onChange={e => { setHasStreams(e.target.checked); setError(''); }} />
               This class has streams
@@ -95,7 +96,7 @@ export function ClassManager({ schoolClasses, studentCounts, onSave }: ClassMana
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {streams.map(s => (
                     <span key={s} className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold">
-                      {buildClassName(BASE_FORMS[editing - 1], s)}
+                      {buildClassName(baseFor(editing, schoolClasses), s)}
                       <button onClick={() => setStreams(streams.filter(x => x !== s))} className="text-red-500 font-bold">✕</button>
                     </span>
                   ))}

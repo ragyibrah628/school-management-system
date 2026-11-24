@@ -30,7 +30,6 @@ export function nextClassName(name: string): string | null {
 
 export const BASE_FORMS = ['Form I', 'Form II', 'Form III', 'Form IV'];
 
-// "Form IIB" -> "Form II"; "Form II Red" -> "Form II"; "Form II" -> "Form II"
 export function baseOf(name: string): string {
   const parsed = parseClass(name);
   if (!parsed) return name;
@@ -54,19 +53,35 @@ export function sortClasses(list: string[]): string[] {
   });
 }
 
-// Form I - Form IV always exist: a level with no class at all gets its plain class back.
+// Writing style used by the school's existing classes: "Form 1" (digits) or "Form I" (roman).
+function styleOf(list: string[]): { prefix: string; roman: boolean } {
+  const parsed = list.map(parseClass).filter(Boolean) as { prefix: string; roman: boolean }[];
+  if (parsed.length === 0) return { prefix: 'Form ', roman: true };
+  const digits = parsed.filter(x => !x.roman).length;
+  return { prefix: parsed[0].prefix, roman: digits <= parsed.length / 2 };
+}
+
+// The class of one level without a stream, written the way the school already writes it.
+export function baseFor(level: number, list: string[]): string {
+  const existing = list.find(c => { const x = parseClass(c); return x && x.level === level && x.suffix === ''; });
+  if (existing) return existing;
+  const st = styleOf(list);
+  return `${st.prefix}${st.roman ? ROMAN[level] : level}`;
+}
+
+// Form 1 - Form 4 always exist: a level with no class at all gets its plain class back.
 export function withBaseForms(list: string[]): string[] {
   const out = [...new Set(list)];
-  BASE_FORMS.forEach((base, index) => {
-    if (!out.some(c => parseClass(c)?.level === index + 1)) out.push(base);
-  });
+  for (let level = 1; level <= 4; level++) {
+    if (!out.some(c => parseClass(c)?.level === level)) out.push(baseFor(level, out));
+  }
   return sortClasses(out);
 }
 
-// Streams of one level ("" is never returned; a level without streams gives []).
+// Streams of one level (a level without streams gives []).
 export function streamsOf(list: string[], level: number): string[] {
-  const base = BASE_FORMS[level - 1];
-  return list.filter(c => parseClass(c)?.level === level && c !== base).map(c => c.slice(base.length).trim());
+  return list.filter(c => { const x = parseClass(c); return x && x.level === level && x.suffix.trim() !== ''; })
+    .map(c => parseClass(c)!.suffix.trim());
 }
 
 export const levelOfClass = (name: string): number => parseClass(name)?.level || 0;
@@ -102,7 +117,10 @@ export function buildPromotionPlan(students: Roster, schoolClasses: string[], no
       plan.registeredTo[cls] = null;
       return;
     }
-    const target = nextClassName(cls)!;
+    // same stream one level up (whatever way the class is written); a class without that stream goes to the plain class
+    const wantSuffix = parsed.suffix.trim().toLowerCase();
+    const sameLevelUp = (c: string, suffix: string) => { const x = parseClass(c); return !!x && x.level === parsed.level + 1 && x.suffix.trim().toLowerCase() === suffix; };
+    const target = allClasses.find(c => sameLevelUp(c, wantSuffix)) || allClasses.find(c => sameLevelUp(c, '')) || nextClassName(cls)!;
     if (!allClasses.includes(target) && rows.length > 0) plan.missingTargets.push(`${cls} -> ${target}`);
     // promoted students get new ids so the old class record can be deleted without removing them from the new class
     if (rows.length > 0 || allClasses.includes(target)) plan.next[target] = [

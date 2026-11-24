@@ -2037,7 +2037,20 @@ function AppInner() {
           <ClassManager
             schoolClasses={schoolClasses}
             studentCounts={Object.fromEntries(Object.entries(students).map(([cls, rows]) => [cls, (rows as any[]).length]))}
-            onSave={(updatedClasses: string[]) => {
+            onSave={(updatedClasses: string[], moves: { from: string; to: string }[]) => {
+              if (moves.length > 0) {
+                // students of a removed stream join the class they were moved to (new ids, old records deleted)
+                const stamp = Date.now().toString(36);
+                let n = 0;
+                const nextStudents: any = { ...students };
+                moves.forEach(({ from, to }) => {
+                  const rows: any[] = (students as any)[from] || [];
+                  nextStudents[to] = [...(nextStudents[to] || []), ...rows.map(s => ({ ...s, id: `mv-${stamp}-${(n++).toString(36)}`, updatedAt: new Date().toISOString() }))];
+                  nextStudents[from] = [];
+                  if (cloud.isCloudMode()) rows.forEach(s => cloud.markStudentDeleted(from, { id: s.id, name: s.name }));
+                });
+                persistStudents(nextStudents);
+              }
               const value = JSON.stringify(updatedClasses);
               localStorage.setItem('sms_school_classes', value);
               localStorage.setItem('tt_shared_classes', value);
