@@ -24,6 +24,8 @@ import { TimetableSubsystem } from './components/TimetableSubsystem';
 import { TeacherDutyForm, DutyReportPrint, AdminRegisteredStudents } from './components/DutyReport';
 import { LessonPlan } from './components/LessonPlan';
 import { LogBook } from './components/LogBook';
+import { PromoteStudents } from './components/PromoteStudents';
+import { PromotionPlan, remainingNames } from './utils/promotion';
 import * as cloud from './lib/cloud';
 import { getDistrictLogo, letterheadOpen, letterheadClose } from './utils/letterhead';
 import { TT_PRINT_CSS, TT_FIT_SCRIPT } from './utils/timetablePrint';
@@ -503,6 +505,38 @@ function AppInner() {
   const hasStudentSubjectMarks = (cls: string, studentName: string, subject: string): boolean =>
     scores.some(score => score.class_name === cls && score.student_name === studentName && score.subject === subject);
 
+  // Yearly promotion: only the student lists change. Exam results (scores) are never touched.
+  const applyPromotion = (plan: PromotionPlan) => {
+    // 1. every existing exam keeps the class lists and the year it was written in
+    const rosterSnapshot: Record<string, string[]> = {};
+    Object.entries(students).forEach(([cls, rows]) => { rosterSnapshot[cls] = rows.map(s => s.name); });
+    saveExams(exams.map((exam: any) => ({
+      ...exam,
+      rosterSnapshot: exam.rosterSnapshot || rosterSnapshot,
+      academicYear: exam.academicYear || new Date(exam.createdAt || Date.now()).getFullYear()
+    })));
+    // 2. old class records are removed so the cloud merge cannot bring them back
+    if (cloud.isCloudMode()) plan.deleted.forEach(item => cloud.markStudentDeleted(item.cls, { id: item.id, name: item.name }));
+    // 3. students move up; Form IV leave; new Form I are empty
+    persistStudents(plan.next as typeof students);
+    // 4. behaviour stays with the students that remain; leavers' behaviour is removed
+    const keep = remainingNames(plan.next);
+    const leavers = new Set(plan.graduates.flatMap(g => g.students.map(s => s.name)).filter(name => !keep.has(name)));
+    setBehaviorData(previous => Object.fromEntries(Object.entries(previous).filter(([name]) => !leavers.has(name))));
+    // 5. registered counts follow their class
+    void cloud.getRegisteredStudents().then(registered => {
+      const nextRegistered: Record<string, { regB: number; regG: number }> = {};
+      Object.entries(registered || {}).forEach(([cls, counts]) => {
+        const target = plan.registeredTo[cls];
+        if (target) nextRegistered[target] = counts as { regB: number; regG: number };
+      });
+      Object.keys(plan.next).forEach(cls => {
+        if (!nextRegistered[cls] && !(cls in plan.registeredTo && plan.registeredTo[cls] === cls)) nextRegistered[cls] = { regB: 0, regG: 0 };
+      });
+      return cloud.saveRegisteredStudents(nextRegistered);
+    }).catch(error => console.error('Registered counts update failed:', error));
+  };
+
   const toggleStudentSubject = (cls: string, student: typeof students[string][number], subject: string) => {
     if (student.subjects.includes(subject) && hasStudentSubjectMarks(cls, student.name, subject)) {
       alert(`This student already has results in ${subject}. Results are kept. Ask the admin to remove those results first if you really want to remove the subject.`);
@@ -603,7 +637,11 @@ function AppInner() {
   };
 
   // Helper: get all student names in a class (sorted A-Z)
-  const getStudentNames = (cls: string): string[] => {
+  // After a yearly promotion every older exam keeps the class list it had, so its results stay as they were.
+  const getStudentNames = (cls: string, examId?: string): string[] => {
+    const exam = examId ? exams.find((e: any) => e.id === examId) : null;
+    const snapshot = exam?.rosterSnapshot?.[cls];
+    if (Array.isArray(snapshot)) return [...snapshot].sort((a, b) => a.localeCompare(b));
     return (students[cls] || []).map(s => s.name).sort((a, b) => a.localeCompare(b));
   };
 
@@ -1984,6 +2022,17 @@ function AppInner() {
 
           {/* Class Management */}
           {activeMenu === 'classes' && (<>
+          <PromoteStudents
+            students={students as any}
+            schoolClasses={schoolClasses}
+            scores={scores}
+            exams={exams}
+            behavior={behaviorData}
+            schoolName={schoolNameSetting}
+            districtName={districtName}
+            schoolLogo={schoolLogo}
+            onApply={applyPromotion}
+          />
           <div className="bg-white p-6 rounded-2xl border">
             <h2 className="font-bold text-lg mb-2">School Classes & Streams ({schoolClasses.length})</h2>
             <p className="text-xs text-slate-500 mb-3">Register classes with streams. Format: Form IA, Form IB, etc. These appear in timetable, teacher assignments, and student registration.</p>
@@ -2263,7 +2312,7 @@ function AppInner() {
                 <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Select Exam</label>
                 <select value={viewExamId} onChange={e => { setViewExamId(e.target.value); setViewClass(''); }} className="w-full border px-3 py-2.5 rounded-xl">
                   <option value="">-- Select Exam --</option>
-                  {exams.map((ex: any) => <option key={ex.id} value={ex.id}>{ex.name} ({ex.term})</option>)}
+                  {exams.map((ex: any) => <option key={ex.id} value={ex.id}>{ex.name} ({ex.term}{ex.academicYear ? ` ${ex.academicYear}` : ''})</option>)}
                 </select>
               </div>
               <div>
@@ -2339,7 +2388,7 @@ function AppInner() {
               const selectedExamData = exams.find((exam: any) => exam.id === viewExamId);
 
               classesToShow.forEach(cls => {
-                const studentNames = getStudentNames(cls);
+                const studentNames = getStudentNames(cls, viewExamId);
                 const classScores = filtered.filter((s: any) => s.class_name === cls);
                 const submittedForClass = new Set(submittedByClass.get(cls) || []);
 
