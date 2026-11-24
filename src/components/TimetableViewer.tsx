@@ -38,16 +38,20 @@ const getSubjectCode = (subject: any) => {
   } catch {}
   return subject.code || subject.name?.substring(0, 4).toUpperCase() || '';
 };
+// Subject ids in the timetable are positional (s_shared_N) and shift whenever the subject list changes
+// (add/disable subjects), so a saved cell must be resolved by its saved NAME first, and by id only as a fallback.
+const findCellSubject = (subjects: any[], id?: string, name?: string) =>
+  (name ? subjects.find((s: any) => s.name === name) : undefined) || subjects.find((s: any) => s.id === id);
 const getCellSubjectDisplay = (cell: any, subjects: any[]) => {
-  const first = subjects.find(s => s.id === cell?.subjectId || s.name === cell?.subjectName);
-  const second = subjects.find(s => s.id === cell?.secondSubjectId || s.name === cell?.secondSubjectName);
+  const first = findCellSubject(subjects, cell?.subjectId, cell?.subjectName);
+  const second = findCellSubject(subjects, cell?.secondSubjectId, cell?.secondSubjectName);
   const firstCode = cell?.subjectId === 'ps' ? 'PS' : getSubjectCode(first) || getSubjectCode({ name: cell?.subjectName });
   const secondCode = cell?.secondSubjectId === 'ps' ? 'PS' : getSubjectCode(second) || getSubjectCode({ name: cell?.secondSubjectName });
   return cell?.isCombined && secondCode ? `${firstCode}/${secondCode}` : firstCode;
 };
 const getCellSubjectTeacherLines = (cell: any, subjects: any[], teachers: any[], viewType: string, classes: any[], targetTeacherId = '') => {
-  const first = subjects.find(s => s.id === cell?.subjectId || s.name === cell?.subjectName);
-  const second = subjects.find(s => s.id === cell?.secondSubjectId || s.name === cell?.secondSubjectName);
+  const first = findCellSubject(subjects, cell?.subjectId, cell?.subjectName);
+  const second = findCellSubject(subjects, cell?.secondSubjectId, cell?.secondSubjectName);
   const firstCode = cell?.subjectId === 'ps' ? 'PS' : getSubjectCode(first) || getSubjectCode({ name: cell?.subjectName });
   const secondCode = cell?.secondSubjectId === 'ps' ? 'PS' : getSubjectCode(second) || getSubjectCode({ name: cell?.secondSubjectName });
   const className = classes.find(c => c.id === cell?.classId)?.name || '';
@@ -223,7 +227,7 @@ export const TimetableViewer: React.FC = () => {
             else if (isReligion) { subj='Religion'; sub=''; }
             else if (isAct) { subj=cell.activity || 'Activity'; sub=''; }
             else {
-              const s = subjects.find((x:any)=>x.id===cell.subjectId);
+              const s = findCellSubject(subjects, cell.subjectId, (cell as any).subjectName);
               const teacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, isClass ? 'class' : 'teacher', classes, isClass ? '' : targetId);
               if (isClass) {
                 subj = getCellSubjectDisplay(cell, subjects) || (cell as any).subjectName || s?.name || cell.subjectId || '';
@@ -526,7 +530,7 @@ export const TimetableViewer: React.FC = () => {
                             </td>
                           );
                         } else {
-                          const sub = subjects.find((s:any) => s.id === cell.subjectId);
+                          const sub = findCellSubject(subjects, cell.subjectId, (cell as any).subjectName);
                           const isPS = (cell as any).isPS || cell.subjectId==='ps';
                           const isReligion = (cell as any).isReligion || cell.subjectId==='religion';
                           const isAct = isActivityCell(cell, p);
@@ -671,7 +675,7 @@ export const TimetableViewer: React.FC = () => {
                               {days.map(d => {
                                 const cell = schedule[cls.id]?.[d]?.[p.id];
                                 if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
-                                const sub = subjects.find(s => s.id === cell.subjectId);
+                                const sub = findCellSubject(subjects, cell.subjectId, (cell as any).subjectName);
                                 const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, 'class', classes);
                                 return (
                                   <td key={d} className={`p-1 border-r border-slate-100 font-medium ${sub?.color.split(' ')[0] || 'bg-slate-100'}`}>
@@ -763,7 +767,7 @@ export const TimetableViewer: React.FC = () => {
                               {days.map(d => {
                                 const cell = getCellData(d, p.id, t.id, 'all_teachers');
                                 if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
-                                const sub = subjects.find(s => s.id === cell.subjectId);
+                                const sub = findCellSubject(subjects, cell.subjectId, (cell as any).subjectName);
                                 const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, 'teacher', classes, t.id);
                                 return (
                                   <td key={d} className={`p-1 border-r border-slate-100 font-medium ${sub?.color.split(' ')[0] || 'bg-slate-100'}`}>
@@ -817,7 +821,7 @@ export const TimetableViewer: React.FC = () => {
             {existing ? (
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                 <div className="text-xs">
-                  <div className="font-bold text-slate-800">{existing.isActivity ? (existing as any).activity : (existing.subjectId==='ps' ? 'PS - Private Studies' : (subjects.find((s:any)=>s.id===existing.subjectId)?.name || existing.subjectId))} {(existing as any).isDouble ? '(Double 80min)' : (existing as any).isPS ? '(PS)' : ''}</div>
+                  <div className="font-bold text-slate-800">{existing.isActivity ? (existing as any).activity : (existing.subjectId==='ps' ? 'PS - Private Studies' : (findCellSubject(subjects, existing.subjectId, (existing as any).subjectName)?.name || existing.subjectId))} {(existing as any).isDouble ? '(Double 80min)' : (existing as any).isPS ? '(PS)' : ''}</div>
                   {!existing.isActivity && !(existing as any).isPS && <div className="text-slate-500">Teacher: {teachers.find((t:any)=>t.id===existing.teacherId)?.name || ''}</div>}
                 </div>
                 <button onClick={() => { try{ handleRemoveCell(); }catch(e:any){ setCollisionMsg(String(e)); } }} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 border border-red-200 flex flex-col items-center font-bold text-xs"><Trash2 size={14} /><span>Remove</span></button>

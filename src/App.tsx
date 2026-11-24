@@ -37,6 +37,15 @@ import { offeredSubjectsForClass, submittedSubjectsForClass, upsertClassSubjectS
 
 // Permanent (default) subjects: cannot be deleted. The admin can only enable/disable them.
 // Disabled subjects are hidden from the system but ALL their data (scores, assignments) is kept.
+// Subject code for printed timetables: admin-configured code first, then the subject's own code.
+const ttSubjectCode = (subject: any): string => {
+  if (!subject) return '';
+  try {
+    const codes = JSON.parse(localStorage.getItem('sms_subject_codes') || '{}');
+    if (codes && codes[subject.name]) return codes[subject.name];
+  } catch {}
+  return subject.code || String(subject.name || '').substring(0, 4).toUpperCase();
+};
 const DEFAULT_SCHOOL_SUBJECTS: string[] = ['Biology', 'Business studies', 'Chemistry', 'Civics', 'Computer Science', 'English', 'Geography', 'History', 'Kiswahili', 'Literature', 'Mathematics', 'Physics', 'historia ya tanzania na maadili'];
 const DISABLED_SUBJECTS_KEY = 'sms_disabled_subjects';
 // Stored as {"disabled":[...]} (never an empty []/{} so cloud sync never treats "all enabled" as "no data")
@@ -2952,11 +2961,11 @@ function AppInner() {
                     if (isDoubleContinuation(d, p.id)) return;
                     const found = myPeriods.find(mp => mp.day === d && mp.period?.id === p.id);
                     if (!found) { html += `<td></td>`; return; }
-                    const sub = ttSubjects.find((s: any) => s.id === found.cell.subjectId);
-                    const secondSub = ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId || s.name === found.cell.secondSubjectName);
+                    const sub = ((found.cell.subjectName ? ttSubjects.find((s: any) => s.name === found.cell.subjectName) : undefined) || ttSubjects.find((s: any) => s.id === found.cell.subjectId));
+                    const secondSub = ((found.cell.secondSubjectName ? ttSubjects.find((s: any) => s.name === found.cell.secondSubjectName) : undefined) || ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId));
                     const subjectDisplay = found.cell.isCombined && secondSub
-                      ? `${sub?.code || sub?.name?.substring(0, 4) || ''}/${secondSub.code || secondSub.name?.substring(0, 4) || ''}`
-                      : (sub?.code || sub?.name || '');
+                      ? `${ttSubjectCode(sub)}/${ttSubjectCode(secondSub)}`
+                      : ttSubjectCode(sub);
                     const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
                     const dbl = isDoubleStart(d, p.id, found.cell);
                     html += `<td${dbl ? ' colspan="2"' : ''}><div class="subject">${subjectDisplay}</div><div class="subteacher">${cls?.name || ''}</div></td>`;
@@ -3004,11 +3013,11 @@ function AppInner() {
                                 if (isDoubleContinuation(d, p.id)) return null;
                                 const found = myPeriods.find(mp => mp.day === d && mp.period?.id === p.id);
                                 if (!found) return <td key={d} className="border border-slate-300 p-1 text-center text-slate-300">—</td>;
-                                const sub = ttSubjects.find((s: any) => s.id === found.cell.subjectId);
-                                const secondSub = ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId || s.name === found.cell.secondSubjectName);
+                                const sub = ((found.cell.subjectName ? ttSubjects.find((s: any) => s.name === found.cell.subjectName) : undefined) || ttSubjects.find((s: any) => s.id === found.cell.subjectId));
+                                const secondSub = ((found.cell.secondSubjectName ? ttSubjects.find((s: any) => s.name === found.cell.secondSubjectName) : undefined) || ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId));
                                 const subjectDisplay = found.cell.isCombined && secondSub
-                                  ? `${sub?.code || sub?.name?.substring(0, 4) || ''}/${secondSub.code || secondSub.name?.substring(0, 4) || ''}`
-                                  : (sub?.code || sub?.name?.substring(0, 4) || '');
+                                  ? `${ttSubjectCode(sub)}/${ttSubjectCode(secondSub)}`
+                                  : ttSubjectCode(sub);
                                 const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
                                 const doubleSpan = isDoubleStart(d, p.id, found.cell);
                                 return (
