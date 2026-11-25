@@ -630,19 +630,35 @@ export async function releaseTerm(term: string, adminName: string) {
 // ==================== APP DATA SYNC (Timetable, Settings, etc.) ====================
 
 const SYNC_KEYS = [
-  'sms_school_subjects', 'sms_school_classes',
+  'sms_school_subjects', 'sms_disabled_subjects', 'sms_subject_codes', 'sms_school_classes',
   'sms_students', 'sms_exams', 'sms_exam_submissions',
   'sms_behavior', 'sms_messages', 'sms_registered_students',
   'sms_school_name_setting', 'sms_district_name', 'sms_school_address',
   'sms_school_motto', 'sms_academic_name', 'sms_headmaster_name',
-  'sms_school_logo', 'sms_academic_sig', 'sms_headmaster_sig',
+  'sms_school_logo', 'sms_district_logo', 'sms_academic_sig', 'sms_headmaster_sig',
   'tt_timetableData', 'tt_teachers', 'tt_subjects', 'tt_rooms',
   'tt_classes', 'tt_classSubjects', 'tt_timeSlots', 'tt_days',
   'tt_shared_subjects', 'tt_shared_teachers', 'tt_shared_classes'
 ];
 
 const ROLE_SYNC_KEYS = ['sms_class_teachers', 'sms_teaching_assignments'];
-const APP_DATA_SYNC_KEYS = [...new Set([...SYNC_KEYS, ...ROLE_SYNC_KEYS])];
+const STATIC_APP_DATA_SYNC_KEYS = [...new Set([...SYNC_KEYS, ...ROLE_SYNC_KEYS])];
+
+// Each teacher's Subject Log Book lives in its own key (sms_logbook_<teacherId>) so teachers never overwrite
+// each other. The current teacher's key and any log book key already on this device are synced.
+const LOGBOOK_KEY_PREFIX = 'sms_logbook_';
+function getAppDataSyncKeys(): string[] {
+  const keys = new Set(STATIC_APP_DATA_SYNC_KEYS);
+  try {
+    const currentUser = JSON.parse(localStorage.getItem('sms_current_user') || 'null');
+    if (currentUser?.id) keys.add(`${LOGBOOK_KEY_PREFIX}${currentUser.id}`);
+    for (let i = 0; i < localStorage.length; i++) {
+      const name = localStorage.key(i) || '';
+      if (name.startsWith(LOGBOOK_KEY_PREFIX) && !/_(cloud_pending|ts|cloud_updated_at|cloud_confirmed_value)$/.test(name)) keys.add(name);
+    }
+  } catch {}
+  return [...keys];
+}
 const PENDING_SUFFIX = '_cloud_pending';
 const CONFIRMED_VALUE_SUFFIX = '_cloud_confirmed_value';
 
@@ -864,7 +880,7 @@ function applyCloudAppDataItem(item: any, isAdmin: boolean, forceApply = false):
   return changed;
 }
 
-async function syncAppDataKeys(keys: string[] = APP_DATA_SYNC_KEYS, bypassCache = false): Promise<void> {
+async function syncAppDataKeys(keys: string[] = getAppDataSyncKeys(), bypassCache = false): Promise<void> {
   if (!IS_CLOUD || keys.length === 0) return;
   await syncToCloud();
   let isAdmin = false;
@@ -1146,7 +1162,7 @@ function completePendingWrite(key: string, pending: PendingAppDataWrite, value: 
   window.dispatchEvent(new Event('cloud-sync-complete'));
 }
 
-async function syncPendingAppDataKeys(keys: string[] = APP_DATA_SYNC_KEYS): Promise<void> {
+async function syncPendingAppDataKeys(keys: string[] = getAppDataSyncKeys()): Promise<void> {
   for (const key of keys) {
     if (!readPendingWrite(key)) continue;
     try {
@@ -1301,7 +1317,7 @@ export function syncToCloud(): Promise<void> {
 // ✅ FIXED — handles classes deletion + addition without reverting
 export async function syncFromCloud(bypassCache = false) {
   if (!IS_CLOUD) return;
-  await syncAppDataKeys(APP_DATA_SYNC_KEYS, bypassCache);
+  await syncAppDataKeys(getAppDataSyncKeys(), bypassCache);
 }
 
 // ==================== REGISTERED STUDENTS (per class) ====================

@@ -1379,12 +1379,12 @@ Object.assign(UNITS, {
   // ---- Form I ----
   'C1-1.1a': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Describe the concept of Chemistry (meaning, branches, applications and relationships with other disciplines)', methods: ['brainstorming', 'groupDiscussion', 'qa'], resources: CHEM_BASIC },
   'C1-1.1b': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Discuss the contribution of Chemistry in the development of modern society', methods: ['fieldTrip', 'groupDiscussion', 'projectActivity'], resources: CHEM_BASIC },
-  'C1-3.1a': { mainCompetence: CM3, specificCompetence: CM3, mainActivity: 'Describe basic Chemistry laboratory skills (rules, safety measures, first aid and apparatus)', methods: ['demonstration', 'practical', 'groupDiscussion'], resources: LAB_RES },
-  'C1-3.1d': { mainCompetence: CM3, specificCompetence: CM3, mainActivity: 'Describe fire, firefighting and flames', methods: ['demonstration', 'practical', 'groupDiscussion'], resources: FIRE_RES },
+  'C1-3.1a': { mainCompetence: CM3, specificCompetence: 'Demonstrate laboratory skills: rules, safety measures, first aid and use of apparatus', mainActivity: 'Describe basic Chemistry laboratory skills (rules, safety measures, first aid and apparatus)', methods: ['demonstration', 'practical', 'groupDiscussion'], resources: LAB_RES },
+  'C1-3.1d': { mainCompetence: CM3, specificCompetence: 'Demonstrate safe handling of fire and flames and basic firefighting skills', mainActivity: 'Describe fire, firefighting and flames', methods: ['demonstration', 'practical', 'groupDiscussion'], resources: FIRE_RES },
   'C1-1.1c': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Describe the concept of matter (states of matter, physical and chemical changes)', methods: ['practical', 'demonstration', 'groupDiscussion'], resources: CHEM_MATTER_RES },
   'C1-1.1d': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Describe chemical elements and the criteria for assigning chemical symbols', methods: ['qa', 'smallGroups', 'visual'], resources: ELEMENT_RES },
   'C1-1.1e': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Compare the properties of compounds and mixtures with those of their constituent elements', methods: ['practical', 'groupDiscussion', 'qa'], resources: ELEMENT_RES },
-  'C1-3.1c': { mainCompetence: CM3, specificCompetence: CM3, mainActivity: 'Perform experiments on the separation of mixtures using different methods', methods: ['practical', 'projectActivity', 'smallGroups'], resources: SEPARATE_RES },
+  'C1-3.1c': { mainCompetence: CM3, specificCompetence: 'Conduct experiments to separate mixtures using appropriate methods', mainActivity: 'Perform experiments on the separation of mixtures using different methods', methods: ['practical', 'projectActivity', 'smallGroups'], resources: SEPARATE_RES },
   // ---- Form II ----
   'C2-1.1a': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Describe the modern concept of atomic structure (Dalton\'s theory and sub-atomic particles)', methods: ['brainstorming', 'visual', 'groupDiscussion'], resources: ATOM_RES },
   'C2-1.1b': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Describe electronic arrangements of atoms', methods: ['demonstration', 'problemSolving', 'smallGroups'], resources: ATOM_RES },
@@ -1394,7 +1394,7 @@ Object.assign(UNITS, {
   'C2-1.1f': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Describe chemical bonding (electrovalent and covalent bonding)', methods: ['demonstration', 'groupDiscussion', 'visual'], resources: BOND_RES },
   'C2-1.1g': { mainCompetence: CM2, specificCompetence: CS22, mainActivity: 'Describe chemical reactions, write and balance chemical equations and identify types of reactions', methods: ['practical', 'problemSolving', 'groupDiscussion'], resources: REACT_RES },
   'C2-1.1i': { mainCompetence: CM1, specificCompetence: CS11, mainActivity: 'Describe acids, bases and salts and their reactions', methods: ['practical', 'groupDiscussion', 'qa'], resources: ACID_RES },
-  'C2-3.1a': { mainCompetence: CM3, specificCompetence: CM3, mainActivity: 'Prepare and use acid-base indicators and test acidity and alkalinity of local substances', methods: ['practical', 'projectActivity', 'smallGroups'], resources: ACID_RES },
+  'C2-3.1a': { mainCompetence: CM3, specificCompetence: 'Conduct experiments to test acidity and alkalinity using acid-base indicators', mainActivity: 'Prepare and use acid-base indicators and test acidity and alkalinity of local substances', methods: ['practical', 'projectActivity', 'smallGroups'], resources: ACID_RES },
 });
 
 const PCF = (form: 1 | 2) => (topic: string, subtopic: string, part: string, unit: string, ...specificActivities: string[]): LessonPart =>

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useTimetable } from '../context/TimetableContext';
 import * as cloud from '../lib/cloud';
+import { getDistrictLogo, letterheadOpen, letterheadClose } from '../utils/letterhead';
+import { TT_PRINT_CSS, TT_FIT_SCRIPT } from '../utils/timetablePrint';
 import { DayOfWeek, TimetableCell } from '../types';
 import { getTeacherOccupiedSlots } from '../utils/scheduler';
 import { 
@@ -36,16 +38,20 @@ const getSubjectCode = (subject: any) => {
   } catch {}
   return subject.code || subject.name?.substring(0, 4).toUpperCase() || '';
 };
+// Subject ids in the timetable are positional (s_shared_N) and shift whenever the subject list changes
+// (add/disable subjects), so a saved cell must be resolved by its saved NAME first, and by id only as a fallback.
+const findCellSubject = (subjects: any[], id?: string, name?: string) =>
+  (name ? subjects.find((s: any) => s.name === name) : undefined) || subjects.find((s: any) => s.id === id);
 const getCellSubjectDisplay = (cell: any, subjects: any[]) => {
-  const first = subjects.find(s => s.id === cell?.subjectId || s.name === cell?.subjectName);
-  const second = subjects.find(s => s.id === cell?.secondSubjectId || s.name === cell?.secondSubjectName);
+  const first = findCellSubject(subjects, cell?.subjectId, cell?.subjectName);
+  const second = findCellSubject(subjects, cell?.secondSubjectId, cell?.secondSubjectName);
   const firstCode = cell?.subjectId === 'ps' ? 'PS' : getSubjectCode(first) || getSubjectCode({ name: cell?.subjectName });
   const secondCode = cell?.secondSubjectId === 'ps' ? 'PS' : getSubjectCode(second) || getSubjectCode({ name: cell?.secondSubjectName });
   return cell?.isCombined && secondCode ? `${firstCode}/${secondCode}` : firstCode;
 };
 const getCellSubjectTeacherLines = (cell: any, subjects: any[], teachers: any[], viewType: string, classes: any[], targetTeacherId = '') => {
-  const first = subjects.find(s => s.id === cell?.subjectId || s.name === cell?.subjectName);
-  const second = subjects.find(s => s.id === cell?.secondSubjectId || s.name === cell?.secondSubjectName);
+  const first = findCellSubject(subjects, cell?.subjectId, cell?.subjectName);
+  const second = findCellSubject(subjects, cell?.secondSubjectId, cell?.secondSubjectName);
   const firstCode = cell?.subjectId === 'ps' ? 'PS' : getSubjectCode(first) || getSubjectCode({ name: cell?.subjectName });
   const secondCode = cell?.secondSubjectId === 'ps' ? 'PS' : getSubjectCode(second) || getSubjectCode({ name: cell?.secondSubjectName });
   const className = classes.find(c => c.id === cell?.classId)?.name || '';
@@ -68,7 +74,7 @@ function findTeacherForSubjectClass(subjectName: string, className: string): { i
     const users = JSON.parse(localStorage.getItem('sms_users') || '[]');
     for (const [tid, arr] of Object.entries(ta as any)) {
       const list = arr as any[];
-      if (list.some((a: any) => a.cls === className && a.sub === subjectName)) {
+      if (list.some((a: any) => a.cls === className && String(a.sub || '').trim().toLowerCase() === String(subjectName || '').trim().toLowerCase())) {
         const u = users.find((x: any) => x.id === tid);
         if (u) return { id: tid, name: u.name };
       }
@@ -76,6 +82,11 @@ function findTeacherForSubjectClass(subjectName: string, className: string): { i
   } catch {}
   return null;
 }
+
+const readTeachingAssignments = (): Record<string, any[]> => {
+  try { return JSON.parse(localStorage.getItem('sms_teaching_assignments') || '{}') || {}; } catch { return {}; }
+};
+const normSubject = (value: any) => String(value || '').trim().toLowerCase();
 
 export const TimetableViewer: React.FC = () => {
   const { 
@@ -104,6 +115,7 @@ export const TimetableViewer: React.FC = () => {
   const configuredSchoolName = getConfiguredSchoolName(schoolName);
   const configuredDistrict = getConfiguredDistrict();
   const configuredLogo = getConfiguredLogo(schoolLogo);
+  const configuredDistrictLogo = getDistrictLogo();
 
   const isActivityCell = (cell: any, period: any) => Boolean(cell && (cell.isActivity || isActivitySlot(period)));
 
@@ -153,40 +165,15 @@ export const TimetableViewer: React.FC = () => {
       const address = localStorage.getItem('sms_school_address') || 'P.O. Box 51, Ruangwa - Lindi';
       const pw = window.open('', '', 'width=1200,height=800');
       if (!pw) { window.print(); return; }
-      let html = `<!DOCTYPE html><html><head><title> ${title} </title><style>
-        @page { size: A4 landscape; margin: 8mm 9mm; }
-        * { margin:0; padding:0; box-sizing:border-box; }
-        html, body { width:100%; background:#fff; }
-        body { font-family: Arial, Helvetica, sans-serif; font-size: 9px; color:#172033; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-        a, a:visited, a:hover, a:active { color:inherit !important; text-decoration:none !important; }
-        table { width:100%; border-collapse:collapse; table-layout:fixed; page-break-inside:auto; }
-        thead { display:table-header-group; }
-        tr { page-break-inside:avoid; page-break-after:auto; }
-        th, td { border:1px solid #b8c2d1; padding: 5px 4px; text-align:center; vertical-align:middle; }
-        th { background:#e8eef8; font-weight:800; font-size: 9px; color:#172033; }
-        td { font-size: 9px; line-height:1.2; }
-        .header { text-align:center; margin-bottom:8px; border-bottom:2px solid #274c77; padding-bottom:7px; page-break-after:avoid; }
-        .header img { height:42px; max-width:90px; object-fit:contain; margin-bottom:3px; }
-        .header h1 { font-size:17px; font-weight:900; letter-spacing:.5px; color:#14213d; }
-        .header h2 { font-size:12px; font-weight:800; color:#274c77; margin-top:3px; }
-        .header p { font-size:8px; color:#53657d; margin-top:2px; }
-        .subject { font-weight:800; font-size:11px; color:#14213d; line-height:1.15; }
-        .subteacher { font-weight:600; font-size:9px; color:#40516a; margin-top:2px; }
-        .breakCell { background:#fff3df; color:#8a4b08; font-weight:800; font-size:8px; }
-        .dayCol { background:#f1f5fa; font-weight:900; font-size:10px; color:#274c77; }
-        @media print {
-          body { margin:0; padding:0; }
-          a, a::after, a::before { content:none !important; }
-          .no-print, nav, footer { display:none !important; }
-        }
-      </style></head><body>`;
+      let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title> ${title} </title><style>${TT_PRINT_CSS}</style></head><body>`;
       html += `<div class="header">`;
-      if (logo) html += `<img src="${logo}" alt="Logo" />`;
+      html += letterheadOpen(getDistrictLogo());
       html += `<div style="font-size:12px; font-weight:700; letter-spacing:1px;">${district}</div>`;
       html += `<h1>${sName}</h1>`;
-      html += `<div style="font-size:10px; color:#64748b;">${address}</div>`;
+      html += `<div style="font-size:10px; color:#333;">${address}</div>`;
       html += `<h2>${title}</h2>`;
       html += `<p>Weekly Teaching Timetable • ${isClass ? 'Class' : 'Teacher'} • A4 Landscape • ${new Date().toLocaleDateString()}</p>`;
+      html += letterheadClose(logo);
       html += `</div>`;
       html += `<table><thead><tr><th style="width:90px;">Day / Time</th>`;
       for (const p of activePeriods) {
@@ -218,7 +205,7 @@ export const TimetableViewer: React.FC = () => {
               }
             }
             if (!cellAct || !isActivityCell(cellAct, p)) html += `<td></td>`;
-            else html += `<td style="background:#eef2ff;"><div class="subject">${cellAct.activity || 'Activity'}</div></td>`;
+            else html += `<td class="cellFill"><div class="subject">${cellAct.activity || 'Activity'}</div></td>`;
             continue;
           }
           let cell: any = null;
@@ -240,7 +227,7 @@ export const TimetableViewer: React.FC = () => {
             else if (isReligion) { subj='Religion'; sub=''; }
             else if (isAct) { subj=cell.activity || 'Activity'; sub=''; }
             else {
-              const s = subjects.find((x:any)=>x.id===cell.subjectId);
+              const s = findCellSubject(subjects, cell.subjectId, (cell as any).subjectName);
               const teacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, isClass ? 'class' : 'teacher', classes, isClass ? '' : targetId);
               if (isClass) {
                 subj = getCellSubjectDisplay(cell, subjects) || (cell as any).subjectName || s?.name || cell.subjectId || '';
@@ -261,6 +248,8 @@ export const TimetableViewer: React.FC = () => {
         html += `</tr>`;
       }
       html += `</tbody></table>`;
+      html += `<div class="ttfoot">${sName}: ${localStorage.getItem('sms_school_motto') || 'Honor All Build Together'}</div>`;
+      html += TT_FIT_SCRIPT;
       html += `</body></html>`;
       pw.document.write(html);
       pw.document.close();
@@ -301,13 +290,9 @@ export const TimetableViewer: React.FC = () => {
 
   const getTeacherForSubject = (subjectValue: string): string => {
     if (!subjectValue || subjectValue === 'ps') return '';
-    const classId = selectedId;
     const subject = subjects.find((item: any) => item.id === subjectValue || item.name === subjectValue);
-    const assignment = classSubjects.find((item: any) => item.classId === classId && (
-      item.subjectId === subjectValue || item.subjectId === subject?.id || subjects.find((s: any) => s.id === item.subjectId)?.name === subjectValue
-    ));
-    if (assignment?.teacherId) return assignment.teacherId;
-    const className = classes.find((item: any) => item.id === classId)?.name || '';
+    const className = classes.find((item: any) => item.id === selectedId)?.name || '';
+    // Only the admin's Teaching Assignments decide who teaches a subject in a class.
     return findTeacherForSubjectClass(subject?.name || subjectValue, className)?.id || '';
   };
 
@@ -457,8 +442,8 @@ export const TimetableViewer: React.FC = () => {
           {/* Header identifying the schedule (GOOD FOR PRINTING) */}
           <div className="p-4 border-b border-slate-100 hidden print:flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              {configuredLogo && (
-                <img src={configuredLogo} alt="Logo" className="h-12 w-auto max-h-12 object-contain" />
+              {configuredDistrictLogo && (
+                <img src={configuredDistrictLogo} alt="District Council Logo" className="h-12 w-auto max-h-12 object-contain" />
               )}
               <div className="text-left">
                 <p className="text-xs font-bold text-slate-500">{configuredDistrict}</p>
@@ -466,6 +451,7 @@ export const TimetableViewer: React.FC = () => {
                 <p className="text-slate-400 text-xs font-semibold">Weekly Timetable Schedule</p>
               </div>
             </div>
+            <div className="flex items-center space-x-4">
             <div className="text-right border-l border-slate-200 pl-4">
               <h2 className="text-lg font-extrabold text-indigo-700">
                 {viewType === 'class' && `Class: ${classes.find(c=>c.id===selectedId)?.name}`}
@@ -473,6 +459,8 @@ export const TimetableViewer: React.FC = () => {
                 {viewType === 'room' && `Room: ${rooms.find(r=>r.id===selectedId)?.name}`}
               </h2>
               <p className="text-[10px] text-slate-400 font-medium">Generated by TimeTable Pro</p>
+            </div>
+            {configuredLogo && <img src={configuredLogo} alt="School Logo" className="h-12 w-auto max-h-12 object-contain" />}
             </div>
           </div>
 
@@ -542,7 +530,7 @@ export const TimetableViewer: React.FC = () => {
                             </td>
                           );
                         } else {
-                          const sub = subjects.find((s:any) => s.id === cell.subjectId);
+                          const sub = findCellSubject(subjects, cell.subjectId, (cell as any).subjectName);
                           const isPS = (cell as any).isPS || cell.subjectId==='ps';
                           const isReligion = (cell as any).isReligion || cell.subjectId==='religion';
                           const isAct = isActivityCell(cell, p);
@@ -613,24 +601,34 @@ export const TimetableViewer: React.FC = () => {
           </h2>
           <div className="space-y-8 print:space-y-12">
             {classes.map((cls) => {
-              const clsSubs = classSubjects.filter(cs => cs.classId === cls.id);
-              const totalP = clsSubs.reduce((acc, s) => acc + s.periodsPerWeek, 0);
+              // Subjects of this class come from the admin's Teaching Assignments
+              const assignedSubjects = new Set<string>();
+              Object.values(readTeachingAssignments()).forEach((list: any) => (list || []).forEach((item: any) => {
+                if (item?.cls === cls.name && item?.sub) assignedSubjects.add(normSubject(item.sub));
+              }));
+              const clsSubs = Array.from(assignedSubjects);
+              const totalP = classSubjects
+                .filter(cs => cs.classId === cls.id && assignedSubjects.has(normSubject(subjects.find((s: any) => s.id === cs.subjectId)?.name)))
+                .reduce((acc, s) => acc + (Number(s.periodsPerWeek) || 0), 0);
               
               return (
                 <div key={cls.id} className="break-after-page print:break-after-page border border-slate-200 rounded-xl p-4 bg-white print:border-slate-300 print:p-6 print:mb-8">
                   {/* Print-only School Header */}
                   <div className="p-3 border-b border-slate-200 hidden print:flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-3">
-                      {configuredLogo && <img src={configuredLogo} alt="Logo" className="h-10 w-auto object-contain" />}
+                      {configuredDistrictLogo && <img src={configuredDistrictLogo} alt="District Council Logo" className="h-10 w-auto object-contain" />}
                       <div className="text-left">
                         <p className="text-[9px] font-bold text-slate-500">{configuredDistrict}</p>
                         <h1 className="text-lg font-bold text-slate-900 leading-tight">{configuredSchoolName}</h1>
                         <p className="text-slate-400 text-2xs font-semibold">Official Timetable Schedule</p>
                       </div>
                     </div>
+                    <div className="flex items-center space-x-3">
                     <div className="text-right border-l border-slate-200 pl-3">
                       <h2 className="text-base font-extrabold text-indigo-700">Class: {cls.name}</h2>
                       <p className="text-[9px] text-slate-400 font-medium">Generated by TimeTable Pro</p>
+                    </div>
+                    {configuredLogo && <img src={configuredLogo} alt="School Logo" className="h-10 w-auto object-contain" />}
                     </div>
                   </div>
                   
@@ -677,7 +675,7 @@ export const TimetableViewer: React.FC = () => {
                               {days.map(d => {
                                 const cell = schedule[cls.id]?.[d]?.[p.id];
                                 if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
-                                const sub = subjects.find(s => s.id === cell.subjectId);
+                                const sub = findCellSubject(subjects, cell.subjectId, (cell as any).subjectName);
                                 const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, 'class', classes);
                                 return (
                                   <td key={d} className={`p-1 border-r border-slate-100 font-medium ${sub?.color.split(' ')[0] || 'bg-slate-100'}`}>
@@ -707,22 +705,25 @@ export const TimetableViewer: React.FC = () => {
           <h2 className="text-lg font-bold text-slate-800 mb-4 print:hidden">Print All Teacher Timetables</h2>
           <div className="space-y-8 print:space-y-12">
             {teachers.map((t) => {
-              const tSubs = classSubjects.filter(cs => cs.teacherId === t.id);
+              const tSubs = Array.from(new Set(((readTeachingAssignments()[t.id] || []) as any[]).map(item => `${item?.cls}|${normSubject(item?.sub)}`)));
               return (
                 <div key={t.id} className="break-after-page print:break-after-page border border-slate-200 rounded-xl p-4 bg-white print:border-slate-300 print:p-6 print:mb-8">
                   {/* Print-only School Header */}
                   <div className="p-3 border-b border-slate-200 hidden print:flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-3">
-                      {configuredLogo && <img src={configuredLogo} alt="Logo" className="h-10 w-auto object-contain" />}
+                      {configuredDistrictLogo && <img src={configuredDistrictLogo} alt="District Council Logo" className="h-10 w-auto object-contain" />}
                       <div className="text-left">
                         <p className="text-[9px] font-bold text-slate-500">{configuredDistrict}</p>
                         <h1 className="text-lg font-bold text-slate-900 leading-tight">{configuredSchoolName}</h1>
                         <p className="text-slate-400 text-2xs font-semibold">Official Faculty Schedule</p>
                       </div>
                     </div>
+                    <div className="flex items-center space-x-3">
                     <div className="text-right border-l border-slate-200 pl-3">
                       <h2 className="text-base font-extrabold text-indigo-700">Teacher: {t.name}</h2>
                       <p className="text-[9px] text-slate-400 font-medium">Generated by TimeTable Pro</p>
+                    </div>
+                    {configuredLogo && <img src={configuredLogo} alt="School Logo" className="h-10 w-auto object-contain" />}
                     </div>
                   </div>
 
@@ -766,7 +767,7 @@ export const TimetableViewer: React.FC = () => {
                               {days.map(d => {
                                 const cell = getCellData(d, p.id, t.id, 'all_teachers');
                                 if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
-                                const sub = subjects.find(s => s.id === cell.subjectId);
+                                const sub = findCellSubject(subjects, cell.subjectId, (cell as any).subjectName);
                                 const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, 'teacher', classes, t.id);
                                 return (
                                   <td key={d} className={`p-1 border-r border-slate-100 font-medium ${sub?.color.split(' ')[0] || 'bg-slate-100'}`}>
@@ -820,7 +821,7 @@ export const TimetableViewer: React.FC = () => {
             {existing ? (
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                 <div className="text-xs">
-                  <div className="font-bold text-slate-800">{existing.isActivity ? (existing as any).activity : (existing.subjectId==='ps' ? 'PS - Private Studies' : (subjects.find((s:any)=>s.id===existing.subjectId)?.name || existing.subjectId))} {(existing as any).isDouble ? '(Double 80min)' : (existing as any).isPS ? '(PS)' : ''}</div>
+                  <div className="font-bold text-slate-800">{existing.isActivity ? (existing as any).activity : (existing.subjectId==='ps' ? 'PS - Private Studies' : (findCellSubject(subjects, existing.subjectId, (existing as any).subjectName)?.name || existing.subjectId))} {(existing as any).isDouble ? '(Double 80min)' : (existing as any).isPS ? '(PS)' : ''}</div>
                   {!existing.isActivity && !(existing as any).isPS && <div className="text-slate-500">Teacher: {teachers.find((t:any)=>t.id===existing.teacherId)?.name || ''}</div>}
                 </div>
                 <button onClick={() => { try{ handleRemoveCell(); }catch(e:any){ setCollisionMsg(String(e)); } }} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 border border-red-200 flex flex-col items-center font-bold text-xs"><Trash2 size={14} /><span>Remove</span></button>
@@ -878,12 +879,13 @@ export const TimetableViewer: React.FC = () => {
                       try {
                         const subs = JSON.parse(localStorage.getItem('sms_school_subjects')||'[]');
                         if (subs.includes(name.trim())) { alert('Subject already exists'); return; }
+                        try { const dis = JSON.parse(localStorage.getItem('sms_disabled_subjects')||'{}'); const dl = Array.isArray(dis) ? dis : (dis.disabled||[]); if (dl.includes(name.trim())) { alert('This subject exists but is disabled. Admin: tick it in Subjects to enable it.'); return; } } catch {}
                         const codes = JSON.parse(localStorage.getItem('sms_subject_codes')||'{}');
                         if (Object.values(codes).includes(c)) { alert('Code already exists'); return; }
                         const nextSubs = [...subs, name.trim()].sort();
                         cloud.saveAppDataKeyLocally('sms_school_subjects', JSON.stringify(nextSubs));
                         const nextCodes = {...codes, [name.trim()]: c};
-                        localStorage.setItem('sms_subject_codes', JSON.stringify(nextCodes));
+                        cloud.saveAppDataKeyLocally('sms_subject_codes', JSON.stringify(nextCodes));
                         // Also set as second subject if first already chosen
                         if (selectedSubject && !selectedSecondSubject) setSelectedSecondSubject(name.trim());
                         else setSelectedSubject(name.trim());
@@ -989,17 +991,9 @@ export const TimetableViewer: React.FC = () => {
                       if (foundSub2) { secondSubjId = foundSub2.id; secondSubjName = foundSub2.name; }
                       else if (selectedSecondSubject==='ps') { secondSubjId='ps'; secondSubjName='PS'; }
                       // Find teacher for second subject
-                      try {
-                        const cs2 = classSubjects.find((c:any)=> c.classId===selectedId && (c.subjectId===secondSubjId || subjects.find((s:any)=>s.id===c.subjectId)?.name===secondSubjName));
-                        if (cs2) secondTeacherId = cs2.teacherId;
-                      } catch {}
                       if (!secondTeacherId && secondSubjName) {
                         const res2 = findTeacherForSubjectClass(secondSubjName!, classes.find((c:any)=>c.id===selectedId)?.name || '');
                         if (res2) { secondTeacherId = res2.id; secondTeacherName = res2.name; }
-                      }
-                      if (!secondTeacherId && secondSubjId) {
-                        const t2 = teachers.find((x:any)=> x.qualifiedSubjects?.includes(secondSubjId!));
-                        if (t2) secondTeacherId = t2.id;
                       }
                       if (secondSubjName && secondSubjName!=='PS' && !secondTeacherId) {
                         setCollisionMsg('No teacher for second subject ' + secondSubjName + ' in ' + (classes.find((c:any)=>c.id===selectedId)?.name || selectedId) + '.');
@@ -1008,17 +1002,9 @@ export const TimetableViewer: React.FC = () => {
                     }
                     let teacherId = '';
                     let teacherName = '';
-                    try {
-                      const cs = classSubjects.find((c:any)=> c.classId===selectedId && (c.subjectId===subjId || subjects.find((s:any)=>s.id===c.subjectId)?.name===subjName));
-                      if (cs) teacherId = cs.teacherId;
-                    } catch {}
                     if (!teacherId) {
                       const res = findTeacherForSubjectClass(subjName, classes.find((c:any)=>c.id===selectedId)?.name || '');
                       if (res) { teacherId = res.id; teacherName = res.name; }
-                    }
-                    if (!teacherId) {
-                      const t = teachers.find((x:any)=> x.qualifiedSubjects?.includes(subjId));
-                      if (t) teacherId = t.id;
                     }
                     if (!teacherId) {
                       setCollisionMsg('No teacher assigned to teach ' + subjName + ' in ' + (classes.find((c:any)=>c.id===selectedId)?.name || selectedId) + '. Go to Assign Teaching Classes & Subjects first.');

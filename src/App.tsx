@@ -23,7 +23,13 @@ import {
 import { TimetableSubsystem } from './components/TimetableSubsystem';
 import { TeacherDutyForm, DutyReportPrint, AdminRegisteredStudents } from './components/DutyReport';
 import { LessonPlan } from './components/LessonPlan';
+import { LogBook } from './components/LogBook';
+import { PromoteStudents } from './components/PromoteStudents';
+import { ClassManager } from './components/ClassManager';
+import { PromotionPlan, remainingNames, withBaseForms, baseOf, displayClass } from './utils/promotion';
 import * as cloud from './lib/cloud';
+import { getDistrictLogo, letterheadOpen, letterheadClose } from './utils/letterhead';
+import { TT_PRINT_CSS, TT_FIT_SCRIPT } from './utils/timetablePrint';
 import { evaluateMark, gradeForPercentage, remarkForPercentage, sortStudentsForMarkEntry } from './utils/markEntry';
 import { rankResultsByAverage } from './utils/resultsRanking';
 import { assignedSubjectTeacherName, buildScoreSheetData, createScoreSheetsHtml, type ScoreSheetData } from './utils/scoreSheet';
@@ -32,6 +38,30 @@ import { createReportCardPrintDocument, formatReportCardPosition, trimSignatureD
 import { classLevel, isPracticalSubject, practicalFinalPercentage, practicalModeFromScores, PRACTICAL_MAX, THEORY_MAX } from './utils/practical';
 import { hasUnsavedExamScoreChanges, subjectsForClass } from './utils/teachingAssignments';
 import { offeredSubjectsForClass, submittedSubjectsForClass, upsertClassSubjectSubmission, type ExamSubjectSubmission } from './utils/resultSubmissions';
+
+// Permanent (default) subjects: cannot be deleted. The admin can only enable/disable them.
+// Disabled subjects are hidden from the system but ALL their data (scores, assignments) is kept.
+// Subject code for printed timetables: admin-configured code first, then the subject's own code.
+const ttSubjectCode = (subject: any): string => {
+  if (!subject) return '';
+  try {
+    const codes = JSON.parse(localStorage.getItem('sms_subject_codes') || '{}');
+    if (codes && codes[subject.name]) return codes[subject.name];
+  } catch {}
+  return subject.code || String(subject.name || '').substring(0, 4).toUpperCase();
+};
+const DEFAULT_SCHOOL_SUBJECTS: string[] = ['Biology', 'Business studies', 'Chemistry', 'Civics', 'Computer Science', 'English', 'Geography', 'History', 'Kiswahili', 'Literature', 'Mathematics', 'Physics', 'historia ya tanzania na maadili'];
+const DISABLED_SUBJECTS_KEY = 'sms_disabled_subjects';
+// Stored as {"disabled":[...]} (never an empty []/{} so cloud sync never treats "all enabled" as "no data")
+const readStoredDisabledSubjects = (): string[] | null => {
+  try {
+    const raw = localStorage.getItem(DISABLED_SUBJECTS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const list = Array.isArray(parsed) ? parsed : parsed?.disabled;
+    return Array.isArray(list) ? list.filter((s: any) => typeof s === 'string' && DEFAULT_SCHOOL_SUBJECTS.includes(s)) : [];
+  } catch { return []; }
+};
 
 // Safe image component that won't crash
 function SafeImg({ src, alt, className }: { src: string; alt: string; className?: string }) {
@@ -171,6 +201,7 @@ function AppInner() {
     return () => window.removeEventListener('app-data-sync-status', onSyncStatus);
   }, []);
   const [schoolLogo, setSchoolLogo] = useState('');
+  const [districtLogo, setDistrictLogo] = useState('');
   const [academicName, setAcademicName] = useState('');
   const [headmasterName, setHeadmasterName] = useState('Saidi Mpambika');
   const [academicSig, setAcademicSig] = useState('');
@@ -185,6 +216,7 @@ function AppInner() {
     const loadLogo = () => {
       try {
         setSchoolLogo(localStorage.getItem('sms_school_logo') || '');
+        setDistrictLogo(localStorage.getItem('sms_district_logo') || '');
         setAcademicName(localStorage.getItem('sms_academic_name') || '');
         setHeadmasterName(localStorage.getItem('sms_headmaster_name') || 'Saidi Mpambika');
         setAcademicSig(localStorage.getItem('sms_academic_sig') || '');
@@ -200,6 +232,24 @@ function AppInner() {
     window.addEventListener('focus', loadLogo);
     return () => { window.removeEventListener('cloud-sync-complete', loadLogo); window.removeEventListener('focus', loadLogo); };
   }, []);
+
+  const handleDistrictLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 300000) alert('Logo is large (' + Math.round(file.size/1024) + 'KB). Try to use < 150KB for best display on all phones.');
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      localStorage.setItem('sms_district_logo', base64);
+      setDistrictLogo(base64);
+      if (cloud.isCloudMode()) {
+        cloud.markAppDataKeyDirty('sms_district_logo', base64);
+        setTimeout(() => cloud.syncToCloud().catch(error => console.error('District logo sync failed:', error)), 300);
+      }
+      alert('District Council logo updated! It will appear on all printed documents on every device after sync.');
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -257,7 +307,7 @@ function AppInner() {
       const savedSubjects = JSON.parse(localStorage.getItem('sms_school_subjects') || '[]');
       const defaults = Array.isArray(savedSubjects) && savedSubjects.length
         ? savedSubjects
-        : ['Mathematics', 'English', 'Biology', 'Physics', 'Chemistry', 'History', 'Geography', 'Computer Science', 'Literature', 'Kiswahili', 'Civics', 'Book Keeping', 'Commerce', 'Bible Knowledge'];
+        : [...DEFAULT_SCHOOL_SUBJECTS];
       return normalizeStudentRoster(saved, defaults);
     } catch { return {}; }
   });
@@ -309,7 +359,7 @@ function AppInner() {
     if (!cls || !sub) return;
     setTeachingAssignments(prev => {
       const existing = prev[teacherId] || [];
-      if (existing.some(a => a.cls === cls && a.sub === sub)) return prev;
+      if (existing.some(a => a.cls === cls && a.sub.trim().toLowerCase() === sub.trim().toLowerCase())) return prev;
       return { ...prev, [teacherId]: [...existing, { cls, sub }] };
     });
   };
@@ -328,7 +378,7 @@ function AppInner() {
 
   // Get subjects this teacher teaches in a specific class
   const getTeacherSubjectsForClass = (teacherId: string, cls: string): string[] => {
-    return subjectsForClass(teachingAssignments[teacherId] || [], cls);
+    return subjectsForClass(teachingAssignments[teacherId] || [], cls).filter(s => !disabledSubjects.includes(s));
   };
 
   const assignClassTeacher = (className: string, teacherId: string) => {
@@ -456,6 +506,38 @@ function AppInner() {
   const hasStudentSubjectMarks = (cls: string, studentName: string, subject: string): boolean =>
     scores.some(score => score.class_name === cls && score.student_name === studentName && score.subject === subject);
 
+  // Yearly promotion: only the student lists change. Exam results (scores) are never touched.
+  const applyPromotion = (plan: PromotionPlan) => {
+    // 1. every existing exam keeps the class lists and the year it was written in
+    const rosterSnapshot: Record<string, string[]> = {};
+    Object.entries(students).forEach(([cls, rows]) => { rosterSnapshot[cls] = rows.map(s => s.name); });
+    saveExams(exams.map((exam: any) => ({
+      ...exam,
+      rosterSnapshot: exam.rosterSnapshot || rosterSnapshot,
+      academicYear: exam.academicYear || new Date(exam.createdAt || Date.now()).getFullYear()
+    })));
+    // 2. old class records are removed so the cloud merge cannot bring them back
+    if (cloud.isCloudMode()) plan.deleted.forEach(item => cloud.markStudentDeleted(item.cls, { id: item.id, name: item.name }));
+    // 3. students move up; Form IV leave; new Form I are empty
+    persistStudents(plan.next as typeof students);
+    // 4. behaviour stays with the students that remain; leavers' behaviour is removed
+    const keep = remainingNames(plan.next);
+    const leavers = new Set(plan.graduates.flatMap(g => g.students.map(s => s.name)).filter(name => !keep.has(name)));
+    setBehaviorData(previous => Object.fromEntries(Object.entries(previous).filter(([name]) => !leavers.has(name))));
+    // 5. registered counts follow their class
+    void cloud.getRegisteredStudents().then(registered => {
+      const nextRegistered: Record<string, { regB: number; regG: number }> = {};
+      Object.entries(registered || {}).forEach(([cls, counts]) => {
+        const target = plan.registeredTo[cls];
+        if (target) nextRegistered[target] = counts as { regB: number; regG: number };
+      });
+      Object.keys(plan.next).forEach(cls => {
+        if (!nextRegistered[cls] && !(cls in plan.registeredTo && plan.registeredTo[cls] === cls)) nextRegistered[cls] = { regB: 0, regG: 0 };
+      });
+      return cloud.saveRegisteredStudents(nextRegistered);
+    }).catch(error => console.error('Registered counts update failed:', error));
+  };
+
   const toggleStudentSubject = (cls: string, student: typeof students[string][number], subject: string) => {
     if (student.subjects.includes(subject) && hasStudentSubjectMarks(cls, student.name, subject)) {
       alert(`This student already has results in ${subject}. Results are kept. Ask the admin to remove those results first if you really want to remove the subject.`);
@@ -556,7 +638,11 @@ function AppInner() {
   };
 
   // Helper: get all student names in a class (sorted A-Z)
-  const getStudentNames = (cls: string): string[] => {
+  // After a yearly promotion every older exam keeps the class list it had, so its results stay as they were.
+  const getStudentNames = (cls: string, examId?: string): string[] => {
+    const exam = examId ? exams.find((e: any) => e.id === examId) : null;
+    const snapshot = exam?.rosterSnapshot?.[cls];
+    if (Array.isArray(snapshot)) return [...snapshot].sort((a, b) => a.localeCompare(b));
     return (students[cls] || []).map(s => s.name).sort((a, b) => a.localeCompare(b));
   };
 
@@ -694,13 +780,21 @@ function AppInner() {
           if (freshSubjects.length) setSchoolSubjects(prev => JSON.stringify(prev) !== JSON.stringify(freshSubjects) ? freshSubjects : prev);
         } catch {}
         try {
+          const freshDisabled = readStoredDisabledSubjects();
+          if (freshDisabled) setDisabledSubjects(prev => JSON.stringify(prev) !== JSON.stringify(freshDisabled) ? freshDisabled : prev);
+        } catch {}
+        try {
+          const freshCodes = JSON.parse(localStorage.getItem('sms_subject_codes') || '{}');
+          if (freshCodes && Object.keys(freshCodes).length) setSchoolSubjectCodes(prev => JSON.stringify(prev) !== JSON.stringify(freshCodes) ? freshCodes : prev);
+        } catch {}
+        try {
           const freshClasses = JSON.parse(localStorage.getItem('sms_school_classes') || '[]');
           const ts = localStorage.getItem('sms_school_classes_ts');
           const isRecent = ts && (Date.now() - parseInt(ts, 10) < 15000);
           if (isRecent) {
             // admin just edited (add/delete), don't overwrite — let syncToCloud push local
           } else if (Array.isArray(freshClasses) && freshClasses.length) {
-            setSchoolClasses((prev: any) => JSON.stringify(prev) !== JSON.stringify(freshClasses) ? freshClasses : prev);
+            setSchoolClasses((prev: any) => { const fixed = withBaseForms(Array.isArray(freshClasses) ? freshClasses : []); return JSON.stringify(prev) !== JSON.stringify(fixed) ? fixed : prev; });
           } else if (Array.isArray(freshClasses) && freshClasses.length === 0) {
             setSchoolClasses([]);
           }
@@ -1002,6 +1096,7 @@ function AppInner() {
       schoolName: schoolNameSetting,
       councilName: districtName,
       schoolLogo,
+      districtLogo,
       className: examScoreClass,
       subject: examScoreSubject,
       examName: selectedExam.name || 'Exam',
@@ -1030,6 +1125,7 @@ function AppInner() {
       schoolName: schoolNameSetting,
       councilName: districtName,
       schoolLogo,
+      districtLogo,
       className,
       subject,
       examName: exam.name || 'Exam',
@@ -1044,21 +1140,26 @@ function AppInner() {
   const [schoolSubjects, setSchoolSubjects] = useState<string[]>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('sms_school_subjects') || '[]');
-      return saved.length > 0 ? saved : ['Mathematics', 'English', 'Biology', 'Physics', 'Chemistry', 'History', 'Geography', 'Computer Science', 'Literature', 'Kiswahili', 'Civics', 'Book Keeping', 'Commerce', 'Bible Knowledge'];
-    } catch { return ['Mathematics', 'English', 'Biology', 'Physics', 'Chemistry', 'History', 'Geography', 'Computer Science', 'Literature', 'Kiswahili', 'Civics', 'Book Keeping', 'Commerce', 'Bible Knowledge']; }
+      return saved.length > 0 ? saved : [...DEFAULT_SCHOOL_SUBJECTS];
+    } catch { return [...DEFAULT_SCHOOL_SUBJECTS]; }
   });
   // ✅ Subject codes: admin must provide code (e.g., MATH) - stored in sms_subject_codes
   const [schoolSubjectCodes, setSchoolSubjectCodes] = useState<Record<string,string>>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('sms_subject_codes') || '{}');
-      if (Object.keys(saved).length > 0) return saved;
+      if (Object.keys(saved).length > 0) {
+        // Historia ya Tanzania na Maadili must not share History's code (HIST) -> HTM. Only the display code changes; data is keyed by subject name.
+        const htm = 'historia ya tanzania na maadili';
+        if (saved[htm] && saved[htm] === saved['History']) return { ...saved, [htm]: 'HTM' };
+        return saved;
+      }
       // defaults from name -> code
       const def: Record<string,string> = {};
-      ['Mathematics','English','Biology','Physics','Chemistry','History','Geography','Computer Science','Literature','Kiswahili','Civics','Book Keeping','Commerce','Bible Knowledge'].forEach(n=>{
+      DEFAULT_SCHOOL_SUBJECTS.forEach(n=>{
         let c = n.substring(0,4).toUpperCase().replace(' ','');
-        if (n==='Book Keeping') c='BK';
+        if (n==='Business studies') c='BS';
         if (n==='Computer Science') c='COMP';
-        if (n==='Bible Knowledge') c='BKNO';
+        if (n==='historia ya tanzania na maadili') c='HTM';
         def[n]=c;
       });
       return def;
@@ -1083,13 +1184,150 @@ function AppInner() {
       const mapped = schoolSubjects.map(name => ({ name, code: schoolSubjectCodes[name] || name.substring(0,4).toUpperCase().replace(' ','') }));
       localStorage.setItem('tt_shared_subjects_codes', JSON.stringify(mapped));
     } catch {}
-    if (cloud.isCloudMode() && previous !== null && previous !== value) {
-      const t = setTimeout(() => { cloud.syncToCloud(); }, 400);
+    // Admin is the source of the codes: push whenever the cloud copy differs from what this device shows.
+    if (cloud.isCloudMode() && user?.role === 'admin' && localStorage.getItem('sms_subject_codes_cloud_confirmed_value') !== value) {
+      cloud.markAppDataKeyDirty('sms_subject_codes', value);
+      const t = setTimeout(() => { cloud.syncToCloud().catch(error => console.error('Subject codes sync failed:', error)); }, 400);
       return () => clearTimeout(t);
     }
-  }, [schoolSubjectCodes, schoolSubjects]);
+  }, [schoolSubjectCodes, schoolSubjects, user]);
+
+  // Admin: change a subject's code. Only the display code changes — scores, assignments and students are keyed by subject NAME.
+  const editSubjectCode = (name: string) => {
+    const current = schoolSubjectCodes[name] || name.substring(0,4).toUpperCase().replace(' ','');
+    const input = window.prompt(`New code for "${name}" (2-6 letters/numbers). Only the code changes; no data is affected.`, current);
+    if (input === null) return;
+    const code = input.trim().toUpperCase().replace(/\s+/g, '');
+    if (code === current) return;
+    if (!/^[A-Z0-9]{2,6}$/.test(code)) { alert('Code must be 2-6 letters/numbers (e.g., MATH, HTM)'); return; }
+    const clash = [...new Set([...DEFAULT_SCHOOL_SUBJECTS, ...schoolSubjects])].find(s => s !== name && (schoolSubjectCodes[s] || s.substring(0,4).toUpperCase().replace(' ','')).toUpperCase() === code);
+    if (clash) { alert(`Code ${code} is already used by "${clash}".`); return; }
+    setSchoolSubjectCodes(prev => ({ ...prev, [name]: code }));
+  };
   const getSubjectCode = (name: string) => schoolSubjectCodes[name] || name.substring(0,4).toUpperCase().replace(' ','');
   const ALL_SUBJECTS = schoolSubjects;
+
+  // ---- Default subject enable/disable (tick) ----
+  const [disabledSubjects, setDisabledSubjects] = useState<string[]>(() => {
+    const stored = readStoredDisabledSubjects();
+    if (stored) return stored;
+    // First run: every default subject is enabled.
+    return [];
+  });
+  const disabledBootstrapped = useRef(false);
+  const isSubjectDisabled = (name: string) => disabledSubjects.includes(name);
+  const customSubjects = schoolSubjects.filter(s => !DEFAULT_SCHOOL_SUBJECTS.includes(s));
+
+  // Admin: pick up the value already in the cloud (if any), otherwise save the first-run value.
+  useEffect(() => {
+    if (user?.role !== 'admin' || disabledBootstrapped.current) return;
+    disabledBootstrapped.current = true;
+    (async () => {
+      try {
+        if (localStorage.getItem(DISABLED_SUBJECTS_KEY) === null && cloud.isCloudMode()) {
+          await cloud.refreshAppDataKey(DISABLED_SUBJECTS_KEY, true);
+        }
+      } catch {}
+      const stored = readStoredDisabledSubjects();
+      if (stored) {
+        setDisabledSubjects(prev => JSON.stringify(prev) !== JSON.stringify(stored) ? stored : prev);
+      } else {
+        const value = JSON.stringify({ disabled: disabledSubjects });
+        localStorage.setItem(DISABLED_SUBJECTS_KEY, value);
+        if (cloud.isCloudMode()) {
+          cloud.markAppDataKeyDirty(DISABLED_SUBJECTS_KEY, value);
+          cloud.syncToCloud().catch(error => console.error('Disabled subjects sync failed:', error));
+        }
+      }
+    })();
+  }, [user]);
+
+  // Admin: save changes of the disabled list.
+  useEffect(() => {
+    if (user?.role !== 'admin' || !disabledBootstrapped.current) return;
+    const value = JSON.stringify({ disabled: disabledSubjects });
+    const previous = localStorage.getItem(DISABLED_SUBJECTS_KEY);
+    if (previous === null) return; // bootstrap effect saves the first value
+    let previousList: string[] = [];
+    try { const p = JSON.parse(previous); previousList = (Array.isArray(p) ? p : p?.disabled) || []; } catch {}
+    if (JSON.stringify(previousList) === JSON.stringify(disabledSubjects)) return;
+    localStorage.setItem(DISABLED_SUBJECTS_KEY, value);
+    if (cloud.isCloudMode()) {
+      cloud.markAppDataKeyDirty(DISABLED_SUBJECTS_KEY, value);
+      const t = setTimeout(() => { cloud.syncToCloud().catch(error => console.error('Disabled subjects sync failed:', error)); }, 400);
+      return () => clearTimeout(t);
+    }
+  }, [disabledSubjects]);
+
+  // Admin: a disabled default subject must never sit in the active list (e.g. re-created from the timetable).
+  useEffect(() => {
+    if (user?.role !== 'admin') return;
+    if (schoolSubjects.some(s => disabledSubjects.includes(s))) {
+      setSchoolSubjects(prev => prev.filter(s => !disabledSubjects.includes(s)));
+    }
+    const missing = DEFAULT_SCHOOL_SUBJECTS.filter(s => !disabledSubjects.includes(s) && !schoolSubjects.includes(s));
+    if (missing.length > 0) setSchoolSubjects(prev => [...new Set([...prev, ...missing])].sort());
+  }, [schoolSubjects, disabledSubjects, user]);
+
+  // Teacher "qualified subjects" may hold old spellings ("Business Studies" vs "Business studies") or removed subjects.
+  // Display-only helpers: nothing stored is changed.
+  const subjectKey = (name: string) => String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const canonicalSubject = (name: string): string | null => schoolSubjects.find(s => subjectKey(s) === subjectKey(name)) || null;
+  // unique (ignoring upper/lower case), shown with the school's official spelling when it exists
+  const uniqueSubjectNames = (subs: string[]): string[] => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const s of subs || []) {
+      const k = subjectKey(s);
+      if (!k || seen.has(k)) continue;
+      seen.add(k);
+      out.push(canonicalSubject(s) || s);
+    }
+    return out;
+  };
+  // only subjects that are currently active at the school (no duplicates, no disabled/removed ones)
+  const activeSubjectOptions = (subs: string[]): string[] =>
+    uniqueSubjectNames(subs).filter(s => !!canonicalSubject(s));
+
+  // Subjects that still have teacher assignments / marks saved but are not in the school's subject list.
+  const orphanSubjects = (() => {
+    const known = new Set([...schoolSubjects, ...DEFAULT_SCHOOL_SUBJECTS].map(s => subjectKey(s)));
+    const found = new Map<string, { name: string; assignments: number; marks: number }>();
+    const bump = (raw: any, field: 'assignments' | 'marks') => {
+      const name = String(raw || '').trim();
+      const k = subjectKey(name);
+      if (!k || known.has(k)) return;
+      const row = found.get(k) || { name, assignments: 0, marks: 0 };
+      row[field] += 1;
+      found.set(k, row);
+    };
+    Object.values(teachingAssignments || {}).forEach((list: any) => (Array.isArray(list) ? list : []).forEach((x: any) => bump(x?.sub, 'assignments')));
+    (Array.isArray(scores) ? scores : []).forEach((x: any) => bump(x?.subject, 'marks'));
+    return [...found.values()].sort((x, y) => x.name.localeCompare(y.name));
+  })();
+  const restoreOrphanSubject = (name: string) => {
+    const suggested = name.replace(/[^A-Za-z0-9]/g, '').substring(0, 4).toUpperCase();
+    const input = window.prompt(`Add "${name}" back as a school subject. Code (2-6 letters/numbers):`, suggested);
+    if (input === null) return;
+    const code = input.trim().toUpperCase().replace(/\s+/g, '');
+    if (!/^[A-Z0-9]{2,6}$/.test(code)) { alert('Code must be 2-6 letters/numbers'); return; }
+    const clash = Object.entries(schoolSubjectCodes).find(([s, c]) => s !== name && String(c).toUpperCase() === code && schoolSubjects.includes(s));
+    if (clash) { alert(`Code ${code} is already used by "${clash[0]}".`); return; }
+    setSchoolSubjects(prev => prev.includes(name) ? prev : [...prev, name].sort());
+    setSchoolSubjectCodes(prev => ({ ...prev, [name]: code }));
+  };
+
+  const toggleDefaultSubject = (name: string) => {
+    if (!DEFAULT_SCHOOL_SUBJECTS.includes(name)) return;
+    if (disabledSubjects.includes(name)) {
+      setDisabledSubjects(prev => prev.filter(s => s !== name));
+      setSchoolSubjects(prev => prev.includes(name) ? prev : [...prev, name].sort());
+    } else {
+      if (!window.confirm(`Disable "${name}"? It will be hidden from timetable, teacher assignments and results. No data is deleted — enabling it again brings everything back.`)) return;
+      setDisabledSubjects(prev => prev.includes(name) ? prev : [...prev, name]);
+      setSchoolSubjects(prev => prev.filter(s => s !== name));
+    }
+  };
   const [newSubjectName, setNewSubjectName] = useState('');
   const [newSubjectCode, setNewSubjectCode] = useState('');
 
@@ -1098,6 +1336,7 @@ function AppInner() {
     const name = newSubjectName.trim();
     const code = newSubjectCode.trim().toUpperCase().replace(/\s+/g,'');
     if (schoolSubjects.includes(name)) { alert('Subject already exists'); return; }
+    if (DEFAULT_SCHOOL_SUBJECTS.includes(name) || disabledSubjects.includes(name)) { alert('This is a default subject. Tick it in the Default Subjects list instead.'); return; }
     if (Object.values(schoolSubjectCodes).includes(code)) { alert('Code already exists'); return; }
     if (code.length < 2 || code.length > 6) { alert('Code must be 2-6 letters (e.g., MATH, BIO, KISW)'); return; }
     setSchoolSubjects(prev => [...prev, name].sort());
@@ -1107,6 +1346,7 @@ function AppInner() {
   };
 
   const removeSchoolSubject = (sub: string) => {
+    if (DEFAULT_SCHOOL_SUBJECTS.includes(sub)) { alert('Default subjects cannot be deleted. Untick it to hide it instead.'); return; }
     setSchoolSubjects(prev => prev.filter(s => s !== sub));
     setSchoolSubjectCodes(prev => { const n={...prev}; delete n[sub]; return n; });
   };
@@ -1311,10 +1551,10 @@ function AppInner() {
       const savedValue = localStorage.getItem('sms_school_classes');
       if (savedValue !== null) {
         const saved = JSON.parse(savedValue);
-        if (Array.isArray(saved)) return saved;
+        if (Array.isArray(saved)) return withBaseForms(saved);
       }
     } catch {}
-    return ['Form IA', 'Form IB', 'Form IC', 'Form IIA', 'Form IIB', 'Form IIC', 'Form IIIA', 'Form IIIB', 'Form IIIC', 'Form IVA', 'Form IVB', 'Form IVC'];
+    return withBaseForms([]);
   });
   useEffect(() => {
     if (user) setSchoolClassesReady(true);
@@ -1556,6 +1796,7 @@ function AppInner() {
   const teacherMenus = [
     { id: 'my_timetable', label: 'My Timetable', icon: CalendarDays },
     { id: 'lesson_plan', label: 'Lesson Plan', icon: NotebookPen },
+    { id: 'logbook', label: 'Log Book', icon: BookOpen },
     ...(myClass ? [{ id: 'students', label: `Register Students (${myClass})`, icon: UserRoundPlus }] : []),
     ...(myClass ? [{ id: 'behavior', label: 'Behavior Assessment', icon: ClipboardCheck }] : []),
     { id: 'exams', label: 'Exams & Scores', icon: ChartNoAxesCombined },
@@ -1687,6 +1928,21 @@ function AppInner() {
             </label>
           </div>
 
+          {/* District Council logo (printed on the LEFT of every document; school logo on the RIGHT) */}
+          <div className="bg-white p-4 rounded-2xl border flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              {districtLogo ? <SafeImg src={districtLogo} alt="District Council Logo" className="w-16 h-16 object-contain border rounded-xl p-1" /> : <div className="w-16 h-16 bg-slate-100 rounded-xl flex items-center justify-center text-2xl">🏛️</div>}
+              <div>
+                <h3 className="font-bold text-sm">District Council Logo</h3>
+                <p className="text-xs text-slate-500">Printed on the left of every document; the school logo is printed on the right.</p>
+              </div>
+            </div>
+            <label className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold cursor-pointer hover:bg-indigo-700">
+              {districtLogo ? 'Change Logo' : 'Upload Logo'}
+              <input type="file" accept="image/*" onChange={handleDistrictLogoUpload} className="hidden" />
+            </label>
+          </div>
+
           {/* Officials */}
           <div className="bg-white p-6 rounded-2xl border space-y-4">
             <h2 className="font-bold text-lg">School Officials</h2>
@@ -1697,7 +1953,7 @@ function AppInner() {
                 <input placeholder="Academic Master Name" value={academicName} onChange={e => { setAcademicName(e.target.value); cloud.saveAppDataKeyLocally('sms_academic_name', e.target.value); }} className="w-full border px-3 py-2 rounded-xl text-sm" />
                 <div className="flex items-center gap-3">
                   {academicSig ? <SafeImg src={academicSig} alt="Signature" className="h-12 border rounded p-1" /> : <span className="text-xs text-slate-400">No signature</span>}
-                  <label className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer">Upload Signature<input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onloadend = () => { const b = r.result as string; setAcademicSig(b); cloud.saveAppDataKeyLocally('sms_academic_sig', b); }; r.readAsDataURL(f); }} className="hidden" /></label>
+                  <label className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer">Upload Signature<input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onloadend = async () => { const b = await trimSignatureDataUrl(r.result as string); if (!b) { alert('Picha ya sahihi haina wino unaoonekana. Tumia picha nyingine.'); return; } try { cloud.saveAppDataKeyLocally('sms_academic_sig', b); } catch {} if (localStorage.getItem('sms_academic_sig') !== b) { alert('Sahihi haikuhifadhiwa (kumbukumbu ya browser imejaa). Futa data zisizohitajika kisha ujaribu tena.'); return; } setAcademicSig(b); }; r.readAsDataURL(f); }} className="hidden" /></label>
                 </div>
               </div>
               <div className="space-y-3 border rounded-xl p-4">
@@ -1705,7 +1961,7 @@ function AppInner() {
                 <input placeholder="Headmaster Name" value={headmasterName} onChange={e => { setHeadmasterName(e.target.value); cloud.saveAppDataKeyLocally('sms_headmaster_name', e.target.value); }} className="w-full border px-3 py-2 rounded-xl text-sm" />
                 <div className="flex items-center gap-3">
                   {headmasterSig ? <SafeImg src={headmasterSig} alt="Signature" className="h-12 border rounded p-1" /> : <span className="text-xs text-slate-400">No signature</span>}
-                  <label className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer">Upload Signature<input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onloadend = () => { const b = r.result as string; setHeadmasterSig(b); cloud.saveAppDataKeyLocally('sms_headmaster_sig', b); }; r.readAsDataURL(f); }} className="hidden" /></label>
+                  <label className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer">Upload Signature<input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onloadend = async () => { const b = await trimSignatureDataUrl(r.result as string); if (!b) { alert('Picha ya sahihi haina wino unaoonekana. Tumia picha nyingine.'); return; } try { cloud.saveAppDataKeyLocally('sms_headmaster_sig', b); } catch {} if (localStorage.getItem('sms_headmaster_sig') !== b) { alert('Sahihi haikuhifadhiwa (kumbukumbu ya browser imejaa). Futa data zisizohitajika kisha ujaribu tena.'); return; } setHeadmasterSig(b); }; r.readAsDataURL(f); }} className="hidden" /></label>
                 </div>
               </div>
             </div>
@@ -1715,83 +1971,98 @@ function AppInner() {
           {/* Subject Management */}
           {activeMenu === 'subjects' && (<>
           <div className="bg-white p-6 rounded-2xl border">
-            <h2 className="font-bold text-lg mb-2">School Subjects ({schoolSubjects.length})</h2>
-            <p className="text-xs text-slate-500 mb-3">Add subjects with code (e.g., Mathematics — <b>MATH</b>). Code appears on timetable & general results instead of full name. These appear in timetable, teacher assignments, and student registration.</p>
+            <h2 className="font-bold text-lg mb-2">School Subjects ({schoolSubjects.length} active)</h2>
+            <p className="text-xs text-slate-500 mb-3">Tick the default subjects that exist at your school. Unticking a subject only hides it (timetable, teacher assignments, student registration, results) — <b>no data is deleted</b>, and ticking it again brings back all scores and assignments. Default subjects cannot be deleted.</p>
+            <h3 className="font-semibold text-sm mb-2">Default Subjects</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 mb-5">
+              {DEFAULT_SCHOOL_SUBJECTS.map(sub => {
+                const enabled = !disabledSubjects.includes(sub);
+                return (
+                  <div key={sub} className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-semibold ${enabled ? 'bg-indigo-50 border-indigo-300 text-indigo-800' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                    <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                      <input type="checkbox" checked={enabled} onChange={() => toggleDefaultSubject(sub)} className="w-4 h-4 accent-indigo-600" />
+                      <span className={enabled ? '' : 'line-through'}>{sub}</span>
+                    </label>
+                    <button type="button" onClick={() => editSubjectCode(sub)} title="Edit code" className="bg-white px-1.5 py-0.5 rounded font-mono text-[11px] border hover:border-indigo-500 text-slate-700">{getSubjectCode(sub)} ✎</button>
+                  </div>
+                );
+              })}
+            </div>
+            <h3 className="font-semibold text-sm mb-1">Add Another Subject</h3>
+            <p className="text-xs text-slate-500 mb-2">Add subjects with code (e.g., Agriculture — <b>AGRI</b>). Only subjects added here can be deleted.</p>
             <div className="flex gap-2 mb-3">
-              <input placeholder="Subject name (e.g. Mathematics)" value={newSubjectName} onChange={e => setNewSubjectName(e.target.value)} className="flex-1 border px-3 py-2 rounded-xl text-sm" />
-              <input placeholder="Code (e.g. MATH)" value={newSubjectCode} onChange={e => setNewSubjectCode(e.target.value.toUpperCase())} className="w-28 border px-3 py-2 rounded-xl text-sm font-mono font-bold" maxLength={6} />
+              <input placeholder="Subject name (e.g. Agriculture)" value={newSubjectName} onChange={e => setNewSubjectName(e.target.value)} className="flex-1 border px-3 py-2 rounded-xl text-sm" />
+              <input placeholder="Code (e.g. AGRI)" value={newSubjectCode} onChange={e => setNewSubjectCode(e.target.value.toUpperCase())} className="w-28 border px-3 py-2 rounded-xl text-sm font-mono font-bold" maxLength={6} />
               <button onClick={addSchoolSubject} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">+ Add</button>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {schoolSubjects.map(sub => (
-                <span key={sub} className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-100 text-indigo-800 rounded-lg text-xs font-semibold border">
-                  <span className="bg-white px-1.5 py-0.5 rounded font-mono text-[11px] border">{getSubjectCode(sub)}</span> {sub}
-                  <button onClick={() => removeSchoolSubject(sub)} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
+              {customSubjects.map(sub => (
+                <span key={sub} className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold border">
+                  <button type="button" onClick={() => editSubjectCode(sub)} title="Edit code" className="bg-white px-1.5 py-0.5 rounded font-mono text-[11px] border hover:border-emerald-600">{getSubjectCode(sub)} ✎</button> {sub}
+                  <button onClick={() => { if (window.confirm(`Delete "${sub}"? Added subjects are removed from the list.`)) removeSchoolSubject(sub); }} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
                 </span>
               ))}
             </div>
-            {schoolSubjects.length===0 && <p className="text-xs text-amber-600 mt-2">No subjects yet — add at least one with code.</p>}
+            {customSubjects.length === 0 && <p className="text-xs text-slate-400">No added subjects yet.</p>}
+            {orphanSubjects.length > 0 && (
+              <div className="mt-5 p-3 rounded-xl border border-amber-300 bg-amber-50">
+                <p className="text-xs font-semibold text-amber-800 mb-2">Subjects with saved data that are not in the subject list:</p>
+                <div className="flex flex-wrap gap-2">
+                  {orphanSubjects.map(o => (
+                    <span key={o.name} className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs">
+                      <b>{o.name}</b> <span className="text-slate-500">{o.assignments} assignment(s), {o.marks} mark(s)</span>
+                      <button type="button" onClick={() => restoreOrphanSubject(o.name)} className="text-indigo-600 font-bold hover:underline">Add back</button>
+                    </span>
+                  ))}
+                </div>
+                <p className="text-[11px] text-amber-700 mt-2">"Add back" restores the subject with all its existing assignments and marks.</p>
+              </div>
+            )}
           </div>
           </>)}
 
           {/* Class Management */}
           {activeMenu === 'classes' && (<>
-          <div className="bg-white p-6 rounded-2xl border">
-            <h2 className="font-bold text-lg mb-2">School Classes & Streams ({schoolClasses.length})</h2>
-            <p className="text-xs text-slate-500 mb-3">Register classes with streams. Format: Form IA, Form IB, etc. These appear in timetable, teacher assignments, and student registration.</p>
-            <div className="flex gap-2 mb-3">
-              <input placeholder="Class name (e.g. Form VA)" value={newClassName} onChange={e => setNewClassName(e.target.value)} className="flex-1 border px-3 py-2 rounded-xl text-sm" />
-              <button onClick={() => {
-                if (!newClassName.trim()) return;
-                if (schoolClasses.includes(newClassName.trim())) { alert('Class already exists'); return; }
-                const updatedClasses = [...schoolClasses, newClassName.trim()].sort();
-                localStorage.setItem('sms_school_classes', JSON.stringify(updatedClasses));
-                localStorage.setItem('tt_shared_classes', JSON.stringify(updatedClasses));
-                localStorage.setItem('sms_school_classes_ts', String(Date.now()));
-                if (cloud.isCloudMode()) {
-                  const value = JSON.stringify(updatedClasses);
-                  cloud.markAppDataKeyDirty('sms_school_classes', value);
-                  cloud.markAppDataKeyDirty('tt_shared_classes', value);
-                }
-                setSchoolClasses(updatedClasses);
-                if (cloud.isCloudMode()) cloud.syncToCloud().catch(() => {});
-                setNewClassName('');
-              }} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">+ Add</button>
-              <button onClick={() => {
-                if (schoolClasses.length === 0) { alert('No classes to clear'); return; }
-                if (!confirm('Futa madarasa yote ya mwanzo (' + schoolClasses.length + ') na ubaki na yaliyoandikwa upya tu?')) return;
-                localStorage.setItem('sms_school_classes', '[]');
-                localStorage.setItem('tt_shared_classes', '[]');
-                localStorage.setItem('sms_school_classes_ts', String(Date.now()));
-                if (cloud.isCloudMode()) {
-                  cloud.markAppDataKeyDirty('sms_school_classes', '[]');
-                  cloud.markAppDataKeyDirty('tt_shared_classes', '[]');
-                }
-                setSchoolClasses([]);
-                if (cloud.isCloudMode()) cloud.syncToCloud().catch(() => {});
-              }} className="bg-white border border-red-200 text-red-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-red-50" title="Futa yote ya mwanzo">🗑️ Clear All</button>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {schoolClasses.map(cls => (
-                <span key={cls} className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold">
-                  {cls}
-                  <button onClick={() => {
-                    const updatedClasses = schoolClasses.filter(c => c !== cls);
-                    localStorage.setItem('sms_school_classes', JSON.stringify(updatedClasses));
-                    localStorage.setItem('tt_shared_classes', JSON.stringify(updatedClasses));
-                    localStorage.setItem('sms_school_classes_ts', String(Date.now()));
-                    if (cloud.isCloudMode()) {
-                      const value = JSON.stringify(updatedClasses);
-                      cloud.markAppDataKeyDirty('sms_school_classes', value);
-                      cloud.markAppDataKeyDirty('tt_shared_classes', value);
-                    }
-                    setSchoolClasses(updatedClasses);
-                    if (cloud.isCloudMode()) cloud.syncToCloud().catch(() => {});
-                  }} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
-                </span>
-              ))}
-            </div>
-          </div>
+          <PromoteStudents
+            students={students as any}
+            schoolClasses={schoolClasses}
+            scores={scores}
+            exams={exams}
+            behavior={behaviorData}
+            schoolName={schoolNameSetting}
+            districtName={districtName}
+            schoolLogo={schoolLogo}
+            onApply={applyPromotion}
+          />
+          <ClassManager
+            schoolClasses={schoolClasses}
+            studentCounts={Object.fromEntries(Object.entries(students).map(([cls, rows]) => [cls, (rows as any[]).length]))}
+            onSave={(updatedClasses: string[], moves: { from: string; to: string }[]) => {
+              if (moves.length > 0) {
+                // students of a removed stream join the class they were moved to (new ids, old records deleted)
+                const stamp = Date.now().toString(36);
+                let n = 0;
+                const nextStudents: any = { ...students };
+                moves.forEach(({ from, to }) => {
+                  const rows: any[] = (students as any)[from] || [];
+                  nextStudents[to] = [...(nextStudents[to] || []), ...rows.map(s => ({ ...s, id: `mv-${stamp}-${(n++).toString(36)}`, updatedAt: new Date().toISOString() }))];
+                  nextStudents[from] = [];
+                  if (cloud.isCloudMode()) rows.forEach(s => cloud.markStudentDeleted(from, { id: s.id, name: s.name }));
+                });
+                persistStudents(nextStudents);
+              }
+              const value = JSON.stringify(updatedClasses);
+              localStorage.setItem('sms_school_classes', value);
+              localStorage.setItem('tt_shared_classes', value);
+              localStorage.setItem('sms_school_classes_ts', String(Date.now()));
+              if (cloud.isCloudMode()) {
+                cloud.markAppDataKeyDirty('sms_school_classes', value);
+                cloud.markAppDataKeyDirty('tt_shared_classes', value);
+              }
+              setSchoolClasses(updatedClasses);
+              if (cloud.isCloudMode()) cloud.syncToCloud().catch(() => {});
+            }}
+          />
           </>)}
 
           {activeMenu === 'teachers' && (<>
@@ -1826,7 +2097,7 @@ function AppInner() {
                     <div>
                       <p className="font-semibold">{t.name}</p>
                       <p className="text-xs text-slate-500">Username: {t.username}{assignedClass ? ` | Class Teacher: ${assignedClass}` : ''}</p>
-                      <p className="text-xs text-slate-500">Subjects: {(t.subjects||[]).join(', ')||'None'}</p>
+                      <p className="text-xs text-slate-500">Subjects: {uniqueSubjectNames(t.subjects || []).join(', ')||'None'}</p>
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => isEditing ? setEditingTeacherId(null) : startEditSubjects(t)} className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-semibold border border-indigo-200">
@@ -1839,7 +2110,7 @@ function AppInner() {
                         try { if (cloud.isCloudMode()) { await cloud.deleteUser(t.id); await cloud.createUser(updated.find((u: any) => u.id === t.id)); } } catch {}
                         alert(`Password reset to Teacher@123 for ${t.name}`);
                       }} className="px-3 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-semibold border border-amber-200">🔑 Reset Password</button>
-                      <button onClick={() => deleteTeacher(t.id)} className="px-3 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-semibold border border-red-200">Remove</button>
+                      <button onClick={() => { if (window.confirm(`Are you sure you want to remove the teacher "${t.name}"?`)) deleteTeacher(t.id); }} className="px-3 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-semibold border border-red-200">Remove</button>
                     </div>
                   </div>
                   {isEditing && (
@@ -1877,7 +2148,7 @@ function AppInner() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {CLASSES.map(cls => (
                 <div key={cls} className="flex items-center gap-3 border rounded-xl p-3">
-                  <span className="font-bold text-sm min-w-[80px]">{cls}</span>
+                  <span className="font-bold text-sm min-w-[80px]">{displayClass(cls)}</span>
                   <select value={classTeachers[cls] || ''} onChange={e => assignClassTeacher(cls, e.target.value)} className="flex-1 border px-2 py-1.5 rounded-lg text-sm">
                     <option value="">-- Not Assigned --</option>
                     {teachers.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -1899,7 +2170,7 @@ function AppInner() {
                 return (
                   <div key={t.id} className="border rounded-xl p-4 mb-3">
                     <p className="font-bold text-sm">{t.name}</p>
-                    <p className="text-xs text-slate-500 mb-2">Qualified: {(t.subjects || []).join(', ') || 'None'}</p>
+                    <p className="text-xs text-slate-500 mb-2">Qualified: {uniqueSubjectNames(t.subjects || []).join(', ') || 'None'}</p>
 
                     {/* Current assignments */}
                     {assignments.length > 0 && (
@@ -1907,7 +2178,7 @@ function AppInner() {
                         {assignments.map((a, i) => (
                           <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-lg text-xs font-semibold">
                             {a.cls} — {a.sub}
-                            <button onClick={() => removeTeachingAssignment(t.id, a.cls, a.sub)} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
+                            <button onClick={() => { if (window.confirm(`Are you sure you want to remove ${a.sub} (${a.cls}) from ${t.name}?`)) removeTeachingAssignment(t.id, a.cls, a.sub); }} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
                           </span>
                         ))}
                       </div>
@@ -1917,11 +2188,11 @@ function AppInner() {
                     <div className="flex gap-2 items-end">
                       <select id={`cls-${t.id}`} className="border px-2 py-1.5 rounded-lg text-xs flex-1">
                         <option value="">Class...</option>
-                        {CLASSES.map(c => <option key={c}>{c}</option>)}
+                        {CLASSES.map(c => <option key={c} value={c}>{displayClass(c)}</option>)}
                       </select>
                       <select id={`sub-${t.id}`} className="border px-2 py-1.5 rounded-lg text-xs flex-1">
                         <option value="">Subject...</option>
-                        {(t.subjects || []).map((s: string) => <option key={s}>{s}</option>)}
+                        {activeSubjectOptions(t.subjects || []).map((s: string) => <option key={s}>{s}</option>)}
                       </select>
                       <button onClick={() => {
                         const clsEl = document.getElementById(`cls-${t.id}`) as HTMLSelectElement;
@@ -1974,7 +2245,7 @@ function AppInner() {
                           {isOpen ? `⏰ ${timeLeft}` : '❌ Expired'}
                         </p>
                       </div>
-                      <button onClick={() => deleteExam(ex.id)} className="px-2 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-semibold border border-red-200">Delete</button>
+                      <button onClick={() => { if (window.confirm(`Are you sure you want to delete the exam "${ex.name || ex.term || 'this exam'}"?`)) deleteExam(ex.id); }} className="px-2 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-semibold border border-red-200">Delete</button>
                     </div>
 
                     {/* Submission status */}
@@ -2014,17 +2285,17 @@ function AppInner() {
                 <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Select Exam</label>
                 <select value={viewExamId} onChange={e => { setViewExamId(e.target.value); setViewClass(''); }} className="w-full border px-3 py-2.5 rounded-xl">
                   <option value="">-- Select Exam --</option>
-                  {exams.map((ex: any) => <option key={ex.id} value={ex.id}>{ex.name} ({ex.term})</option>)}
+                  {exams.map((ex: any) => <option key={ex.id} value={ex.id}>{ex.name} ({ex.term}{ex.academicYear ? ` ${ex.academicYear}` : ''})</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">View Mode</label>
                 <select value={viewClass} onChange={e => setViewClass(e.target.value)} className="w-full border px-3 py-2.5 rounded-xl">
                   <option value="">-- All Classes (General) --</option>
-                  {[...new Set(CLASSES.map(c => c.replace(/\s*[A-C]$/, '')))].map(form => (
-                    <option key={form} value={`__${form.replace(/\s/g, '_')}`}>{form} (All Streams)</option>
+                  {[...new Set(CLASSES.map(c => baseOf(c)))].map(form => (
+                    <option key={form} value={`__${form.replace(/\s/g, '_')}`}>{displayClass(form)} (All Streams)</option>
                   ))}
-                  {CLASSES.map(c => <option key={c} value={c}>{c} (Stream)</option>)}
+                  {CLASSES.filter(c => baseOf(c) !== c).map(c => <option key={c} value={c}>{displayClass(c)} (Stream)</option>)}
                 </select>
               </div>
               <div className="flex items-end">
@@ -2035,13 +2306,13 @@ function AppInner() {
                   const classesInScope = viewClass === ''
                     ? CLASSES
                     : viewClass.startsWith('__')
-                      ? CLASSES.filter(cls => cls.toLowerCase().startsWith(viewClass.slice(2).replace(/_/g, ' ').toLowerCase()))
+                      ? CLASSES.filter(cls => baseOf(cls).toLowerCase() === viewClass.slice(2).replace(/_/g, ' ').toLowerCase())
                       : [viewClass];
                   const submittedSubjects = [...new Set(classesInScope.flatMap(cls =>
                     submittedSubjectsForClass(viewExamId, cls, scores, examSubmissions)
                   ))];
                   const offeredSubjects = [...new Set(classesInScope.flatMap(cls =>
-                    offeredSubjectsForClass(cls, teachingAssignments)
+                    offeredSubjectsForClass(cls, teachingAssignments).filter(s => !disabledSubjects.includes(s))
                   ))];
                   const canApprove = offeredSubjects.length > 0 && submittedSubjects.length >= offeredSubjects.length;
                   const subjectsRemaining = Math.max(0, offeredSubjects.length - submittedSubjects.length);
@@ -2074,7 +2345,7 @@ function AppInner() {
               const classesToShow = viewClass === ''
                 ? CLASSES
                 : viewClass.startsWith('__')
-                  ? CLASSES.filter(cls => cls.toLowerCase().startsWith(viewClass.slice(2).replace(/_/g, ' ').toLowerCase()))
+                  ? CLASSES.filter(cls => baseOf(cls).toLowerCase() === viewClass.slice(2).replace(/_/g, ' ').toLowerCase())
                   : [viewClass];
 
               // Get all students and scores for these classes
@@ -2083,14 +2354,14 @@ function AppInner() {
                 cls,
                 submittedSubjectsForClass(viewExamId, cls, filtered, examSubmissions)
               ]));
-              const allSubjects = [...new Set([...submittedByClass.values()].flat())].sort();
+              const allSubjects = [...new Set([...submittedByClass.values()].flat())].filter(s => !disabledSubjects.includes(s)).sort();
               const selectedClassSubmittedSubjects = CLASSES.includes(viewClass)
                 ? submittedByClass.get(viewClass) || []
                 : [];
               const selectedExamData = exams.find((exam: any) => exam.id === viewExamId);
 
               classesToShow.forEach(cls => {
-                const studentNames = getStudentNames(cls);
+                const studentNames = getStudentNames(cls, viewExamId);
                 const classScores = filtered.filter((s: any) => s.class_name === cls);
                 const submittedForClass = new Set(submittedByClass.get(cls) || []);
 
@@ -2153,18 +2424,18 @@ function AppInner() {
                   thead { display:table-header-group; }
                   th,td { border:1px solid #000; padding:3px 4px; text-align:center; font-size: ${thFontSize}; }
                   .total-row td { font-weight:bold; border:2px solid #000; }
-                  .header { text-align:center; margin-bottom:8px; }
+                  .header { text-align:center; margin-bottom:8px; border-bottom:2px solid #000; padding-bottom:6px; }
                   .header img { height:50px; margin-bottom:3px; }
-                  .pass { color: green; font-weight:bold; } .fail { color: red; font-weight:bold; }
+                  .pass { color: #000; font-weight:bold; } .fail { color: red; font-weight:bold; }
                   @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
                 </style></head><body><div class="header">`);
-                if (logo) pw.document.write(`<img src="${logo}" />`);
+                pw.document.write(letterheadOpen(getDistrictLogo()));
                 pw.document.write(`<div style="font-size:14px;font-weight:bold;letter-spacing:1px">${districtName}</div>
                   <div style="font-size:18px;font-weight:bold;letter-spacing:1px">${schoolNameSetting}</div>
                   <div style="font-size:14px;font-weight:bold;text-decoration:underline;margin:3px 0">${examName} — GENERAL RESULTS</div>
-                  <div style="font-size:12px">${viewClass.startsWith('__') ? viewClass.replace('__', '').replace(/_/g, ' ') : viewClass || 'All Classes'}</div></div>`);
+                  <div style="font-size:12px">${viewClass.startsWith('__') ? viewClass.replace('__', '').replace(/_/g, ' ') : viewClass || 'All Classes'}</div>${letterheadClose(logo)}</div>`);
                 // Table header - subject columns show score AND grade
-                pw.document.write(`<table><thead><tr style="background:#d4edda">`);
+                pw.document.write(`<table><thead><tr style="background:#d9d9d9">`);
                 pw.document.write(`<th style="font-size:${thFontSize}" rowspan="2">S/N</th>`);
                 pw.document.write(`<th style="text-align:left;font-size:${thFontSize}" rowspan="2">Student Name</th>`);
                 allSubjects.forEach(s => pw.document.write(`<th style="font-size:8px" colspan="2">${getSubjectCode(s)}</th>`));
@@ -2174,7 +2445,7 @@ function AppInner() {
                 pw.document.write(`<th style="font-size:${thFontSize}" rowspan="2">Position</th>`);
                 pw.document.write(`<th style="font-size:${thFontSize}" rowspan="2">Points</th>`);
                 pw.document.write(`<th style="font-size:${thFontSize}" rowspan="2">Division</th>`);
-                pw.document.write(`</tr><tr style="background:#d4edda">`);
+                pw.document.write(`</tr><tr style="background:#d9d9d9">`);
                 allSubjects.forEach(() => pw.document.write(`<th style="font-size:7px">100</th><th style="font-size:7px"></th>`));
                 pw.document.write(`</tr></thead><tbody>`);
                 allStudentRows.forEach((r, index) => {
@@ -2184,10 +2455,10 @@ function AppInner() {
                     const v = r.scores[sub];
                     if (v !== null) {
                       const g = getGrade(v);
-                      const color = v >= 45 ? 'green' : 'red';
-                      pw.document.write(`<td style="color:${color}">${v}</td><td style="font-weight:bold;color:${color}">${g}</td>`);
+                      const deco = v >= 45 ? '' : 'font-weight:bold;text-decoration:underline;';
+                      pw.document.write(`<td style="${deco}">${v}</td><td style="font-weight:bold;${deco}">${g}</td>`);
                     } else {
-                      pw.document.write(`<td style="color:#ccc">—</td><td></td>`);
+                      pw.document.write(`<td style="color:#888">—</td><td></td>`);
                     }
                   });
                   pw.document.write(`<td style="font-weight:bold">${r.total.toFixed(2)}</td>`);
@@ -2219,11 +2490,11 @@ function AppInner() {
                 }).filter(s => s.total > 0).sort((a, b) => a.gpa - b.gpa);
 
                 pw.document.write(`<div style="display:flex;gap:15px;margin-top:12px;page-break-inside:avoid">`);
-                pw.document.write(`<div style="flex:2"><table><thead><tr style="background:#d4edda"><th colspan="10" style="text-align:left;font-size:12px;font-weight:bold">SUBJECT PERFORMANCE</th></tr><tr style="background:#e8e8e8"><th style="text-align:left;font-size:10px">SUBJECT NAME</th><th style="font-size:10px">PASS</th><th style="font-size:10px">FAIL</th><th style="font-size:10px">A</th><th style="font-size:10px">B</th><th style="font-size:10px">C</th><th style="font-size:10px">D</th><th style="font-size:10px">F</th><th style="font-size:10px">GPA</th><th style="font-size:10px">RANK</th></tr></thead><tbody>`);
+                pw.document.write(`<div style="flex:2"><table><thead><tr style="background:#d9d9d9"><th colspan="10" style="text-align:left;font-size:12px;font-weight:bold">SUBJECT PERFORMANCE</th></tr><tr style="background:#ececec"><th style="text-align:left;font-size:10px">SUBJECT NAME</th><th style="font-size:10px">PASS</th><th style="font-size:10px">FAIL</th><th style="font-size:10px">A</th><th style="font-size:10px">B</th><th style="font-size:10px">C</th><th style="font-size:10px">D</th><th style="font-size:10px">F</th><th style="font-size:10px">GPA</th><th style="font-size:10px">RANK</th></tr></thead><tbody>`);
                 subjectStats.forEach((s, idx) => {
                   const passPct = s.total > 0 ? ((s.passCount / s.total) * 100).toFixed(0) : '0';
                   const failPct = s.total > 0 ? ((s.failCount / s.total) * 100).toFixed(0) : '0';
-                  pw.document.write(`<tr><td style="text-align:left;font-size:10px;font-weight:bold">${s.sub.toUpperCase()}</td><td style="font-size:10px">${passPct}%</td><td style="font-size:10px">${failPct}%</td><td style="font-size:10px;color:green">${s.aCount}</td><td style="font-size:10px;color:green">${s.bCount}</td><td style="font-size:10px">${s.cCount}</td><td style="font-size:10px;color:orange">${s.dCount}</td><td style="font-size:10px;color:red">${s.fCount}</td><td style="font-size:10px;font-weight:bold">${s.gpa.toFixed(1)}</td><td style="font-size:10px;font-weight:bold">${idx + 1}</td></tr>`);
+                  pw.document.write(`<tr><td style="text-align:left;font-size:10px;font-weight:bold">${s.sub.toUpperCase()}</td><td style="font-size:10px">${passPct}%</td><td style="font-size:10px">${failPct}%</td><td style="font-size:10px;color:#000">${s.aCount}</td><td style="font-size:10px;color:#000">${s.bCount}</td><td style="font-size:10px">${s.cCount}</td><td style="font-size:10px;color:orange">${s.dCount}</td><td style="font-size:10px;color:red">${s.fCount}</td><td style="font-size:10px;font-weight:bold">${s.gpa.toFixed(1)}</td><td style="font-size:10px;font-weight:bold">${idx + 1}</td></tr>`);
                 });
                 pw.document.write(`</tbody></table></div>`);
 
@@ -2237,16 +2508,16 @@ function AppInner() {
                 const divAbs = allStudentRows.filter(r => Object.values(r.scores).every(v => v === null)).length;
                 const divTotal = allStudentRows.length;
 
-                pw.document.write(`<div style="flex:1"><table><thead><tr style="background:#d4edda"><th colspan="8" style="text-align:left;font-size:12px;font-weight:bold">DIVISION PERFORMANCE</th></tr><tr style="background:#e8e8e8"><th style="font-size:10px">DIV I</th><th style="font-size:10px">DIV II</th><th style="font-size:10px">DIV III</th><th style="font-size:10px">DIV IV</th><th style="font-size:10px">DIV 0</th><th style="font-size:10px">ABS</th><th style="font-size:10px">TOTAL</th></tr></thead><tbody>`);
-                pw.document.write(`<tr><td style="font-size:12px;font-weight:bold;color:green">${divI}</td><td style="font-size:12px;font-weight:bold">${divII}</td><td style="font-size:12px;font-weight:bold">${divIII}</td><td style="font-size:12px;font-weight:bold">${divIV}</td><td style="font-size:12px;font-weight:bold;color:red">${div0}</td><td style="font-size:12px;font-weight:bold">${divAbs}</td><td style="font-size:12px;font-weight:bold">${divTotal}</td></tr>`);
+                pw.document.write(`<div style="flex:1"><table><thead><tr style="background:#d9d9d9"><th colspan="8" style="text-align:left;font-size:12px;font-weight:bold">DIVISION PERFORMANCE</th></tr><tr style="background:#ececec"><th style="font-size:10px">DIV I</th><th style="font-size:10px">DIV II</th><th style="font-size:10px">DIV III</th><th style="font-size:10px">DIV IV</th><th style="font-size:10px">DIV 0</th><th style="font-size:10px">ABS</th><th style="font-size:10px">TOTAL</th></tr></thead><tbody>`);
+                pw.document.write(`<tr><td style="font-size:12px;font-weight:bold;color:#000">${divI}</td><td style="font-size:12px;font-weight:bold">${divII}</td><td style="font-size:12px;font-weight:bold">${divIII}</td><td style="font-size:12px;font-weight:bold">${divIV}</td><td style="font-size:12px;font-weight:bold;color:red">${div0}</td><td style="font-size:12px;font-weight:bold">${divAbs}</td><td style="font-size:12px;font-weight:bold">${divTotal}</td></tr>`);
                 pw.document.write(`</tbody></table></div></div>`);
 
-                pw.document.write(`<div style="text-align:center;margin-top:15px;font-size:11px;color:#555;font-style:italic;border-top:1px solid #ccc;padding-top:8px">${schoolNameSetting}: ${schoolMotto}</div></body></html>`);
+                pw.document.write(`<div style="text-align:center;margin-top:15px;font-size:11px;color:#222;font-style:italic;border-top:1px solid #888;padding-top:8px">${schoolNameSetting}: ${schoolMotto}</div></body></html>`);
                 pw.document.close();
                 setTimeout(() => { pw.focus(); pw.print(); }, 500);
               };
 
-              const buildReportCardHtml = (row: typeof allStudentRows[0], imageUrls: { logo: string; acSig: string; hmSig: string }, pageBreakAfter: boolean) => {
+              const buildReportCardHtml = (row: typeof allStudentRows[0], imageUrls: { logo: string; districtLogo: string; acSig: string; hmSig: string }, pageBreakAfter: boolean) => {
                 let reportHtml = '';
                 const pw: any = { document: { write: (html: string) => { reportHtml += html; } } };
                 const { logo, acSig, hmSig } = imageUrls;
@@ -2272,12 +2543,12 @@ function AppInner() {
                 ].filter(Boolean).join(' ');
 
                 pw.document.write(`<section class="${cardClasses}"><div class="header">`);
-                if (logo) pw.document.write(`<img class="school-logo" src="${logo}" alt="Logo ya shule" />`);
-                pw.document.write(`<div class="council-name" style="font-size:14px;font-weight:bold">${districtName}</div>
-                  <div class="school-name" style="font-size:22px;font-weight:bold;margin:3px 0">${schoolNameSetting}</div>
-                  <div style="font-size:11px;margin-bottom:4px">${schoolAddress}</div>
+                pw.document.write(letterheadOpen(imageUrls.districtLogo));
+                pw.document.write(`<div class="council-name" style="font-size:14px;font-weight:bold">HALMASHAURI YA WILAYA YA RUANGWA</div>
+                  <div class="school-name" style="font-size:22px;font-weight:bold;margin:3px 0">SHULE YA SEKONDARI NAMBAWALA</div>
+                  <div style="font-size:11px;margin-bottom:4px;font-weight:bold">S.L.P 51 RUANGWA-LINDI</div>
                   <div class="report-title" style="font-size:16px;font-weight:bold;text-decoration:underline;margin-top:4px">RIPOTI YA MAENDELEO YA MWANAFUNZI</div>
-                  <div class="exam-name" style="font-size:13px;margin-top:3px">${examName}</div></div>`);
+                  <div class="exam-name" style="font-size:13px;margin-top:3px">${examName}</div>${letterheadClose(logo)}</div>`);
 
                 // Student info grid — KISWAHILI
                 pw.document.write(`<div class="info-grid">
@@ -2295,14 +2566,14 @@ function AppInner() {
                     const g = grade(v);
                     const p = point(v);
                     const r = remark(v);
-                    const color = v >= 45 ? '#006600' : '#cc0000';
+                    const color = '#000';
                     const gradeClass = g === 'D' || g === 'F' ? 'grade-low' : '';
                     pw.document.write(`<tr><td style="text-align:left;font-weight:bold">${sub}</td><td style="text-align:center;color:${color};font-weight:bold;font-size:14px">${v}</td><td style="text-align:center;font-weight:bold;color:${color};font-size:14px"><span class="${gradeClass}">${g}</span></td><td style="text-align:center;font-size:13px">${p}</td><td style="text-align:center">${r}</td></tr>`);
                   }
                 });
                 const averageGrade = grade(row.avg);
                 const averageGradeClass = averageGrade === 'D' || averageGrade === 'F' ? 'grade-low' : '';
-                pw.document.write(`<tr style="font-weight:bold;background:#d4edda"><td style="text-align:left">JUMLA (Masomo ${validCount})</td><td style="text-align:center;font-size:14px">${row.total}</td><td style="text-align:center;font-size:14px"><span class="${averageGradeClass}">${averageGrade}</span></td><td style="text-align:center;font-size:13px">${rr.totalPoints}</td><td style="text-align:center">${remark(row.avg)}</td></tr>`);
+                pw.document.write(`<tr style="font-weight:bold;background:#d9d9d9"><td style="text-align:left">JUMLA (Masomo ${validCount})</td><td style="text-align:center;font-size:14px">${row.total}</td><td style="text-align:center;font-size:14px"><span class="${averageGradeClass}">${averageGrade}</span></td><td style="text-align:center;font-size:13px">${rr.totalPoints}</td><td style="text-align:center">${remark(row.avg)}</td></tr>`);
                 pw.document.write(`</tbody></table>`);
 
                 // Overall box — KISWAHILI
@@ -2317,8 +2588,8 @@ function AppInner() {
 
                 const behaviorCats = ['Nidhamu', 'Kuwahi', 'Mahudhurio', 'Heshima', 'Uwajibikaji', 'Ushiriki Darasani', 'Ushirikiano', 'Usafi', 'Kujidhibiti', 'Uongozi'];
                 if (Object.keys(studentBehavior).length > 0) {
-                  pw.document.write(`<div style="margin:8px 0"><table class="behavior-table"><thead><tr><th colspan="10" style="text-align:left;font-size:12px;background:#fff3cd">TATHMINI YA TABIA — Mwalimu wa Darasa: <strong>${ctName}</strong></th></tr><tr style="background:#fff3cd">`);
-                  behaviorCats.forEach(c => pw.document.write(`<th style="font-size:9px;padding:4px;background:#fff3cd">${c}</th>`));
+                  pw.document.write(`<div style="margin:8px 0"><table class="behavior-table"><thead><tr><th colspan="10" style="text-align:left;font-size:12px;background:#e3e3e3">TATHMINI YA TABIA — Mwalimu wa Darasa: <strong>${ctName}</strong></th></tr><tr style="background:#e3e3e3">`);
+                  behaviorCats.forEach(c => pw.document.write(`<th style="font-size:9px;padding:4px;background:#e3e3e3">${c}</th>`));
                   pw.document.write(`</tr></thead><tbody><tr>`);
                   const engCats = ['Discipline', 'Punctuality', 'Attendance', 'Respectfulness', 'Responsibility', 'Class Participation', 'Cooperation', 'Neatness', 'Self-Control', 'Leadership & Initiative'];
                   const swValMap: Record<string,string> = { 'Excellent':'Bora Sana', 'Very Good':'Vizuri Sana', 'Good':'Vizuri', 'Satisfactory':'Wastani', 'Needs Improvement':'Inahitaji Kuboreshwa' };
@@ -2326,7 +2597,7 @@ function AppInner() {
                     const engKey = engCats[idx];
                     const raw = studentBehavior[engKey] || studentBehavior[c] || '-';
                     const val = (swValMap as any)[raw] || raw;
-                    const color = raw === 'Excellent' ? '#006600' : raw === 'Needs Improvement' ? '#cc0000' : '#333';
+                    const color = '#000';
                     pw.document.write(`<td style="font-size:10px;text-align:center;color:${color};padding:4px;font-weight:bold">${val}</td>`);
                   });
                   pw.document.write(`</tr></tbody></table></div>`);
@@ -2339,7 +2610,7 @@ function AppInner() {
                 pw.document.write(`</div>`);
 
                 // Footer
-                pw.document.write(`<div class="footer" style="text-align:center;margin-top:12px;font-size:11px;color:#555;font-style:italic;border-top:2px solid #ccc;padding-top:6px"><strong>${schoolNameSetting}</strong>: ${schoolMotto}</div>`);
+                pw.document.write(`<div class="footer" style="text-align:center;margin-top:12px;font-size:11px;color:#222;font-style:italic;border-top:2px solid #888;padding-top:6px"><strong>${schoolNameSetting}</strong>: ${schoolMotto}</div>`);
                 pw.document.write(`</section>`);
                 return reportHtml;
               };
@@ -2376,6 +2647,7 @@ function AppInner() {
                 };
                 const imageUrls = {
                   logo: toObjectUrl(localStorage.getItem('sms_school_logo') || ''),
+                  districtLogo: toObjectUrl(getDistrictLogo()),
                   acSig: toObjectUrl(academicSignature),
                   hmSig: toObjectUrl(headmasterSignature)
                 };
@@ -2615,6 +2887,17 @@ function AppInner() {
             />
           )}
 
+          {activeMenu === 'logbook' && user?.role === 'teacher' && (
+            <LogBook
+              teacherId={user?.id || ''}
+              teacherName={user?.name || ''}
+              assignments={teachingAssignments[user?.id] || []}
+              schoolName={schoolNameSetting}
+              districtName={districtName}
+              schoolLogo={schoolLogo}
+            />
+          )}
+
           {/* Teacher Dashboard */}
           {activeMenu === 'my_timetable' && (<>
           {/* My Teaching Timetable */}
@@ -2677,59 +2960,55 @@ function AppInner() {
               }, { periods: 0, sessions: 0 });
 
               const printMyTimetable = () => {
-                const pw = window.open('', '', 'width=900,height=700');
+                const pw = window.open('', '', 'width=1200,height=800');
                 if (!pw) return;
                 const logo = localStorage.getItem('sms_school_logo') || '';
-                pw.document.write(`<!DOCTYPE html><html><head><title>\u00A0</title><style>
-                  @page { size: A4 landscape; margin: 10mm 10mm 6mm 10mm; }
-                  @page { @top-left { content: ''; } @top-right { content: ''; } @bottom-left { content: ''; } @bottom-right { content: ''; } }
-                  * { margin:0; padding:0; box-sizing:border-box; }
-                  body { font-family: 'Times New Roman', serif; font-size: 12px; color: #000; }
-                  table { width:100%; border-collapse:collapse; margin-top:10px; }
-                  th,td { border:1px solid #000; padding:5px 4px; text-align:center; font-size:11px; }
-                  th { background:#f0f0f0; font-size:12px; }
-                  .header { text-align:center; margin-bottom:8px; }
-                  .header img { height:50px; margin-bottom:3px; }
-                  @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
-                </style></head><body><div class="header">`);
-                if (logo) pw.document.write(`<img src="${logo}" />`);
-                pw.document.write(`<div style="font-size:14px;font-weight:bold;letter-spacing:1px">${localStorage.getItem('sms_district_name') || 'RUANGWA DISTRICT COUNCIL'}</div>
-                  <div style="font-size:18px;font-weight:bold;letter-spacing:1px">${localStorage.getItem('sms_school_name_setting') || 'NAMBAWALA SECONDARY SCHOOL'}</div>
-                  <div style="font-size:14px;font-weight:bold;text-decoration:underline">TEACHER'S TIMETABLE</div>
-                  <div style="font-size:13px;margin-top:4px">Teacher: <strong>${user?.name}</strong></div></div>`);
-                pw.document.write(`<table><thead><tr><th>TIME</th>`);
-                ttDays.forEach((d: string) => pw.document.write(`<th>${d}</th>`));
-                pw.document.write(`</tr></thead><tbody>`);
+                const sName = localStorage.getItem('sms_school_name_setting') || 'NAMBAWALA SECONDARY SCHOOL';
+                const dName = localStorage.getItem('sms_district_name') || 'RUANGWA DISTRICT COUNCIL';
+                const addr = localStorage.getItem('sms_school_address') || 'P.O. Box 51, Ruangwa - Lindi';
+                const title = `${user?.name || ''} Teaching Timetable`;
+                let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>${TT_PRINT_CSS}</style></head><body><div class="header">`;
+                html += letterheadOpen(getDistrictLogo());
+                html += `<div style="font-size:12px;font-weight:700;letter-spacing:1px">${dName}</div><h1>${sName}</h1><div style="font-size:10px;color:#333">${addr}</div><h2>${title}</h2><p>Weekly Teaching Timetable \u2022 Teacher \u2022 A4 Landscape \u2022 ${new Date().toLocaleDateString()}</p>`;
+                html += letterheadClose(logo) + `</div>`;
+                html += `<table><thead><tr><th style="width:90px">Day / Time</th>`;
                 ttSlots.forEach((p: any) => {
+                  const time = p.startTime && p.endTime ? `${p.startTime}-${p.endTime}` : '';
                   if (p.isBreak) {
                     const isLunch = p.id === 'lunch' || p.name?.toLowerCase().includes('lunch');
                     const breakName = isLunch ? 'Lunch' : 'Morning Break';
-                    const breakTime = p.startTime && p.endTime
-                      ? `${p.startTime}-${p.endTime}`
-                      : (isLunch ? '14:30-15:30' : '10:40-11:10');
-                    pw.document.write(`<tr style="background:#fff7e6"><td style="font-weight:bold">${breakName}<br/><span style="font-size:9px">${breakTime}</span></td><td colspan="${ttDays.length}" style="font-weight:bold;color:#8a4b08">${breakName} • ${breakTime}</td></tr>`);
-                    return;
+                    const breakTime = time || (isLunch ? '14:30-15:30' : '10:40-11:10');
+                    html += `<th class="breakCell"><div>${breakName}</div><div style="font-weight:400;font-size:8px">${breakTime}</div></th>`;
+                  } else {
+                    html += `<th><div>${p.name}</div><div style="font-weight:400;font-size:8px;opacity:.85">${time}</div></th>`;
                   }
-                  pw.document.write(`<tr><td style="font-weight:bold;font-size:10px">${p.name}<br/>${p.startTime}-${p.endTime}</td>`);
-                  ttDays.forEach((d: string) => {
+                });
+                html += `</tr></thead><tbody>`;
+                ttDays.forEach((d: string) => {
+                  html += `<tr><td class="dayCol">${d}</td>`;
+                  ttSlots.forEach((p: any) => {
+                    if (p.isBreak) {
+                      const isLunch = p.id === 'lunch' || p.name?.toLowerCase().includes('lunch');
+                      const breakName = isLunch ? 'Lunch' : 'Morning Break';
+                      html += `<td class="breakCell">${breakName}</td>`;
+                      return;
+                    }
                     if (isDoubleContinuation(d, p.id)) return;
                     const found = myPeriods.find(mp => mp.day === d && mp.period?.id === p.id);
-                    if (found) {
-                      const sub = ttSubjects.find((s: any) => s.id === found.cell.subjectId);
-                      const secondSub = ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId || s.name === found.cell.secondSubjectName);
-                      const subjectDisplay = found.cell.isCombined && secondSub
-                        ? `${sub?.code || sub?.name?.substring(0, 4) || ''}/${secondSub.code || secondSub.name?.substring(0, 4) || ''}`
-                        : (sub?.code || sub?.name || '');
-                      const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
-                      const doubleSpan = isDoubleStart(d, p.id, found.cell);
-                      pw.document.write(`<td${doubleSpan ? ' rowspan="2"' : ''} style="font-weight:bold;background:#e8f5e9"><strong>${subjectDisplay}</strong><br/><span style="font-size:9px">${cls?.name || ''}</span></td>`);
-                    } else {
-                      pw.document.write(`<td style="color:#ccc">—</td>`);
-                    }
+                    if (!found) { html += `<td></td>`; return; }
+                    const sub = ((found.cell.subjectName ? ttSubjects.find((s: any) => s.name === found.cell.subjectName) : undefined) || ttSubjects.find((s: any) => s.id === found.cell.subjectId));
+                    const secondSub = ((found.cell.secondSubjectName ? ttSubjects.find((s: any) => s.name === found.cell.secondSubjectName) : undefined) || ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId));
+                    const subjectDisplay = found.cell.isCombined && secondSub
+                      ? `${ttSubjectCode(sub)}/${ttSubjectCode(secondSub)}`
+                      : ttSubjectCode(sub);
+                    const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
+                    const dbl = isDoubleStart(d, p.id, found.cell);
+                    html += `<td${dbl ? ' colspan="2"' : ''}><div class="subject">${subjectDisplay}</div><div class="subteacher">${cls?.name || ''}</div></td>`;
                   });
-                  pw.document.write(`</tr>`);
+                  html += `</tr>`;
                 });
-                pw.document.write(`</tbody></table><div style="text-align:center;margin-top:20px;font-size:11px;color:#555;font-style:italic;border-top:1px solid #ccc;padding-top:8px">${localStorage.getItem('sms_school_name_setting') || 'Nambawala Secondary School'}: ${localStorage.getItem('sms_school_motto') || 'Honor All Build Together'}</div></body></html>`);
+                html += `</tbody></table><div class="ttfoot">${sName}: ${localStorage.getItem('sms_school_motto') || 'Honor All Build Together'}</div>${TT_FIT_SCRIPT}</body></html>`;
+                pw.document.write(html);
                 pw.document.close();
                 setTimeout(() => { pw.focus(); pw.print(); }, 500);
               };
@@ -2769,11 +3048,11 @@ function AppInner() {
                                 if (isDoubleContinuation(d, p.id)) return null;
                                 const found = myPeriods.find(mp => mp.day === d && mp.period?.id === p.id);
                                 if (!found) return <td key={d} className="border border-slate-300 p-1 text-center text-slate-300">—</td>;
-                                const sub = ttSubjects.find((s: any) => s.id === found.cell.subjectId);
-                                const secondSub = ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId || s.name === found.cell.secondSubjectName);
+                                const sub = ((found.cell.subjectName ? ttSubjects.find((s: any) => s.name === found.cell.subjectName) : undefined) || ttSubjects.find((s: any) => s.id === found.cell.subjectId));
+                                const secondSub = ((found.cell.secondSubjectName ? ttSubjects.find((s: any) => s.name === found.cell.secondSubjectName) : undefined) || ttSubjects.find((s: any) => s.id === found.cell.secondSubjectId));
                                 const subjectDisplay = found.cell.isCombined && secondSub
-                                  ? `${sub?.code || sub?.name?.substring(0, 4) || ''}/${secondSub.code || secondSub.name?.substring(0, 4) || ''}`
-                                  : (sub?.code || sub?.name?.substring(0, 4) || '');
+                                  ? `${ttSubjectCode(sub)}/${ttSubjectCode(secondSub)}`
+                                  : ttSubjectCode(sub);
                                 const cls = ttClasses.find((c: any) => c.id === found.cell.classId);
                                 const doubleSpan = isDoubleStart(d, p.id, found.cell);
                                 return (
@@ -2857,7 +3136,7 @@ function AppInner() {
                           </div>
                           <div className="flex gap-1">
                             <button onClick={() => beginStudentEdit(s)} className="text-indigo-600 text-xs font-bold hover:text-indigo-800">Edit</button>
-                            <button onClick={() => removeStudent(myClass, s)} className="text-red-500 text-xs font-bold hover:text-red-700">✕</button>
+                            <button onClick={() => { if (window.confirm(`Are you sure you want to remove ${s.name} from ${myClass}?`)) removeStudent(myClass, s); }} className="text-red-500 text-xs font-bold hover:text-red-700">✕</button>
                           </div>
                         </div>
                         {editingStudentId === s.id ? (
@@ -3032,7 +3311,7 @@ function AppInner() {
                       resetExamMarkEntry();
                     }} className="w-full border px-3 py-2.5 rounded-xl">
                       <option value="">-- Select Class --</option>
-                      {myClasses.map(c => <option key={c}>{c}</option>)}
+                      {myClasses.map(c => <option key={c} value={c}>{displayClass(c)}</option>)}
                     </select>
                   </div>
                   <div>
@@ -3124,8 +3403,8 @@ function AppInner() {
                               <col style={{ width: '14%' }} />
                               <col style={{ width: '14%' }} />
                               <col style={{ width: '12%' }} />
-                              <col style={{ width: '9%' }} />
-                              <col style={{ width: '19%' }} />
+                              <col style={{ width: '11%' }} />
+                              <col style={{ width: '17%' }} />
                             </colgroup>
                             <thead>
                               <tr className="bg-slate-100 border-b">
@@ -3134,8 +3413,8 @@ function AppInner() {
                                 <th className="px-1 py-2 text-center">Theory /100</th>
                                 <th className="px-1 py-2 text-center">Practical /50</th>
                                 <th className="px-1 py-2 text-center">Final %</th>
-                                <th className="px-1 py-2 text-center">Grade</th>
-                                <th className="px-1 py-2 text-left">Remarks</th>
+                                <th className="px-1 py-2 text-center text-[10px] sm:text-sm">Grade</th>
+                                <th className="px-1 py-2 text-left text-[10px] sm:text-sm">Remarks</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -3192,21 +3471,21 @@ function AppInner() {
                         ) : (
                         <table className="w-full table-fixed border text-[11px] sm:text-sm">
                           <colgroup>
-                            <col style={{ width: '6%' }} />
-                            <col style={{ width: '31%' }} />
+                            <col style={{ width: '5%' }} />
+                            <col style={{ width: '28%' }} />
                             <col style={{ width: '15%' }} />
-                            <col style={{ width: '9%' }} />
-                            <col style={{ width: '8%' }} />
-                            <col style={{ width: '31%' }} />
+                            <col style={{ width: '11%' }} />
+                            <col style={{ width: '12%' }} />
+                            <col style={{ width: '29%' }} />
                           </colgroup>
                           <thead>
                             <tr className="bg-slate-100 border-b">
                               <th className="text-center px-1 py-2">#</th>
                               <th className="text-left px-1 py-2">Student</th>
                               <th className="text-center px-1 py-2">Mark</th>
-                              <th className="text-center px-1 py-2">Max</th>
-                              <th className="text-center px-1 py-2">Grade</th>
-                              <th className="text-left px-1 py-2">Remarks</th>
+                              <th className="text-center px-1 py-2 text-[10px] sm:text-sm">Max</th>
+                              <th className="text-center px-1 py-2 text-[10px] sm:text-sm">Grade</th>
+                              <th className="text-left px-1 py-2 text-[10px] sm:text-sm">Remarks</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3387,7 +3666,8 @@ function AppInner() {
                     s.exam_id === selectedParentExam &&
                     s.student_name === parentStudentName &&
                     s.class_name === parentStudentClass &&
-                    classSubmittedSubjects.has(s.subject)
+                    classSubmittedSubjects.has(s.subject) &&
+                    !disabledSubjects.includes(s.subject)
                   );
                   if (examScoresAll.length === 0) return <p className="text-sm text-slate-500">No results found for this exam.</p>;
 
@@ -3489,26 +3769,26 @@ function AppInner() {
                     const dist = localStorage.getItem('sms_district_name') || '';
                     const acSigP = localStorage.getItem('sms_academic_sig') || '';
                     const hmSigP = localStorage.getItem('sms_headmaster_sig') || '';
-                    pw.document.write(`<!DOCTYPE html><html><head><title>\u00A0</title><style>@page{size:A4 portrait;margin:10mm 12mm 8mm 12mm;}*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,sans-serif;font-size:13px;color:#000;}table{width:100%;border-collapse:collapse;margin:6px 0;}th,td{border:1px solid #000;padding:5px 8px;font-size:12px;}th{background:#d4edda;font-size:12px;}.header{text-align:center;margin-bottom:8px;border-bottom:3px double #000;padding-bottom:6px;}.header img{height:55px;margin-bottom:3px;}.info-grid{display:grid;grid-template-columns:1fr 1fr;border:2px solid #000;margin-bottom:8px;font-size:13px;}.info-cell{padding:6px 10px;border:1px solid #000;}.grade-box{border:3px solid #000;padding:8px;text-align:center;margin:8px 0;background:#d4edda;border-radius:6px;}.comment-box{border:1px solid #000;padding:8px;border-radius:6px;margin-bottom:6px;}.comment-title{font-size:11px;font-weight:bold;text-decoration:underline;margin-bottom:3px;}.comment-text{font-size:11px;line-height:1.4;}.sig-row{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;}.sig-img{height:50px; max-width:170px; object-fit:contain; display:block;}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body><div class="header">`);
-                    if (logo) pw.document.write(`<img src="${logo}" />`);
-                    pw.document.write(`<div style="font-size:14px;font-weight:bold">${dist}</div><div style="font-size:20px;font-weight:bold;margin:2px 0">${schoolNameP}</div><div style="font-size:10px">${addr}</div><div style="font-size:15px;font-weight:bold;text-decoration:underline;margin-top:4px">RIPOTI YA MAENDELEO YA MWANAFUNZI</div><div style="font-size:12px;margin-top:2px">${ex.name}</div></div>`);
+                    pw.document.write(`<!DOCTYPE html><html><head><title>\u00A0</title><style>@page{size:A4 portrait;margin:10mm 12mm 8mm 12mm;}*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,sans-serif;font-size:13px;color:#000;}table{width:100%;border-collapse:collapse;margin:6px 0;}th,td{border:1px solid #000;padding:5px 8px;font-size:12px;}th{background:#d9d9d9;font-size:12px;}.header{text-align:center;margin-bottom:8px;border-bottom:3px double #000;padding-bottom:6px;}.header img{height:55px;margin-bottom:3px;}.info-grid{display:grid;grid-template-columns:1fr 1fr;border:2px solid #000;margin-bottom:8px;font-size:13px;}.info-cell{padding:6px 10px;border:1px solid #000;}.grade-box{border:3px solid #000;padding:8px;text-align:center;margin:8px 0;background:#d9d9d9;border-radius:6px;}.comment-box{border:1px solid #000;padding:8px;border-radius:6px;margin-bottom:6px;}.comment-title{font-size:11px;font-weight:bold;text-decoration:underline;margin-bottom:3px;}.comment-text{font-size:11px;line-height:1.4;}.sig-row{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;}.sig-img{height:50px; max-width:170px; object-fit:contain; display:block;}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head><body><div class="header">`);
+                    pw.document.write(letterheadOpen(getDistrictLogo()));
+                    pw.document.write(`<div style="font-size:14px;font-weight:bold">${dist}</div><div style="font-size:20px;font-weight:bold;margin:2px 0">${schoolNameP}</div><div style="font-size:10px">${addr}</div><div style="font-size:15px;font-weight:bold;text-decoration:underline;margin-top:4px">RIPOTI YA MAENDELEO YA MWANAFUNZI</div><div style="font-size:12px;margin-top:2px">${ex.name}</div>${letterheadClose(logo)}</div>`);
                     pw.document.write(`<div class="info-grid"><div class="info-cell">Jina la Mwanafunzi: <strong>${parentStudentName}</strong></div><div class="info-cell">Darasa: <strong>${parentStudentClass}</strong></div><div class="info-cell">Daraja: <strong>${div}</strong> | Pointi: <strong>${totalPts}</strong></div><div class="info-cell">Nafasi: <strong>—</strong></div></div>`);
                     pw.document.write(`<table><thead><tr><th style="text-align:left">Somo</th><th>Alama</th><th>Gredi</th><th>Pointi</th><th>Maelezo</th></tr></thead><tbody>`);
                     examScoresAll.forEach((s: any) => {
-                      const c = s.score >= 45 ? '#006600' : '#cc0000';
+                      const c = '#000';
                       pw.document.write(`<tr><td style="text-align:left;font-weight:bold">${s.subject}</td><td style="text-align:center;color:${c};font-weight:bold">${s.score}</td><td style="text-align:center;font-weight:bold;color:${c}">${getGradeP(s.score)}</td><td style="text-align:center">${getPointP(s.score)}</td><td style="text-align:center">${getRemarkP(s.score)}</td></tr>`);
                     });
-                    pw.document.write(`<tr style="font-weight:bold;background:#d4edda"><td style="text-align:left">TOTAL (${examScoresAll.length})</td><td style="text-align:center">${totalScore}</td><td style="text-align:center">${getGradeP(avg)}</td><td style="text-align:center">${totalPts}</td><td style="text-align:center">${getRemarkP(avg)}</td></tr></tbody></table>`);
+                    pw.document.write(`<tr style="font-weight:bold;background:#d9d9d9"><td style="text-align:left">TOTAL (${examScoresAll.length})</td><td style="text-align:center">${totalScore}</td><td style="text-align:center">${getGradeP(avg)}</td><td style="text-align:center">${totalPts}</td><td style="text-align:center">${getRemarkP(avg)}</td></tr></tbody></table>`);
                     pw.document.write(`<div class="grade-box"><strong style="font-size:13px">Wastani: ${avg.toFixed(1)}% | Gredi: ${getGradeP(avg)} | Pointi: ${totalPts} | Daraja: ${div}</strong></div>`);
                     if (Object.keys(studentBehaviorP).length > 0) {
-                      pw.document.write(`<table><thead><tr><th colspan="11" style="text-align:left;font-size:11px;background:#fff3cd">TATHMINI YA TABIA — Mwalimu wa Darasa: ${ctNameP}</th></tr><tr style="background:#fff3cd">`);
-                      behaviorCatsP.forEach(c => pw.document.write(`<th style="font-size:8px;padding:3px;background:#fff3cd">${c}</th>`));
+                      pw.document.write(`<table><thead><tr><th colspan="11" style="text-align:left;font-size:11px;background:#e3e3e3">TATHMINI YA TABIA — Mwalimu wa Darasa: ${ctNameP}</th></tr><tr style="background:#e3e3e3">`);
+                      behaviorCatsP.forEach(c => pw.document.write(`<th style="font-size:8px;padding:3px;background:#e3e3e3">${c}</th>`));
                       pw.document.write(`</tr></thead><tbody><tr>`);
-                      behaviorCatsP.forEach(c => { const v = studentBehaviorP[c]||'-'; pw.document.write(`<td style="font-size:9px;text-align:center;font-weight:bold;color:${v==='Excellent'?'#006600':v==='Needs Improvement'?'#cc0000':'#333'}">${v}</td>`); });
+                      behaviorCatsP.forEach(c => { const v = studentBehaviorP[c]||'-'; pw.document.write(`<td style="font-size:9px;text-align:center;font-weight:bold;color:${v==='Excellent'?'#000':v==='Needs Improvement'?'#000':'#000'}">${v}</td>`); });
                       pw.document.write(`</tr></tbody></table>`);
                     }
                     pw.document.write(`<div style="display:flex;gap:8px;margin-top:6px"><div class="comment-box" style="flex:1"><div class="comment-title">ACADEMIC MASTER:</div><div class="comment-text">${acCommentP}</div><div class="sig-row"><span>Name: <strong>${acNameP||'____'}</strong></span><span>${acSigP?`<img src="${acSigP}" class="sig-img"/>`:' Sign:____'}</span></div></div><div class="comment-box" style="flex:1"><div class="comment-title">HEADMASTER:</div><div class="comment-text">${hmCommentP}</div><div class="sig-row"><span>Name: <strong>${hmNameP}</strong></span><span>${hmSigP?`<img src="${hmSigP}" class="sig-img"/>`:' Sign:____'}</span></div></div></div>`);
-                    pw.document.write(`<div style="text-align:center;margin-top:10px;font-size:10px;color:#555;font-style:italic;border-top:2px solid #ccc;padding-top:5px"><strong>${schoolNameP}</strong>: ${mottoP}</div></body></html>`);
+                    pw.document.write(`<div style="text-align:center;margin-top:10px;font-size:10px;color:#222;font-style:italic;border-top:2px solid #888;padding-top:5px"><strong>${schoolNameP}</strong>: ${mottoP}</div></body></html>`);
                     pw.document.close();
                     setTimeout(() => { pw.focus(); pw.print(); }, 500);
                   };
