@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pencil } from 'lucide-react';
-import { baseFor, buildClassName, parseClass, sortClasses, streamsOf } from '../utils/promotion';
+import { displayClass, baseFor, buildClassName, parseClass, sortClasses, streamsOf } from '../utils/promotion';
 
 interface ClassManagerProps {
   schoolClasses: string[];
@@ -52,7 +52,7 @@ export function ClassManager({ schoolClasses, studentCounts, onSave }: ClassMana
     const moves = removed.filter(c => (studentCounts[c] || 0) > 0).map(c => ({ from: c, to: wanted[0] }));
     if (moves.length > 0) {
       const total = moves.reduce((sum, m) => sum + (studentCounts[m.from] || 0), 0);
-      if (!window.confirm(`${total} students from ${moves.map(m => m.from).join(', ')} will move to ${wanted[0]}. Continue?`)) return;
+      if (!window.confirm(`${total} students from ${moves.map(m => displayClass(m.from)).join(', ')} will move to ${displayClass(wanted[0])}. Continue?`)) return;
     }
     const others = schoolClasses.filter(c => parseClass(c)?.level !== editing);
     onSave(sortClasses([...others, ...wanted]), moves);
@@ -70,12 +70,12 @@ export function ClassManager({ schoolClasses, studentCounts, onSave }: ClassMana
           return (
             <div key={base} className="border rounded-xl p-3">
               <div className="flex items-center justify-between mb-2">
-                <p className="font-semibold">{base}</p>
+                <p className="font-semibold">{displayClass(base)}</p>
                 <button onClick={() => open(level)} className="text-xs flex items-center gap-1 text-indigo-600 font-semibold"><Pencil size={14} /> Edit</button>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {list.map(c => (
-                  <span key={c} className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold">{c} ({studentCounts[c] || 0})</span>
+                  <span key={c} className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold">{displayClass(c)} ({studentCounts[c] || 0})</span>
                 ))}
               </div>
             </div>
@@ -86,7 +86,7 @@ export function ClassManager({ schoolClasses, studentCounts, onSave }: ClassMana
       {editing !== null && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
-            <h3 className="font-bold text-lg mb-3">{baseFor(editing, schoolClasses)}</h3>
+            <h3 className="font-bold text-lg mb-3">{displayClass(baseFor(editing, schoolClasses))}</h3>
             <label className="flex items-center gap-2 text-sm mb-3">
               <input type="checkbox" checked={hasStreams} onChange={e => { setHasStreams(e.target.checked); setError(''); }} />
               This class has streams
@@ -96,7 +96,7 @@ export function ClassManager({ schoolClasses, studentCounts, onSave }: ClassMana
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {streams.map(s => (
                     <span key={s} className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold">
-                      {buildClassName(baseFor(editing, schoolClasses), s)}
+                      {displayClass(buildClassName(baseFor(editing, schoolClasses), s))}
                       <button onClick={() => setStreams(streams.filter(x => x !== s))} className="text-red-500 font-bold">✕</button>
                     </span>
                   ))}

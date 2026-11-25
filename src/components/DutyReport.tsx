@@ -10,6 +10,7 @@ import { useState, useRef, useEffect } from 'react';
 import * as cloud from '../lib/cloud';
 import { getDistrictLogo } from '../utils/letterhead';
 import { createDutyReportHtml } from '../utils/dutyReportPrint';
+import { displayClass } from '../utils/promotion';
 
 function getSchoolLogo(): string {
   return localStorage.getItem('sms_school_logo') || '';
@@ -246,7 +247,7 @@ export function AdminRegisteredStudents() {
               const row = data[cls] || { regB: 0, regG: 0 };
               return (
                 <tr key={cls}>
-                  <td className="border border-slate-300 p-2 font-bold text-center bg-slate-50">{cls}</td>
+                  <td className="border border-slate-300 p-2 font-bold text-center bg-slate-50">{displayClass(cls)}</td>
                   <td className="border border-slate-300 p-0">
                     <input type="number" value={row.regB || ''} onChange={e => update(cls, 'regB', Number(e.target.value))} className="w-full p-2 text-center" min={0} />
                   </td>
@@ -357,11 +358,11 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
     const abs = Math.max(0, reg - pres);
     const totalSickPerm = row.sickB + row.sickG + row.permB + row.permG;
     if (totalSickPerm > abs) {
-      alert(`Sick + Permitted (${totalSickPerm}) cannot exceed Absent students (${abs}) for class ${row.className}`);
+      alert(`Sick + Permitted (${totalSickPerm}) cannot exceed Absent students (${abs}) for class ${displayClass(row.className)}`);
       return;
     }
-    if (row.presB > row.regB) { alert(`Present Boys cannot exceed Registered Boys for ${row.className}`); return; }
-    if (row.presG > row.regG) { alert(`Present Girls cannot exceed Registered Girls for ${row.className}`); return; }
+    if (row.presB > row.regB) { alert(`Present Boys cannot exceed Registered Boys for ${displayClass(row.className)}`); return; }
+    if (row.presG > row.regG) { alert(`Present Girls cannot exceed Registered Girls for ${displayClass(row.className)}`); return; }
     rows[idx] = row;
     setAttendance(rows);
   };
@@ -539,7 +540,7 @@ export function TeacherDutyForm({ teacherName, onSubmit, loading }: { teacherNam
                 const absG = Math.max(0, row.regG - row.presG);
                 return (
                   <tr key={row.className}>
-                    <td className="border border-slate-300 p-1 font-bold text-center bg-slate-50">{row.className}</td>
+                    <td className="border border-slate-300 p-1 font-bold text-center bg-slate-50">{displayClass(row.className)}</td>
                     <td className="border border-slate-300 p-1 text-center bg-gray-100 font-semibold">{row.regB}</td>
                     <td className="border border-slate-300 p-1 text-center bg-gray-100 font-semibold">{row.regG}</td>
                     <td className="border border-slate-300 p-1 text-center bg-gray-100 font-bold">{row.regB + row.regG}</td>

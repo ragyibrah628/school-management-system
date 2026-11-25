@@ -26,7 +26,7 @@ import { LessonPlan } from './components/LessonPlan';
 import { LogBook } from './components/LogBook';
 import { PromoteStudents } from './components/PromoteStudents';
 import { ClassManager } from './components/ClassManager';
-import { PromotionPlan, remainingNames, withBaseForms, baseOf } from './utils/promotion';
+import { PromotionPlan, remainingNames, withBaseForms, baseOf, displayClass } from './utils/promotion';
 import * as cloud from './lib/cloud';
 import { getDistrictLogo, letterheadOpen, letterheadClose } from './utils/letterhead';
 import { TT_PRINT_CSS, TT_FIT_SCRIPT } from './utils/timetablePrint';
@@ -2148,7 +2148,7 @@ function AppInner() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {CLASSES.map(cls => (
                 <div key={cls} className="flex items-center gap-3 border rounded-xl p-3">
-                  <span className="font-bold text-sm min-w-[80px]">{cls}</span>
+                  <span className="font-bold text-sm min-w-[80px]">{displayClass(cls)}</span>
                   <select value={classTeachers[cls] || ''} onChange={e => assignClassTeacher(cls, e.target.value)} className="flex-1 border px-2 py-1.5 rounded-lg text-sm">
                     <option value="">-- Not Assigned --</option>
                     {teachers.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -2188,7 +2188,7 @@ function AppInner() {
                     <div className="flex gap-2 items-end">
                       <select id={`cls-${t.id}`} className="border px-2 py-1.5 rounded-lg text-xs flex-1">
                         <option value="">Class...</option>
-                        {CLASSES.map(c => <option key={c}>{c}</option>)}
+                        {CLASSES.map(c => <option key={c} value={c}>{displayClass(c)}</option>)}
                       </select>
                       <select id={`sub-${t.id}`} className="border px-2 py-1.5 rounded-lg text-xs flex-1">
                         <option value="">Subject...</option>
@@ -2293,9 +2293,9 @@ function AppInner() {
                 <select value={viewClass} onChange={e => setViewClass(e.target.value)} className="w-full border px-3 py-2.5 rounded-xl">
                   <option value="">-- All Classes (General) --</option>
                   {[...new Set(CLASSES.map(c => baseOf(c)))].map(form => (
-                    <option key={form} value={`__${form.replace(/\s/g, '_')}`}>{form} (All Streams)</option>
+                    <option key={form} value={`__${form.replace(/\s/g, '_')}`}>{displayClass(form)} (All Streams)</option>
                   ))}
-                  {CLASSES.filter(c => baseOf(c) !== c).map(c => <option key={c} value={c}>{c} (Stream)</option>)}
+                  {CLASSES.filter(c => baseOf(c) !== c).map(c => <option key={c} value={c}>{displayClass(c)} (Stream)</option>)}
                 </select>
               </div>
               <div className="flex items-end">
@@ -3311,7 +3311,7 @@ function AppInner() {
                       resetExamMarkEntry();
                     }} className="w-full border px-3 py-2.5 rounded-xl">
                       <option value="">-- Select Class --</option>
-                      {myClasses.map(c => <option key={c}>{c}</option>)}
+                      {myClasses.map(c => <option key={c} value={c}>{displayClass(c)}</option>)}
                     </select>
                   </div>
                   <div>

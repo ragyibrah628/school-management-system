@@ -84,6 +84,13 @@ export function streamsOf(list: string[], level: number): string[] {
     .map(c => parseClass(c)!.suffix.trim());
 }
 
+// One writing style on screen and on paper: "Form 1" -> "Form I", "Form 2A" -> "Form IIA". Stored names are not changed.
+export function displayClass(name: string): string {
+  const parsed = parseClass(name);
+  if (!parsed) return name;
+  return `${parsed.prefix}${ROMAN[parsed.level]}${parsed.suffix}`;
+}
+
 export const levelOfClass = (name: string): number => parseClass(name)?.level || 0;
 
 export interface PromotionPlan {
