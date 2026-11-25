@@ -91,6 +91,16 @@ export function displayClass(name: string): string {
   return `${parsed.prefix}${ROMAN[parsed.level]}${parsed.suffix}`;
 }
 
+
+// "Form 4" and "Form IV" are the same class: find the name the school's class list really uses.
+export function canonicalClass(name: string, list: string[]): string {
+  if (list.includes(name)) return name;
+  const parsed = parseClass(name);
+  if (!parsed) return name;
+  const suffix = parsed.suffix.trim().toLowerCase();
+  return list.find(c => { const x = parseClass(c); return !!x && x.level === parsed.level && x.suffix.trim().toLowerCase() === suffix; }) || name;
+}
+
 export const levelOfClass = (name: string): number => parseClass(name)?.level || 0;
 
 export interface PromotionPlan {

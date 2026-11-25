@@ -26,7 +26,7 @@ import { LessonPlan } from './components/LessonPlan';
 import { LogBook } from './components/LogBook';
 import { PromoteStudents } from './components/PromoteStudents';
 import { ClassManager } from './components/ClassManager';
-import { PromotionPlan, remainingNames, withBaseForms, baseOf, displayClass } from './utils/promotion';
+import { PromotionPlan, remainingNames, withBaseForms, baseOf, displayClass, canonicalClass } from './utils/promotion';
 import * as cloud from './lib/cloud';
 import { getDistrictLogo, letterheadOpen, letterheadClose } from './utils/letterhead';
 import { TT_PRINT_CSS, TT_FIT_SCRIPT } from './utils/timetablePrint';
@@ -507,7 +507,7 @@ function AppInner() {
     scores.some(score => score.class_name === cls && score.student_name === studentName && score.subject === subject);
 
   // Yearly promotion: only the student lists change. Exam results (scores) are never touched.
-  const applyPromotion = (plan: PromotionPlan) => {
+  const applyPromotion = async (plan: PromotionPlan): Promise<boolean> => {
     // 1. every existing exam keeps the class lists and the year it was written in
     const rosterSnapshot: Record<string, string[]> = {};
     Object.entries(students).forEach(([cls, rows]) => { rosterSnapshot[cls] = rows.map(s => s.name); });
@@ -520,6 +520,7 @@ function AppInner() {
     if (cloud.isCloudMode()) plan.deleted.forEach(item => cloud.markStudentDeleted(item.cls, { id: item.id, name: item.name }));
     // 3. students move up; Form IV leave; new Form I are empty
     persistStudents(plan.next as typeof students);
+    let savedToCloud = true;
     // 4. behaviour stays with the students that remain; leavers' behaviour is removed
     const keep = remainingNames(plan.next);
     const leavers = new Set(plan.graduates.flatMap(g => g.students.map(s => s.name)).filter(name => !keep.has(name)));
@@ -536,6 +537,17 @@ function AppInner() {
       });
       return cloud.saveRegisteredStudents(nextRegistered);
     }).catch(error => console.error('Registered counts update failed:', error));
+    // 6. make sure the new class lists reached the cloud so class teachers on other devices see them
+    if (cloud.isCloudMode()) {
+      try {
+        await cloud.syncToCloud();
+        savedToCloud = !localStorage.getItem('sms_students_cloud_pending');
+      } catch (error) {
+        console.error('Promotion cloud sync failed:', error);
+        savedToCloud = false;
+      }
+    }
+    return savedToCloud;
   };
 
   const toggleStudentSubject = (cls: string, student: typeof students[string][number], subject: string) => {
@@ -1576,7 +1588,20 @@ function AppInner() {
   const [newClassName, setNewClassName] = useState('');
 
   // Find which class this teacher is class teacher of
-  const myClass = user ? Object.entries(classTeachers).find(([_, tid]) => tid === user.id)?.[0] : null;
+  const myClassRaw = user ? Object.entries(classTeachers).find(([_, tid]) => tid === user.id)?.[0] : null;
+  const myClass = myClassRaw ? canonicalClass(myClassRaw, schoolClasses) : null;
+  // Admin: an assignment saved as "Form 4" while the class list says "Form IV" is renamed to the list's name.
+  useEffect(() => {
+    if (user?.role !== 'admin' || schoolClasses.length === 0) return;
+    const fixed: Record<string, string> = {};
+    let changed = false;
+    Object.entries(classTeachers).forEach(([cls, tid]) => {
+      const canon = canonicalClass(cls, schoolClasses);
+      if (canon !== cls && !(canon in classTeachers) && !(canon in fixed)) { fixed[canon] = tid as string; changed = true; }
+      else fixed[cls] = tid as string;
+    });
+    if (changed) setClassTeachers(fixed);
+  }, [classTeachers, schoolClasses, user?.role]);
   const terms = ['Term I', 'Term II'];
   const mode = cloud.isCloudMode() ? '🟢 Cloud Database' : '🟡 Local Storage';
 
@@ -1797,7 +1822,7 @@ function AppInner() {
     { id: 'my_timetable', label: 'My Timetable', icon: CalendarDays },
     { id: 'lesson_plan', label: 'Lesson Plan', icon: NotebookPen },
     { id: 'logbook', label: 'Log Book', icon: BookOpen },
-    ...(myClass ? [{ id: 'students', label: `Register Students (${myClass})`, icon: UserRoundPlus }] : []),
+    ...(myClass ? [{ id: 'students', label: `Register Students (${displayClass(myClass)})`, icon: UserRoundPlus }] : []),
     ...(myClass ? [{ id: 'behavior', label: 'Behavior Assessment', icon: ClipboardCheck }] : []),
     { id: 'exams', label: 'Exams & Scores', icon: ChartNoAxesCombined },
     { id: 'duty', label: 'Duty Report', icon: ClipboardList },
@@ -2854,7 +2879,7 @@ function AppInner() {
               <Menu size={20} />
             </button>
             <span className="text-sm font-bold">{teacherMenus.find(m => m.id === activeMenu)?.label || 'Teacher Panel'}</span>
-            <span className="text-xs text-slate-400">{user?.name}{myClass ? ` — Class Teacher: ${myClass}` : ''}</span>
+            <span className="text-xs text-slate-400">{user?.name}{myClass ? ` — Class Teacher: ${displayClass(myClass)}` : ''}</span>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setShowChangePassword(!showChangePassword)} className="px-2 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold">🔑</button>
@@ -3080,7 +3105,7 @@ function AppInner() {
           {activeMenu === 'students' && myClass && (
             <div className="bg-white p-6 rounded-2xl border">
                 <div className="flex items-center justify-between mb-2">
-                  <h2 className="font-bold text-lg">Register Students — {myClass}</h2>
+                  <h2 className="font-bold text-lg">Register Students — {displayClass(myClass)}</h2>
                   {studentSaveStatus && <span role="status" className={`text-xs font-medium ${studentSaveStatus === 'Saved' ? 'text-emerald-700' : studentSaveStatus.startsWith('Not saved') ? 'text-red-600' : 'text-amber-600'}`}>{studentSaveStatus}</span>}
                 </div>
                 <p className="text-xs text-slate-500 mb-4">Register students for this class. Student records remain here until you delete them.</p>
@@ -3122,7 +3147,7 @@ function AppInner() {
                 </div>
               </div>
               <div>
-                <h3 className="font-bold text-sm mb-2">Students in {myClass} ({(students[myClass] || []).length})</h3>
+                <h3 className="font-bold text-sm mb-2">Students in {displayClass(myClass)} ({(students[myClass] || []).length})</h3>
                 {(students[myClass] || []).length === 0 ? <p className="text-sm text-slate-500">No students registered yet.</p> :
                   <div className="space-y-2">
                     {(students[myClass] || []).map((s, i) => (
@@ -3213,7 +3238,7 @@ function AppInner() {
           {/* Behavior Assessment */}
           {activeMenu === 'behavior' && myClass && (
             <div className="bg-white p-6 rounded-2xl border">
-              <h2 className="font-bold text-lg mb-2">📋 Student Behavior Assessment — {myClass}</h2>
+              <h2 className="font-bold text-lg mb-2">📋 Student Behavior Assessment — {displayClass(myClass)}</h2>
               <p className="text-xs text-slate-500 mb-4">Assess each student's behavior. This appears on their report card.</p>
               {(students[myClass] || []).length === 0 ? <p className="text-sm text-slate-500">No students registered. Register students first.</p> :
                 <div className="space-y-3">
@@ -3556,7 +3581,7 @@ function AppInner() {
               <h2 className="font-bold text-lg mb-4">My Account</h2>
               <p className="text-sm text-slate-600 mb-4">Name: <strong>{user?.name}</strong> | Username: <strong>{user?.username}</strong></p>
               <p className="text-sm text-slate-600 mb-4">Subjects: <strong>{(user?.subjects || []).join(', ') || 'None'}</strong></p>
-              {myClass && <p className="text-sm text-slate-600 mb-4">Class Teacher of: <strong>{myClass}</strong></p>}
+              {myClass && <p className="text-sm text-slate-600 mb-4">Class Teacher of: <strong>{displayClass(myClass)}</strong></p>}
               <button onClick={() => setShowChangePassword(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold">🔑 Change Password</button>
             </div>
           )}

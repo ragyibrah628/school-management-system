@@ -13,7 +13,7 @@ interface PromoteStudentsProps {
   schoolName: string;
   districtName: string;
   schoolLogo: string;
-  onApply: (plan: PromotionPlan) => void;
+  onApply: (plan: PromotionPlan) => void | boolean | Promise<boolean | void>;
 }
 
 type Step = 0 | 1 | 2 | 3 | 4;
@@ -27,11 +27,15 @@ export function PromoteStudents({ students, schoolClasses, scores, exams, behavi
 
   const close = () => setStep(0);
 
-  const run = () => {
+  const run = async () => {
     if (plan.missingTargets.length > 0) return;
-    onApply(plan);
-    setSummary(`${movedCount} students promoted, ${graduateCount} Form IV students removed. New Form I classes are empty.`);
     setStep(4);
+    setSummary('Promoting... please wait.');
+    const saved = await onApply(plan);
+    const done = `${movedCount} students promoted, ${graduateCount} Form IV students removed.`;
+    setSummary(saved === false
+      ? `${done} WARNING: the change was not confirmed in the cloud. Keep this page open and check your internet; it will retry.`
+      : `${done} Saved to the cloud. Class teachers must refresh or log in again to see their new students.`);
   };
 
   const overlay = 'fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4';
