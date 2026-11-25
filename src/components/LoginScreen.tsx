@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Eye, EyeOff, GraduationCap, Lock, Quote as QuoteIcon, User, BookOpen, Users } from 'lucide-react';
-import { LOGIN_QUOTES } from '../data/inspiration';
+import { LOGIN_QUOTES } from './WelcomeBanner';
 
 interface LoginScreenProps {
   schoolLogo: string;

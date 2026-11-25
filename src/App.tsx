@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect, useCallback, useRef, ErrorInfo, Component, ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense, ErrorInfo, Component, ReactNode } from 'react';
 import {
   BookOpen,
   CalendarDays,
@@ -20,10 +20,12 @@ import {
   UsersRound,
   X
 } from 'lucide-react';
-import { TimetableSubsystem } from './components/TimetableSubsystem';
 import { TeacherDutyForm, DutyReportPrint, AdminRegisteredStudents } from './components/DutyReport';
-import { LessonPlan } from './components/LessonPlan';
-import { LogBook } from './components/LogBook';
+// Big screens are loaded only when they are opened, so the first page appears faster.
+const TimetableSubsystem = lazy(() => import('./components/TimetableSubsystem').then(m => ({ default: m.TimetableSubsystem })));
+const LessonPlan = lazy(() => import('./components/LessonPlan').then(m => ({ default: m.LessonPlan })));
+const LogBook = lazy(() => import('./components/LogBook').then(m => ({ default: m.LogBook })));
+const PageLoading = () => <div className="p-10 text-center text-sm text-slate-500">Loading…</div>;
 import { PromoteStudents } from './components/PromoteStudents';
 import { ClassManager } from './components/ClassManager';
 import { LoginScreen } from './components/LoginScreen';
@@ -1817,7 +1819,7 @@ function AppInner() {
 
   if (screen === 'admin') {
     if (activeMenu === 'timetable') {
-      return (<div className="relative"><button onClick={() => setActiveMenu('dashboard')} className="fixed top-4 right-4 z-50 px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold shadow-lg">← Back</button><TimetableSubsystem /></div>);
+      return (<div className="relative"><button onClick={() => setActiveMenu('dashboard')} className="fixed top-4 right-4 z-50 px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold shadow-lg">← Back</button><Suspense fallback={<PageLoading />}><TimetableSubsystem /></Suspense></div>);
     }
 
     return (
@@ -2038,12 +2040,6 @@ function AppInner() {
           <PromoteStudents
             students={students as any}
             schoolClasses={schoolClasses}
-            scores={scores}
-            exams={exams}
-            behavior={behaviorData}
-            schoolName={schoolNameSetting}
-            districtName={districtName}
-            schoolLogo={schoolLogo}
             onApply={applyPromotion}
           />
           <ClassManager
@@ -2891,24 +2887,24 @@ function AppInner() {
           {welcomeOpen && <WelcomeBanner name={user?.name || ''} onClose={() => setWelcomeOpen(false)} />}
 
           {activeMenu === 'lesson_plan' && user?.role === 'teacher' && (
-            <LessonPlan
+            <Suspense fallback={<PageLoading />}><LessonPlan
               teacherName={user?.name || ''}
               assignments={teachingAssignments[user?.id] || []}
               schoolName={schoolNameSetting}
               districtName={districtName}
               schoolLogo={schoolLogo}
-            />
+            /></Suspense>
           )}
 
           {activeMenu === 'logbook' && user?.role === 'teacher' && (
-            <LogBook
+            <Suspense fallback={<PageLoading />}><LogBook
               teacherId={user?.id || ''}
               teacherName={user?.name || ''}
               assignments={teachingAssignments[user?.id] || []}
               schoolName={schoolNameSetting}
               districtName={districtName}
               schoolLogo={schoolLogo}
-            />
+            /></Suspense>
           )}
 
           {/* Teacher Dashboard */}

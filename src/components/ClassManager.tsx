@@ -42,7 +42,7 @@ export function ClassManager({ schoolClasses, studentCounts, onSave }: ClassMana
     const base = baseFor(editing, schoolClasses);
     const pending = draft.trim() ? [...streams, draft.trim()] : streams;
     const names = pending.map(s => buildClassName(base, s));
-    const bad = pending.find((s, i) => parseClass(names[i])?.level !== editing || names.indexOf(names[i]) !== i);
+    const bad = pending.find((_s, i) => parseClass(names[i])?.level !== editing || names.indexOf(names[i]) !== i);
     if (hasStreams && bad) { setError(`"${bad}" cannot be used as a stream name (or is repeated).`); return; }
     if (hasStreams && pending.length === 0) { setError('Add at least one stream, or untick "This class has streams".'); return; }
     const wanted = hasStreams ? pending.map(s => buildClassName(base, s)) : [base];
