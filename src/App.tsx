@@ -507,7 +507,7 @@ function AppInner() {
     scores.some(score => score.class_name === cls && score.student_name === studentName && score.subject === subject);
 
   // Yearly promotion: only the student lists change. Exam results (scores) are never touched.
-  const applyPromotion = (plan: PromotionPlan) => {
+  const applyPromotion = async (plan: PromotionPlan): Promise<boolean> => {
     // 1. every existing exam keeps the class lists and the year it was written in
     const rosterSnapshot: Record<string, string[]> = {};
     Object.entries(students).forEach(([cls, rows]) => { rosterSnapshot[cls] = rows.map(s => s.name); });
@@ -520,6 +520,7 @@ function AppInner() {
     if (cloud.isCloudMode()) plan.deleted.forEach(item => cloud.markStudentDeleted(item.cls, { id: item.id, name: item.name }));
     // 3. students move up; Form IV leave; new Form I are empty
     persistStudents(plan.next as typeof students);
+    let savedToCloud = true;
     // 4. behaviour stays with the students that remain; leavers' behaviour is removed
     const keep = remainingNames(plan.next);
     const leavers = new Set(plan.graduates.flatMap(g => g.students.map(s => s.name)).filter(name => !keep.has(name)));
@@ -536,6 +537,17 @@ function AppInner() {
       });
       return cloud.saveRegisteredStudents(nextRegistered);
     }).catch(error => console.error('Registered counts update failed:', error));
+    // 6. make sure the new class lists reached the cloud so class teachers on other devices see them
+    if (cloud.isCloudMode()) {
+      try {
+        await cloud.syncToCloud();
+        savedToCloud = !localStorage.getItem('sms_students_cloud_pending');
+      } catch (error) {
+        console.error('Promotion cloud sync failed:', error);
+        savedToCloud = false;
+      }
+    }
+    return savedToCloud;
   };
 
   const toggleStudentSubject = (cls: string, student: typeof students[string][number], subject: string) => {
