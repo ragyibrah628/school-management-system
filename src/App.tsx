@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect, useCallback, useRef, ErrorInfo, Component, ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense, ErrorInfo, Component, ReactNode } from 'react';
 import {
   BookOpen,
   CalendarDays,
@@ -20,12 +20,17 @@ import {
   UsersRound,
   X
 } from 'lucide-react';
-import { TimetableSubsystem } from './components/TimetableSubsystem';
 import { TeacherDutyForm, DutyReportPrint, AdminRegisteredStudents } from './components/DutyReport';
-import { LessonPlan } from './components/LessonPlan';
-import { LogBook } from './components/LogBook';
+// Big screens are loaded only when they are opened, so the first page appears faster.
+const TimetableSubsystem = lazy(() => import('./components/TimetableSubsystem').then(m => ({ default: m.TimetableSubsystem })));
+const LessonPlan = lazy(() => import('./components/LessonPlan').then(m => ({ default: m.LessonPlan })));
+const LogBook = lazy(() => import('./components/LogBook').then(m => ({ default: m.LogBook })));
+const PageLoading = () => <div className="p-10 text-center text-sm text-slate-500">Loading…</div>;
 import { PromoteStudents } from './components/PromoteStudents';
 import { ClassManager } from './components/ClassManager';
+import { LoginScreen } from './components/LoginScreen';
+import { WelcomeBanner } from './components/WelcomeBanner';
+import './theme.css';
 import { PromotionPlan, remainingNames, withBaseForms, baseOf, displayClass, canonicalClass } from './utils/promotion';
 import * as cloud from './lib/cloud';
 import { getDistrictLogo, letterheadOpen, letterheadClose } from './utils/letterhead';
@@ -1606,7 +1611,8 @@ function AppInner() {
   const mode = cloud.isCloudMode() ? '🟢 Cloud Database' : '🟡 Local Storage';
 
   // Show/hide password & change password & sidebar & recovery
-  const [showPassword, setShowPassword] = useState(false);
+  const [welcomeOpen, setWelcomeOpen] = useState(true);
+  useEffect(() => { if (screen !== 'login') setWelcomeOpen(true); }, [screen, user?.id]);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState('');
@@ -1760,42 +1766,24 @@ function AppInner() {
 
   if (screen === 'login') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-slate-100 flex items-center justify-center px-4">
-        <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md border">
-          <div className="text-center mb-6">
-            {schoolLogo ? <SafeImg src={schoolLogo} alt="School Logo" className="w-20 h-20 mx-auto mb-3 object-contain" /> : <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-3"><span className="text-3xl">🏫</span></div>}
-            <h1 className="text-xl font-bold">{schoolNameSetting}</h1>
-            <p className="text-xs text-slate-500">{districtName}</p>
-            <p className="text-sm font-semibold text-slate-700 mt-1">School Management System</p>
-            <p className="text-xs mt-2 px-3 py-1 rounded-lg inline-block bg-slate-50 border text-slate-600">{mode}</p>
-          </div>
-          <div className="space-y-4">
-            <input type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} className="w-full border px-4 py-3 rounded-xl" />
-            <div className="relative">
-              <input type={showPassword ? 'text' : 'password'} placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} className="w-full border px-4 py-3 rounded-xl pr-12" />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm font-semibold">
-                {showPassword ? '🙈 Hide' : '👁️ Show'}
-              </button>
-            </div>
-            {error && <p className="text-red-500 text-sm">{error}</p>}
-            <button onClick={login} disabled={loading} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold disabled:opacity-50">
-              {loading ? 'Signing in...' : 'Sign In'}
-            </button>
-            {/* Opera Mini hint */}
-            <p className="text-[10px] text-center text-slate-400 leading-tight">Best in Chrome / Opera / Firefox. Opera Mini may be slow to sign in — use "Sign In" again after 3 sec or switch to Chrome.</p>
-            <p className="text-center text-xs text-gray-400">Admin: admin / admin123 | Teacher: Teacher@123 | Parent: Parent@123</p>
-            <button onClick={() => setShowRecovery(!showRecovery)} className="text-xs text-indigo-500 hover:underline w-full text-center mt-2">Forgot Admin Password?</button>
-            {showRecovery && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2 mt-2">
-                <p className="text-xs font-semibold text-amber-800">Enter Master Recovery Code:</p>
-                <input type="password" placeholder="Recovery Code" value={recoveryCode} onChange={e => setRecoveryCode(e.target.value)} className="w-full border px-3 py-2 rounded-xl text-sm" />
-                <button onClick={resetAdminPassword} className="w-full bg-amber-600 text-white py-2 rounded-xl text-sm font-semibold">Reset Admin Password</button>
-                <p className="text-[10px] text-amber-600">Contact your school IT administrator for the recovery code.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      <LoginScreen
+        schoolLogo={schoolLogo}
+        schoolName={schoolNameSetting}
+        districtName={districtName}
+        mode={mode}
+        username={username}
+        password={password}
+        error={error}
+        loading={loading}
+        showRecovery={showRecovery}
+        recoveryCode={recoveryCode}
+        onUsername={setUsername}
+        onPassword={setPassword}
+        onLogin={login}
+        onToggleRecovery={() => setShowRecovery(!showRecovery)}
+        onRecoveryCode={setRecoveryCode}
+        onResetAdmin={resetAdminPassword}
+      />
     );
   }
 
@@ -1831,7 +1819,7 @@ function AppInner() {
 
   if (screen === 'admin') {
     if (activeMenu === 'timetable') {
-      return (<div className="relative"><button onClick={() => setActiveMenu('dashboard')} className="fixed top-4 right-4 z-50 px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold shadow-lg">← Back</button><TimetableSubsystem /></div>);
+      return (<div className="relative"><button onClick={() => setActiveMenu('dashboard')} className="fixed top-4 right-4 z-50 px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold shadow-lg">← Back</button><Suspense fallback={<PageLoading />}><TimetableSubsystem /></Suspense></div>);
     }
 
     return (
@@ -1893,6 +1881,7 @@ function AppInner() {
           </div>
         )}
         <div className="p-6 max-w-6xl mx-auto space-y-6">
+          {welcomeOpen && <WelcomeBanner name={user?.name || ''} onClose={() => setWelcomeOpen(false)} />}
 
           {/* DASHBOARD */}
           {activeMenu === 'dashboard' && (
@@ -2051,12 +2040,6 @@ function AppInner() {
           <PromoteStudents
             students={students as any}
             schoolClasses={schoolClasses}
-            scores={scores}
-            exams={exams}
-            behavior={behaviorData}
-            schoolName={schoolNameSetting}
-            districtName={districtName}
-            schoolLogo={schoolLogo}
             onApply={applyPromotion}
           />
           <ClassManager
@@ -2901,26 +2884,27 @@ function AppInner() {
           </div>
         )}
         <div className="p-6 max-w-4xl mx-auto space-y-6">
+          {welcomeOpen && <WelcomeBanner name={user?.name || ''} onClose={() => setWelcomeOpen(false)} />}
 
           {activeMenu === 'lesson_plan' && user?.role === 'teacher' && (
-            <LessonPlan
+            <Suspense fallback={<PageLoading />}><LessonPlan
               teacherName={user?.name || ''}
               assignments={teachingAssignments[user?.id] || []}
               schoolName={schoolNameSetting}
               districtName={districtName}
               schoolLogo={schoolLogo}
-            />
+            /></Suspense>
           )}
 
           {activeMenu === 'logbook' && user?.role === 'teacher' && (
-            <LogBook
+            <Suspense fallback={<PageLoading />}><LogBook
               teacherId={user?.id || ''}
               teacherName={user?.name || ''}
               assignments={teachingAssignments[user?.id] || []}
               schoolName={schoolNameSetting}
               districtName={districtName}
               schoolLogo={schoolLogo}
-            />
+            /></Suspense>
           )}
 
           {/* Teacher Dashboard */}
@@ -3664,6 +3648,7 @@ function AppInner() {
           )}
 
           <div className="p-6 max-w-4xl mx-auto space-y-6">
+          {welcomeOpen && <WelcomeBanner name={user?.name || ''} onClose={() => setWelcomeOpen(false)} />}
             {activeMenu === 'report_cards' && (
               <div className="bg-white p-6 rounded-2xl border">
                 <h2 className="font-bold text-lg mb-4">📄 Report Cards — {parentStudentName}</h2>

@@ -7,18 +7,12 @@ import {
 interface PromoteStudentsProps {
   students: Roster;
   schoolClasses: string[];
-  scores: any[];
-  exams: any[];
-  behavior: Record<string, Record<string, string>>;
-  schoolName: string;
-  districtName: string;
-  schoolLogo: string;
   onApply: (plan: PromotionPlan) => void | boolean | Promise<boolean | void>;
 }
 
 type Step = 0 | 1 | 2 | 3 | 4;
 
-export function PromoteStudents({ students, schoolClasses, scores, exams, behavior, schoolName, districtName, schoolLogo, onApply }: PromoteStudentsProps) {
+export function PromoteStudents({ students, schoolClasses, onApply }: PromoteStudentsProps) {
   const [step, setStep] = useState<Step>(0);
   const [summary, setSummary] = useState('');
   const plan = useMemo(() => buildPromotionPlan(students, schoolClasses), [students, schoolClasses, step]);
