@@ -79,7 +79,7 @@ function AppSidebar({ items, activeMenu, open, onClose, onSelect, heading, subti
       >
         <div className="flex min-h-[76px] items-center gap-3 border-b border-slate-700 px-4 py-3">
           {logo
-            ? <SafeImg src={logo} alt="School logo" className="h-9 w-9 shrink-0 rounded object-contain" />
+            ? <SafeImg src={logo} alt="School logo" className="h-11 w-11 shrink-0 rounded-full bg-white p-0.5 object-contain" />
             : <School size={24} strokeWidth={2} className="shrink-0 text-indigo-300" />}
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-bold leading-tight">{heading}</p>
