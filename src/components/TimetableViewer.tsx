@@ -9,7 +9,7 @@ import { displayClass } from '../utils/promotion';
 import { TimetableAutoPanel, PeriodsSidePanel } from './TimetableAutoPanel';
 import { 
   Printer, Grid, 
-  AlertTriangle, X, Trash2, Plus, Play, RefreshCw
+  AlertTriangle, X, Trash2, Plus, Play
 } from 'lucide-react';
 
 const NAMBAWALA_SLOTS: any[] = [
@@ -91,13 +91,19 @@ const readTeachingAssignments = (): Record<string, any[]> => {
 const normSubject = (value: any) => String(value || '').trim().toLowerCase();
 
 export const TimetableViewer: React.FC = () => {
-  const { 
-    timetableData, classes: rawClasses, teachers, subjects, rooms, timeSlots, days, conflicts, classSubjects,
-    schoolLogo, schoolName,
-    removeLessonSlot, scheduleUnscheduledLesson, updateLessonSlot, replaceTimetable, isGenerating
-  } = useTimetable() as any;
+  const ctx = useTimetable() as any;
+  const { timetableData, schoolLogo, schoolName, removeLessonSlot, scheduleUnscheduledLesson, updateLessonSlot, replaceTimetable } = ctx;
+  const rawClasses: any[] = ctx.classes || [];
+  const teachers: any[] = ctx.teachers || [];
+  const subjects: any[] = ctx.subjects || [];
+  const rooms: any[] = ctx.rooms || [];
+  const timeSlots: any[] = ctx.timeSlots || [];
+  const days: any[] = ctx.days || [];
+  const conflicts: any[] = ctx.conflicts || [];
+  const classSubjects: any[] = ctx.classSubjects || [];
+  const [, setRefreshKey] = useState(0);
   // One naming style everywhere: Form I, Form II, Form III, Form IV
-  const classes = React.useMemo(() => (rawClasses as any[]).map(c => ({ ...c, name: displayClass(c.name) })), [rawClasses]);
+  const classes = React.useMemo(() => rawClasses.map((c: any) => ({ ...c, name: displayClass(c.name) })), [rawClasses]);
   const [showAuto, setShowAuto] = useState(false);
 
   const [viewType, setViewType] = useState<'class' | 'teacher' | 'room' | 'master' | 'all_classes' | 'all_teachers'>('class');
@@ -126,9 +132,9 @@ export const TimetableViewer: React.FC = () => {
 
   // Auto-select first item when view type changes
   React.useEffect(() => {
-    if (viewType === 'class' && classes.length > 0 && !classes.some(c => c.id === selectedId)) setSelectedId(classes[0].id);
-    else if (viewType === 'teacher' && teachers.length > 0 && !teachers.some(t => t.id === selectedId)) setSelectedId(teachers[0].id);
-    else if (viewType === 'room' && rooms.length > 0 && !rooms.some(r => r.id === selectedId)) setSelectedId(rooms[0].id);
+    if (viewType === 'class' && classes.length > 0 && !classes.some((c: any) => c.id === selectedId)) setSelectedId(classes[0].id);
+    else if (viewType === 'teacher' && teachers.length > 0 && !teachers.some((t: any) => t.id === selectedId)) setSelectedId(teachers[0].id);
+    else if (viewType === 'room' && rooms.length > 0 && !rooms.some((r: any) => r.id === selectedId)) setSelectedId(rooms[0].id);
   }, [viewType, classes, teachers, rooms, selectedId]);
 
   if (!timetableData) {
@@ -323,7 +329,7 @@ export const TimetableViewer: React.FC = () => {
     return '';
   };
 
-  const currentConflicts = conflicts.filter(c => {
+  const currentConflicts = conflicts.filter((c: any) => {
     if (!c.slot || !c.slot.day) return false;
     if (viewType === 'class' || viewType === 'all_classes') return c.entityIds.includes(selectedId);
     if (viewType === 'teacher' || viewType === 'all_teachers') return c.entityIds.includes(selectedId);
@@ -343,20 +349,20 @@ export const TimetableViewer: React.FC = () => {
   const handlePlaceUnscheduled = () => {
     if (!activeCell || !selectedUnscheduledId) return;
     
-    const un = timetableData.unscheduled.find(u => u.id === selectedUnscheduledId);
+    const un = timetableData.unscheduled.find((u: any) => u.id === selectedUnscheduledId);
     if (!un) return;
 
     // To place it, we need a room. Let's find a room of the correct type
-    const sub = subjects.find(s => s.id === un.subjectId);
+    const sub = subjects.find((s: any) => s.id === un.subjectId);
     const roomTypeNeeded = sub?.requiresRoomType || 'regular';
     
     // Find all rooms of this type that are NOT occupied in this slot
     const occupiedRoomIds = Object.keys(schedule).map(cid => schedule[cid]?.[activeCell.day]?.[activeCell.periodId]?.roomId).filter(Boolean);
-    const availRooms = rooms.filter(r => r.type === roomTypeNeeded && !occupiedRoomIds.includes(r.id));
+    const availRooms = rooms.filter((r: any) => r.type === roomTypeNeeded && !occupiedRoomIds.includes(r.id));
     
     const selectedRoomId = availRooms.length > 0 
       ? availRooms[0].id 
-      : (rooms.find(r => r.type === roomTypeNeeded)?.id || rooms[0]?.id || '');
+      : (rooms.find((r: any) => r.type === roomTypeNeeded)?.id || rooms[0]?.id || '');
 
     scheduleUnscheduledLesson(selectedUnscheduledId, un.classId, activeCell.day, activeCell.periodId, selectedRoomId);
     setActiveCell(null);
@@ -406,12 +412,12 @@ export const TimetableViewer: React.FC = () => {
           {!['master', 'all_classes', 'all_teachers'].includes(viewType) && (
             <select
               value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
+              onChange={(e: any) => setSelectedId(e.target.value)}
               className="text-sm border border-slate-200 px-3 py-1.5 rounded-xl bg-white text-slate-700 font-semibold focus:ring-2 focus:ring-indigo-500"
             >
-              {viewType === 'class' && classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              {viewType === 'teacher' && teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              {viewType === 'room' && rooms.map(r => <option key={r.id} value={r.id}>{r.name} ({r.type})</option>)}
+              {viewType === 'class' && classes.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {viewType === 'teacher' && teachers.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              {viewType === 'room' && rooms.map((r: any) => <option key={r.id} value={r.id}>{r.name} ({r.type})</option>)}
             </select>
           )}
           
@@ -424,7 +430,7 @@ export const TimetableViewer: React.FC = () => {
 
         <div className="flex items-center gap-2">
         <button
-          onClick={() => setShowAuto(v => !v)}
+          onClick={() => setShowAuto((v: any) => !v)}
           className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 shadow-md transition-all"
         >
           <Play size={16} fill="currentColor" />
@@ -449,7 +455,7 @@ export const TimetableViewer: React.FC = () => {
           <div>
             <h3 className="font-semibold text-amber-800 text-sm">Schedule Issues for this {viewType}</h3>
             <ul className="list-disc ml-4 text-xs text-amber-700 mt-1 space-y-0.5">
-              {currentConflicts.map(c => (
+              {currentConflicts.map((c: any) => (
                 <li key={c.id}>
                   <b>{c.slot.day} {timeSlots.find(s=>s.id===c.slot.periodId)?.name}:</b> {c.description}
                 </li>
@@ -626,7 +632,7 @@ export const TimetableViewer: React.FC = () => {
             {viewType === 'master' ? 'General School Timetable' : 'Print All Class Timetables'}
           </h2>
           <div className="space-y-8 print:space-y-12">
-            {classes.map((cls) => {
+            {classes.map((cls: any) => {
               // Subjects of this class come from the admin's Teaching Assignments
               const assignedSubjects = new Set<string>();
               Object.values(readTeachingAssignments()).forEach((list: any) => (list || []).forEach((item: any) => {
@@ -634,8 +640,8 @@ export const TimetableViewer: React.FC = () => {
               }));
               const clsSubs = Array.from(assignedSubjects);
               const totalP = classSubjects
-                .filter(cs => cs.classId === cls.id && assignedSubjects.has(normSubject(subjects.find((s: any) => s.id === cs.subjectId)?.name)))
-                .reduce((acc, s) => acc + (Number(s.periodsPerWeek) || 0), 0);
+                .filter((cs: any) => cs.classId === cls.id && assignedSubjects.has(normSubject(subjects.find((s: any) => s.id === cs.subjectId)?.name)))
+                .reduce((acc: any, s) => acc + (Number(s.periodsPerWeek) || 0), 0);
               
               return (
                 <div key={cls.id} className="break-after-page print:break-after-page border border-slate-200 rounded-xl p-4 bg-white print:border-slate-300 print:p-6 print:mb-8">
@@ -667,7 +673,7 @@ export const TimetableViewer: React.FC = () => {
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
                           <th className="p-1.5 border-r border-slate-200 w-20 text-center">Slot</th>
-                          {days.map(d => <th key={d} className="p-1.5 border-r border-slate-200 text-center">{d.substring(0,3)}</th>)}
+                          {days.map((d: any) => <th key={d} className="p-1.5 border-r border-slate-200 text-center">{d.substring(0,3)}</th>)}
                         </tr>
                       </thead>
                       <tbody>
@@ -698,7 +704,7 @@ export const TimetableViewer: React.FC = () => {
                           return (
                             <tr key={p.id} className="border-b border-slate-100">
                               <td className="p-1 font-bold text-center border-r bg-slate-50 text-slate-400 text-3xs whitespace-nowrap">{p.name.split(' ')[1] || p.name} ({p.startTime})</td>
-                              {days.map(d => {
+                              {days.map((d: any) => {
                                 const cell = schedule[cls.id]?.[d]?.[p.id];
                                 if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
                                 const sub = findCellSubject(subjects, cell.subjectId, (cell as any).subjectName);
@@ -730,7 +736,7 @@ export const TimetableViewer: React.FC = () => {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 print:p-0 print:border-none print:shadow-none">
           <h2 className="text-lg font-bold text-slate-800 mb-4 print:hidden">Print All Teacher Timetables</h2>
           <div className="space-y-8 print:space-y-12">
-            {teachers.map((t) => {
+            {teachers.map((t: any) => {
               const tSubs = Array.from(new Set(((readTeachingAssignments()[t.id] || []) as any[]).map(item => `${item?.cls}|${normSubject(item?.sub)}`)));
               return (
                 <div key={t.id} className="break-after-page print:break-after-page border border-slate-200 rounded-xl p-4 bg-white print:border-slate-300 print:p-6 print:mb-8">
@@ -762,7 +768,7 @@ export const TimetableViewer: React.FC = () => {
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
                           <th className="p-1.5 border-r border-slate-200 w-20 text-center">Slot</th>
-                          {days.map(d => <th key={d} className="p-1.5 border-r border-slate-200 text-center">{d.substring(0,3)}</th>)}
+                          {days.map((d: any) => <th key={d} className="p-1.5 border-r border-slate-200 text-center">{d.substring(0,3)}</th>)}
                         </tr>
                       </thead>
                       <tbody>
@@ -790,7 +796,7 @@ export const TimetableViewer: React.FC = () => {
                           return (
                             <tr key={p.id} className="border-b border-slate-100">
                               <td className="p-1 font-bold text-center border-r bg-slate-50 text-slate-400 text-3xs whitespace-nowrap">{p.name.split(' ')[1] || p.name} ({p.startTime})</td>
-                              {days.map(d => {
+                              {days.map((d: any) => {
                                 const cell = getCellData(d, p.id, t.id, 'all_teachers');
                                 if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
                                 const sub = findCellSubject(subjects, cell.subjectId, (cell as any).subjectName);
@@ -1051,7 +1057,7 @@ export const TimetableViewer: React.FC = () => {
                         for (const targetTeacherId of targetTeacherIds) {
                           if (cell.teacherId !== targetTeacherId && cell.secondTeacherId !== targetTeacherId) continue;
                           const occupiedPeriodId = getTeacherOccupiedSlots(cell, cellPeriodId, timeSlots)
-                            .find(slotId => targetPeriodIds.includes(slotId));
+                            .find((slotId: any) => targetPeriodIds.includes(slotId));
                           if (occupiedPeriodId) {
                             const clsName = classes.find((c:any)=>c.id===cid)?.name || cid;
                             const teacherName = teachers.find((t:any)=>t.id===targetTeacherId)?.name || targetTeacherId;
@@ -1066,11 +1072,11 @@ export const TimetableViewer: React.FC = () => {
                     const schoolClass = classes.find((c:any)=>c.id===selectedId);
                     let roomId = '';
                     if (roomType === 'regular' && (schoolClass as any)?.assignedRoomId) {
-                      const occupied = targetPeriodIds.some(periodId => Object.keys((timetableData as any).schedule||{}).some(cid => (timetableData as any).schedule[cid]?.[activeCell.day]?.[periodId]?.roomId === (schoolClass as any).assignedRoomId));
+                      const occupied = targetPeriodIds.some((periodId: any) => Object.keys((timetableData as any).schedule||{}).some(cid => (timetableData as any).schedule[cid]?.[activeCell.day]?.[periodId]?.roomId === (schoolClass as any).assignedRoomId));
                       if (!occupied) roomId = (schoolClass as any).assignedRoomId;
                     }
                     if (!roomId) {
-                      const avail = rooms.filter((r:any)=> r.type===roomType && !targetPeriodIds.some(periodId => Object.keys((timetableData as any).schedule||{}).some(cid => (timetableData as any).schedule[cid]?.[activeCell.day]?.[periodId]?.roomId === r.id)));
+                      const avail = rooms.filter((r:any)=> r.type===roomType && !targetPeriodIds.some((periodId: any) => Object.keys((timetableData as any).schedule||{}).some(cid => (timetableData as any).schedule[cid]?.[activeCell.day]?.[periodId]?.roomId === r.id)));
                       roomId = avail[0]?.id || rooms.find((r:any)=>r.type===roomType)?.id || rooms[0]?.id || '';
                     }
                     // If combined, store second subject info too

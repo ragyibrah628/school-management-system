@@ -20,6 +20,20 @@ export function saveClassSubjectConfig(value: ClassSubjectConfig) {
   } catch {}
 }
 
+export const COMBINED_KEY = 'sms_tt_class_combined';
+export type CombinedConfig = Record<string, [string, string][]>;
+export function readCombined(): CombinedConfig {
+  try { return JSON.parse(localStorage.getItem(COMBINED_KEY) || '{}') || {}; } catch { return {}; }
+}
+export function saveCombined(value: CombinedConfig) {
+  const text = JSON.stringify(value);
+  try {
+    localStorage.setItem(COMBINED_KEY, text);
+    cloud.markAppDataKeyDirty(COMBINED_KEY, text);
+    void cloud.syncToCloud().catch(() => {});
+  } catch {}
+}
+
 const norm = (v: any) => String(v || '').trim().toLowerCase();
 
 export function findAssignedTeacher(subjectName: string, className: string): { id: string; name: string } | null {
@@ -41,6 +55,8 @@ interface Props { slots: any[]; onClose: () => void }
 export const TimetableAutoPanel: React.FC<Props> = ({ slots, onClose }) => {
   const { classes, subjects, days, timetableData, replaceTimetable } = useTimetable() as any;
   const [config, setConfig] = useState<ClassSubjectConfig>(readClassSubjectConfig);
+  const [combined, setCombinedState] = useState<CombinedConfig>(readCombined);
+  const [pick, setPick] = useState<Record<string, [string, string]>>({});
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [report, setReport] = useState<any>(null);
@@ -54,6 +70,15 @@ export const TimetableAutoPanel: React.FC<Props> = ({ slots, onClose }) => {
     return (subjects as any[]).filter(s => { const k = norm(s.name); if (!k || seen.has(k)) return false; seen.add(k); return true; });
   }, [subjects]);
 
+  const setCombined = (next: CombinedConfig) => { setCombinedState(next); saveCombined(next); setReport(null); };
+  const addPair = (cn: string) => {
+    const [a, b] = pick[cn] || ['', ''];
+    if (!a || !b || a === b) return;
+    const list = (combined[cn] || []).filter(p => !p.includes(a) && !p.includes(b));
+    setCombined({ ...combined, [cn]: [...list, [a, b]] });
+    setPick({ ...pick, [cn]: ['', ''] });
+  };
+  const removePair = (cn: string, i: number) => setCombined({ ...combined, [cn]: (combined[cn] || []).filter((_, k) => k !== i) });
   const update = (next: ClassSubjectConfig) => { setConfig(next); saveClassSubjectConfig(next); setReport(null); };
   const setCell = (cls: string, sub: string, periods: number | null) => {
     const row = { ...(config[cls] || {}) };
@@ -75,9 +100,13 @@ export const TimetableAutoPanel: React.FC<Props> = ({ slots, onClose }) => {
   const rows = classList.map((c: any) => {
     const cn = displayClass(c.name);
     const chosen = Object.entries(config[cn] || {});
-    const total = chosen.reduce((a, [, n]) => a + (Number(n) || 0), 0);
+    const livePairs = (combined[cn] || []).filter(([a, b]) => config[cn]?.[a] !== undefined && config[cn]?.[b] !== undefined);
+    const pairSecond = new Set(livePairs.map(([, b]) => b));
+    const biggest = (n: string) => { const p = livePairs.find(([a]) => a === n); return p ? Math.max(Number(config[cn][n]) || 0, Number(config[cn][p[1]]) || 0) : Number(config[cn][n]) || 0; };
+    const total = chosen.filter(([n]) => !pairSecond.has(n)).reduce((a, [n]) => a + biggest(n), 0);
     const noTeacher = chosen.filter(([s]) => !findAssignedTeacher(s, cn)).map(([s]) => s);
-    return { c, cn, chosen, total, noTeacher };
+    const pairs = (combined[cn] || []).filter(([a, b]) => config[cn]?.[a] !== undefined && config[cn]?.[b] !== undefined);
+    return { c, cn, chosen, total, noTeacher, pairs };
   });
   const missing = rows.flatMap(r => r.noTeacher.map(s => `${r.cn}: ${s}`));
   const over = rows.filter(r => r.total > capacity);
@@ -90,10 +119,23 @@ export const TimetableAutoPanel: React.FC<Props> = ({ slots, onClose }) => {
       try {
         const requirements: Record<string, AutoRequirement[]> = {};
         rows.forEach(r => {
-          requirements[r.c.id] = r.chosen.map(([name, periods]) => {
+          const secondOf = new Map<string, string>(r.pairs.map(([a, b]) => [a, b] as [string, string]));
+          const hidden = new Set(r.pairs.map(([, b]) => b));
+          const make = (name: string, periods: number) => {
             const t = findAssignedTeacher(name, r.cn)!;
             const sub = subjectList.find(s => norm(s.name) === norm(name));
-            return { subjectId: sub?.id || name, subjectName: sub?.name || name, teacherId: t.id, periods: Number(periods) || 0 };
+            return { subjectId: sub?.id || name, subjectName: sub?.name || name, teacherId: t.id, periods: Number(periods) || 0 } as AutoRequirement;
+          };
+          requirements[r.c.id] = r.chosen.filter(([name]) => !hidden.has(name)).map(([name, periods]) => {
+            const req = make(name, periods);
+            const other = secondOf.get(name);
+            if (other) {
+              // the subject with more periods decides: both go together for that many periods
+              const otherPeriods = Number(r.chosen.find(([n]) => n === other)?.[1]) || 0;
+              const most = Math.max(Number(periods) || 0, otherPeriods);
+              req.periods = most;
+              const o = make(other, most); req.second = { subjectId: o.subjectId, subjectName: o.subjectName, teacherId: o.teacherId }; }
+            return req;
           });
         });
         const keep: any = {};
@@ -160,12 +202,45 @@ export const TimetableAutoPanel: React.FC<Props> = ({ slots, onClose }) => {
         </table>
       </div>
 
+      <div className="border border-slate-200 rounded-xl p-3 space-y-2">
+        <h4 className="text-sm font-bold text-slate-800">Subjects that go together (optional)</h4>
+        <p className="text-[11px] text-slate-500">Example: Physics + History. All their periods are placed at the same time (two teachers, same class time). If they have different periods per week, the subject with more periods decides (e.g. PHY 4 + HST 3 = both get 4). Classes with nothing chosen: every subject is independent.</p>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {rows.map(r => {
+            const ticked = r.chosen.map(([n]) => n);
+            const used = new Set((combined[r.cn] || []).flat());
+            const free = ticked.filter(n => !used.has(n));
+            const [a, b] = pick[r.cn] || ['', ''];
+            return (
+              <div key={r.c.id} className="bg-slate-50 rounded-lg p-2 text-xs space-y-1">
+                <div className="font-bold text-slate-700">{r.cn}</div>
+                {(combined[r.cn] || []).map(([x, y], i) => (
+                  <div key={i} className="flex items-center justify-between bg-white border border-slate-200 rounded px-2 py-1">
+                    <span className="font-semibold">{x} / {y}</span>
+                    <button onClick={() => removePair(r.cn, i)} className="text-rose-600 font-bold px-1" aria-label="Remove">×</button>
+                  </div>
+                ))}
+                <div className="flex gap-1">
+                  <select value={a} onChange={e => setPick({ ...pick, [r.cn]: [e.target.value, b] })} className="flex-1 min-w-0 border border-slate-300 rounded px-1 py-0.5">
+                    <option value="">Subject 1</option>{free.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <select value={b} onChange={e => setPick({ ...pick, [r.cn]: [a, e.target.value] })} className="flex-1 min-w-0 border border-slate-300 rounded px-1 py-0.5">
+                    <option value="">Subject 2</option>{free.filter(n => n !== a).map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <button onClick={() => addPair(r.cn)} disabled={!a || !b} className="px-2 rounded bg-indigo-600 text-white font-bold disabled:bg-slate-300">+</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {(missing.length > 0 || over.length > 0 || empty.length > 0) && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 space-y-1">
           <div className="flex items-center gap-2 font-bold"><AlertTriangle size={14} /> Fix these before generating</div>
           {empty.length > 0 && <div>No subject ticked for: {empty.map(r => r.cn).join(', ')}</div>}
           {missing.length > 0 && <div>Subjects without a teacher: {missing.join('; ')}</div>}
-          {over.length > 0 && <div>Too many periods (more than {capacity} per week): {over.map(r => `${r.cn} (${r.total})`).join(', ')}</div>}
+          {over.length > 0 && <div>Too many periods (more than {capacity} per week; Friday after the break is Religion): {over.map(r => `${r.cn} (${r.total})`).join(', ')}</div>}
         </div>
       )}
 
@@ -189,7 +264,7 @@ export const TimetableAutoPanel: React.FC<Props> = ({ slots, onClose }) => {
           <div className="flex items-center gap-2 font-bold"><CheckCircle2 size={14} /> Timetable generated: {report.placedPeriods} lessons placed.</div>
           {report.splitDoubles > 0 && <div>{report.splitDoubles} double period(s) could not fit and were split into single periods.</div>}
           {report.unplaced.length > 0 && <div className="text-rose-700 font-semibold">Not placed: {report.unplaced.map((u: any) => `${u.className} ${u.subjectName} (${u.periods})`).join('; ')}</div>}
-          <div>Remaining periods were filled with Religion: {Object.entries(report.religionPeriods).map(([id, n]) => `${report.names[id]} ${n}`).join(', ')}. You can change any cell by clicking it.</div>
+          <div>Free periods were filled with PS: {Object.entries(report.psPeriods).map(([id, n]) => `${report.names[id]} ${n}`).join(', ')}. Friday after the break is Religion. You can change any cell by clicking it.</div>
         </div>
       )}
       {report?.error && <div className="text-xs text-rose-700 font-semibold">Generation failed. Please try again.</div>}
@@ -210,12 +285,19 @@ export const PeriodsSidePanel: React.FC<{ classId: string; slots: any[] }> = ({ 
   const schedule = timetableData.schedule || {};
   const counts: Record<string, number> = {};
   let religion = 0;
+  let psCount = 0;
+  const combinedNames = new Set<string>();
   days.forEach((d: string) => lessonSlots.forEach((sl: any) => {
     const cell = schedule[classId]?.[d]?.[sl.id];
     if (!cell) return;
     if (cell.isReligion) { religion++; return; }
-    const name = cell.subjectId === 'ps' ? 'PS' : (cell.subjectName || subjects.find((x: any) => x.id === cell.subjectId)?.name || '');
+    if (cell.isPS || cell.subjectId === 'ps') { psCount++; return; }
+    const name = cell.subjectName || subjects.find((x: any) => x.id === cell.subjectId)?.name || '';
     if (name) counts[name] = (counts[name] || 0) + 1;
+    if (cell.isCombined && cell.secondSubjectName) {
+      counts[cell.secondSubjectName] = (counts[cell.secondSubjectName] || 0) + 1;
+      combinedNames.add(name); combinedNames.add(cell.secondSubjectName);
+    }
   }));
   const config = readClassSubjectConfig();
   const required = config[cn] || {};
@@ -231,53 +313,56 @@ export const PeriodsSidePanel: React.FC<{ classId: string; slots: any[] }> = ({ 
     if (!t) { setMsg(`${sub}: no teacher assigned in Teaching Assignments.`); return; }
     const subj = subjects.find((x: any) => norm(x.name) === norm(sub));
     const perDay = (d: string) => lessonSlots.filter((sl: any) => schedule[classId]?.[d]?.[sl.id]?.subjectName === sub).length;
+    const breakAt = slots.findIndex((x: any) => x.isBreak);
+    const afterBreak = (id: string) => breakAt < 0 || slots.findIndex((x: any) => x.id === id) > breakAt;
     for (const sl of [...lessonSlots].reverse()) for (const d of days) {
+      if (!afterBreak(sl.id)) continue;   // no single period before the break
       const cell = schedule[classId]?.[d]?.[sl.id];
-      if (cell?.isReligion && !teacherBusy(t.id, d, sl.id) && perDay(d) < 2) {
+      if ((cell?.isPS || cell?.subjectId === 'ps') && !teacherBusy(t.id, d, sl.id) && perDay(d) < 2) {
         updateLessonSlot(classId, d, sl.id, subj?.id || sub, t.id, '', { subjectName: sub, isDouble: false, isDoubleSpan: false });
         setRequired(sub, (required[sub] ?? counts[sub] ?? 0) + 1);
         setMsg(`${sub}: +1 period (${d}, ${sl.name || sl.id}).`);
         return;
       }
     }
-    setMsg(`${sub}: no free Religion period where ${t.name} is free.`);
+    setMsg(`${sub}: no free PS period where ${t.name} is free.`);
   };
-  const religionCell = { subjectId: 'religion', subjectName: 'Religion', isReligion: true, isDouble: false, isDoubleSpan: false };
+  const psCell = { subjectId: 'ps', subjectName: 'PS', isPS: true, isReligion: false, isDouble: false, isDoubleSpan: false };
   const removePeriod = (sub: string) => {
     let single: [string, string] | null = null; let span: [string, string] | null = null;
     for (const d of days) for (const sl of [...lessonSlots].reverse()) {
       const cell = schedule[classId]?.[d]?.[sl.id];
-      if (!cell || cell.isReligion || cell.subjectName !== sub) continue;
+      if (!cell || cell.isReligion || cell.isPS || cell.isCombined || cell.subjectName !== sub) continue;
       if (!cell.isDouble && !cell.isDoubleSpan) { if (!single) single = [d, sl.id]; }
       else if (cell.isDoubleSpan && !span) span = [d, sl.id];
     }
-    if (single) updateLessonSlot(classId, single[0], single[1], 'religion', '', '', religionCell);
+    if (single) updateLessonSlot(classId, single[0], single[1], 'ps', '', '', psCell);
     else if (span) {
       const [d, pid] = span;
       const idx = lessonSlots.findIndex((x: any) => x.id === pid);
       const head = schedule[classId]?.[d]?.[lessonSlots[idx - 1]?.id];
       if (head) updateLessonSlot(classId, d, head ? lessonSlots[idx - 1].id : pid, head.subjectId, head.teacherId, head.roomId || '', { ...head, isDouble: false, isDoubleSpan: false });
-      updateLessonSlot(classId, d, pid, 'religion', '', '', religionCell);
+      updateLessonSlot(classId, d, pid, 'ps', '', '', psCell);
     } else { setMsg(`${sub}: nothing to remove.`); return; }
     setRequired(sub, (required[sub] ?? counts[sub] ?? 0) - 1);
-    setMsg(`${sub}: -1 period (now Religion).`);
+    setMsg(`${sub}: -1 period (now PS).`);
   };
 
   return (
     <aside className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 w-full xl:w-72 shrink-0 print:hidden">
       <h4 className="text-sm font-bold text-slate-800 mb-0.5">Periods per week</h4>
-      <p className="text-[11px] text-slate-500 mb-2">{cn} — placed / required</p>
+      <p className="text-[11px] text-slate-500 mb-2">{cn} — placed / syllabus</p>
       <table className="w-full text-xs">
         <tbody>
           {names.map(n => {
-            const have = counts[n] || 0; const need = required[n];
-            const ok = need === undefined || have === need;
+            const have = counts[n] || 0; const need = defaultPeriodsPerWeek(n, levelOfClass(cn));
+            const ok = have >= need;
             return (
               <tr key={n} className="border-t border-slate-100">
                 <td className="py-1 pr-1 font-semibold text-slate-700 truncate max-w-[110px]">{n}</td>
-                <td className={`py-1 text-center font-bold ${ok ? 'text-emerald-700' : 'text-rose-600'}`}>{have}/{need ?? '—'}</td>
+                <td className={`py-1 text-center font-bold ${ok ? 'text-emerald-700' : 'text-rose-600'}`}>{have}/{need}</td>
                 <td className="py-1 text-right whitespace-nowrap">
-                  {n !== 'PS' && <>
+                  {!combinedNames.has(n) && <>
                     <button onClick={() => removePeriod(n)} className="w-6 h-6 rounded border border-slate-300 hover:bg-slate-50 font-bold" title="Remove one period">−</button>{' '}
                     <button onClick={() => addPeriod(n)} className="w-6 h-6 rounded border border-slate-300 hover:bg-slate-50 font-bold" title="Add one period">+</button>
                   </>}
@@ -285,11 +370,12 @@ export const PeriodsSidePanel: React.FC<{ classId: string; slots: any[] }> = ({ 
               </tr>
             );
           })}
-          <tr className="border-t border-slate-200"><td className="py-1 font-semibold text-slate-500">Religion</td><td className="py-1 text-center font-bold text-slate-500">{religion}</td><td /></tr>
+          <tr className="border-t border-slate-200"><td className="py-1 font-semibold text-slate-500">PS (free)</td><td className="py-1 text-center font-bold text-slate-500">{psCount}</td><td /></tr>
+          <tr><td className="py-1 font-semibold text-slate-500">Religion</td><td className="py-1 text-center font-bold text-slate-500">{religion}</td><td /></tr>
         </tbody>
       </table>
       {msg && <p className="text-[11px] text-slate-600 mt-2">{msg}</p>}
-      <p className="text-[10px] text-slate-400 mt-2">Click any cell in the timetable to change a subject or its time. + takes a Religion period, − turns a period into Religion.</p>
+      <p className="text-[10px] text-slate-400 mt-2">Green = syllabus met or more, red = fewer than syllabus. Click any cell in the timetable to change a subject or its time. + takes a free PS period, − turns a period into PS. Combined subjects are edited by clicking their cell.</p>
     </aside>
   );
 };

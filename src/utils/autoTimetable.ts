@@ -1,8 +1,12 @@
 // Automatic timetable generator (pure functions, no React).
 // Rules (from the school):
-//  - lessons are 40-minute periods, Monday-Friday, 08:00 to 14:30; Friday stops at 12:30
+//  - lessons are 40-minute periods, Monday-Thursday 08:00 to 14:30
+//  - Friday: lessons only before the morning break; from the end of the break to 14:30 is Religion
+//  - before the morning break only DOUBLE periods are allowed (no single period)
 //  - Mathematics and Physics doubles are placed before the morning break
-//  - every single (odd) period goes to the last period of the day
+//  - every single (odd) period goes to the last period of the day (after the break)
+//  - subjects the admin combined (e.g. PHY/HST) always share the same periods
+//  - free periods left over become PS (Private Studies), Friday's afternoon is Religion
 //  - doubles first: 3 periods = double + single, 5 = 2 doubles + single, 6 = 3 doubles ...
 //  - at most 2 periods of one subject per class per day
 //  - a teacher is never in two places at once and the teacher's lessons are spread over the 5 days
@@ -10,7 +14,10 @@
 
 export interface AutoSlot { id: string; name?: string; startTime: string; endTime: string; isBreak?: boolean; isActivity?: boolean }
 export interface AutoClass { id: string; name: string; level: number; roomId?: string }
-export interface AutoRequirement { subjectId: string; subjectName: string; teacherId: string; periods: number }
+export interface AutoRequirement {
+  subjectId: string; subjectName: string; teacherId: string; periods: number;
+  second?: { subjectId: string; subjectName: string; teacherId: string };
+}
 export interface AutoInput {
   classes: AutoClass[];
   requirements: Record<string, AutoRequirement[]>;
@@ -27,6 +34,7 @@ export interface AutoResult {
   unplaced: AutoUnplaced[];
   splitDoubles: number;
   religionPeriods: Record<string, number>;
+  psPeriods: Record<string, number>;
   teacherDayLoad: Record<string, number[]>;
   placedPeriods: number;
 }
@@ -64,11 +72,12 @@ const isMathOrPhysics = (name: string) => /math|hisabati|physics|fizikia/i.test(
 
 interface Block { classIdx: number; req: AutoRequirement; size: 1 | 2; priority: number }
 
-interface DayModel { day: string; lessons: string[]; pairs: [number, number][]; morning: Set<number>; last: number }
+interface DayModel { day: string; lessons: string[]; pairs: [number, number][]; morning: Set<number>; last: number; religionSlots: string[] }
 
-function buildDays(days: string[], slots: AutoSlot[], fridayEnd: string): DayModel[] {
+function buildDays(days: string[], slots: AutoSlot[], fridayEndIn?: string): DayModel[] {
   const firstBreak = slots.find(s => s.isBreak);
   const morningEnd = firstBreak ? firstBreak.startTime : '10:40';
+  const fridayEnd = fridayEndIn || morningEnd;
   return days.map(day => {
     const allowed = (slot: AutoSlot) => !slot.isBreak && !slot.isActivity && (day.toLowerCase() !== 'friday' || slot.endTime <= fridayEnd);
     const lessons = slots.filter(allowed).map(s => s.id);
@@ -78,11 +87,15 @@ function buildDays(days: string[], slots: AutoSlot[], fridayEnd: string): DayMod
     }
     const morning = new Set<number>();
     slots.forEach(s => { if (allowed(s) && s.endTime <= morningEnd) morning.add(lessons.indexOf(s.id)); });
-    return { day, lessons, pairs, morning, last: lessons.length - 1 };
+    // Friday: every lesson period after the morning break is Religion time
+    const religionSlots = day.toLowerCase() === 'friday'
+      ? slots.filter(sl => !sl.isBreak && !sl.isActivity && sl.startTime >= morningEnd && !allowed(sl)).map(sl => sl.id)
+      : [];
+    return { day, lessons, pairs, morning, last: lessons.length - 1, religionSlots };
   });
 }
 
-interface Attempt { schedule: AutoResult['schedule']; unplaced: AutoUnplaced[]; splitDoubles: number; score: number; teacherDayLoad: Record<string, number[]>; religion: Record<string, number>; placed: number }
+interface Attempt { schedule: AutoResult['schedule']; unplaced: AutoUnplaced[]; splitDoubles: number; score: number; teacherDayLoad: Record<string, number[]>; religion: Record<string, number>; ps: Record<string, number>; placed: number }
 
 function runAttempt(input: AutoInput, model: DayModel[], seed: number): Attempt {
   const rand = mulberry32(seed);
@@ -108,7 +121,10 @@ function runAttempt(input: AutoInput, model: DayModel[], seed: number): Attempt 
   };
 
   // total weekly load per teacher (used to place the most constrained teachers first)
-  classes.forEach(c => (requirements[c.id] || []).forEach(r => { teacherTotal[r.teacherId] = (teacherTotal[r.teacherId] || 0) + r.periods; ensureTeacher(r.teacherId); }));
+  classes.forEach(c => (requirements[c.id] || []).forEach(r => {
+    teacherTotal[r.teacherId] = (teacherTotal[r.teacherId] || 0) + r.periods; ensureTeacher(r.teacherId);
+    if (r.second) { teacherTotal[r.second.teacherId] = (teacherTotal[r.second.teacherId] || 0) + r.periods; ensureTeacher(r.second.teacherId); }
+  }));
 
   const blocks: Block[] = [];
   classes.forEach((c, classIdx) => (requirements[c.id] || []).forEach(req => {
@@ -118,7 +134,7 @@ function runAttempt(input: AutoInput, model: DayModel[], seed: number): Attempt 
     for (let i = 0; i < doubles; i++) blocks.push({ classIdx, req, size: 2, priority: 0 });
     if (single) blocks.push({ classIdx, req, size: 1, priority: 0 });
   }));
-  blocks.forEach(b => { b.priority = (teacherTotal[b.req.teacherId] || 0) + rand() * 6; });
+  blocks.forEach(b => { b.priority = Math.max(teacherTotal[b.req.teacherId] || 0, teacherTotal[b.req.second?.teacherId || ''] || 0) + (b.req.second ? 8 : 0) + rand() * 6; });
 
   const unplaced: AutoUnplaced[] = [];
   let splitDoubles = 0;
@@ -130,18 +146,23 @@ function runAttempt(input: AutoInput, model: DayModel[], seed: number): Attempt 
   const place = (b: Block, d: number, idx: number, size: number) => {
     const cls = classes[b.classIdx];
     const t = b.req.teacherId;
+    const t2 = b.req.second?.teacherId || '';
     ensureTeacher(t);
+    ensureTeacher(t2);
     const k = key(cls.id, b.req.subjectName);
     if (!subjDay[k]) subjDay[k] = model.map(() => 0);
     for (let j = 0; j < size; j++) {
       classOcc[cls.id][d][idx + j] = true;
       teacherOcc[t][d][idx + j] = true;
+      if (t2) teacherOcc[t2][d][idx + j] = true;
     }
     teacherLoad[t][d] += size;
+    if (t2) teacherLoad[t2][d] += size;
     subjDay[k][d] += size;
     classDayCount[cls.id][d] += size;
     const first = model[d].lessons[idx];
-    const base = { subjectId: b.req.subjectId, subjectName: b.req.subjectName, teacherId: t, roomId: cls.roomId || '', classId: cls.id, isDouble: false, isDoubleSpan: false };
+    const base: any = { subjectId: b.req.subjectId, subjectName: b.req.subjectName, teacherId: t, roomId: cls.roomId || '', classId: cls.id, isDouble: false, isDoubleSpan: false };
+    if (b.req.second) Object.assign(base, { isCombined: true, secondSubjectId: b.req.second.subjectId, secondSubjectName: b.req.second.subjectName, secondTeacherId: t2 });
     if (size === 2) {
       cells[cls.id][model[d].day][first] = { ...base, isDouble: true };
       cells[cls.id][model[d].day][model[d].lessons[idx + 1]] = { ...base, isDoubleSpan: true };
@@ -154,10 +175,12 @@ function runAttempt(input: AutoInput, model: DayModel[], seed: number): Attempt 
   const candidates = (b: Block, size: 1 | 2, relaxMorning: boolean) => {
     const cls = classes[b.classIdx];
     const t = b.req.teacherId;
+    const t2 = b.req.second?.teacherId || '';
     ensureTeacher(t);
+    ensureTeacher(t2);
     const k = key(cls.id, b.req.subjectName);
     const sd = subjDay[k] || model.map(() => 0);
-    const mathPhys = isMathOrPhysics(b.req.subjectName);
+    const mathPhys = isMathOrPhysics(b.req.subjectName) || isMathOrPhysics(b.req.second?.subjectName || '');
     const out: { d: number; idx: number; cost: number }[] = [];
     const avgLoad = (teacherTotal[t] || 0) / D;
     for (let d = 0; d < D; d++) {
@@ -167,11 +190,12 @@ function runAttempt(input: AutoInput, model: DayModel[], seed: number): Attempt 
       for (const idx of options) {
         let free = true;
         for (let j = 0; j < size; j++) {
-          if (classOcc[cls.id][d][idx + j] || teacherOcc[t][d][idx + j]) { free = false; break; }
+          if (classOcc[cls.id][d][idx + j] || teacherOcc[t][d][idx + j] || (t2 && teacherOcc[t2][d][idx + j])) { free = false; break; }
         }
         if (!free) continue;
         let cost = 0;
         if (size === 1) {
+          if (m.morning.has(idx)) { if (!relaxMorning) continue; cost += 3000; }   // no single period before the break
           cost += (m.last - idx) * 60;                        // singles go to the end of the day
         } else {
           const inMorning = m.morning.has(idx) && m.morning.has(idx + 1);
@@ -182,7 +206,7 @@ function runAttempt(input: AutoInput, model: DayModel[], seed: number): Attempt 
             if (inMorning) cost += 15;                        // keep the morning for Mathematics/Physics
           }
         }
-        const load = teacherLoad[t][d];
+        const load = Math.max(teacherLoad[t][d], t2 ? teacherLoad[t2][d] : 0);
         cost += load * 14;
         if (load + size > Math.ceil(avgLoad) + 1) cost += 90;
         if (sd[d] > 0) cost += 220;                            // spread the subject over different days
@@ -200,15 +224,15 @@ function runAttempt(input: AutoInput, model: DayModel[], seed: number): Attempt 
 
   const attemptBlock = (b: Block) => {
     let list = candidates(b, b.size, false);
-    if (list.length === 0 && b.size === 2) list = candidates(b, 2, true);
+    if (list.length === 0) list = candidates(b, b.size, true);
     if (list.length > 0) { place(b, list[0].d, list[0].idx, b.size); score += list[0].cost; return true; }
     if (b.size === 2) {
       // no room for a double: two single periods instead
       const one = { ...b, size: 1 as const };
-      const first = candidates(one, 1, true);
+      const first = candidates(one, 1, false).concat(candidates(one, 1, true)).sort((x, y) => x.cost - y.cost);
       if (first.length > 0) {
         place(one, first[0].d, first[0].idx, 1);
-        const second = candidates(one, 1, true);
+        const second = candidates(one, 1, false).concat(candidates(one, 1, true)).sort((x, y) => x.cost - y.cost);
         if (second.length > 0) { place(one, second[0].d, second[0].idx, 1); splitDoubles++; score += 500; return true; }
         unplaced.push({ classId: classes[b.classIdx].id, className: classes[b.classIdx].name, subjectName: b.req.subjectName, periods: 1 });
         score += 5000;
@@ -237,27 +261,32 @@ function runAttempt(input: AutoInput, model: DayModel[], seed: number): Attempt 
     });
   }));
 
-  // leftover periods become Religion
+  // leftover periods: Friday afternoon = Religion, every other free period = PS (Private Studies)
   const religion: Record<string, number> = {};
-  classes.forEach((c, ci) => {
-    religion[c.id] = 0;
-    model.forEach((m, d) => m.lessons.forEach((pid, idx) => {
-      if (!classOcc[c.id][d][idx]) {
-        cells[c.id][m.day][pid] = { subjectId: 'religion', subjectName: 'Religion', teacherId: '', roomId: '', classId: c.id, isReligion: true, isDouble: false, isDoubleSpan: false };
+  const ps: Record<string, number> = {};
+  classes.forEach(c => {
+    religion[c.id] = 0; ps[c.id] = 0;
+    model.forEach((m, d) => {
+      m.lessons.forEach((pid, idx) => {
+        if (classOcc[c.id][d][idx]) return;
+        cells[c.id][m.day][pid] = { subjectId: 'ps', subjectName: 'PS', teacherId: '', roomId: '', classId: c.id, isPS: true, isReligion: false, isDouble: false, isDoubleSpan: false };
+        ps[c.id]++;
+      });
+      m.religionSlots.forEach(pid => {
+        cells[c.id][m.day][pid] = { subjectId: 'religion', subjectName: 'Religion', teacherId: '', roomId: '', classId: c.id, isPS: false, isReligion: true, isDouble: false, isDoubleSpan: false };
         religion[c.id]++;
-      }
-    }));
-    void ci;
+      });
+    });
   });
 
   // teacher spread penalty: busiest day minus lightest day
   Object.values(teacherLoad).forEach(row => { score += (Math.max(...row) - Math.min(...row)) * 25; });
   void slots;
-  return { schedule: cells, unplaced, splitDoubles, score, teacherDayLoad: teacherLoad, religion, placed: placedPeriods };
+  return { schedule: cells, unplaced, splitDoubles, score, teacherDayLoad: teacherLoad, religion, ps, placed: placedPeriods };
 }
 
 export function generateAutoTimetable(input: AutoInput): AutoResult {
-  const model = buildDays(input.days, input.slots, input.fridayEnd || '12:30');
+  const model = buildDays(input.days, input.slots, input.fridayEnd);
   const attempts = input.attempts || 40;
   let best: Attempt | null = null;
   for (let i = 0; i < attempts; i++) {
@@ -271,12 +300,13 @@ export function generateAutoTimetable(input: AutoInput): AutoResult {
     unplaced: result.unplaced,
     splitDoubles: result.splitDoubles,
     religionPeriods: result.religion,
+    psPeriods: result.ps,
     teacherDayLoad: result.teacherDayLoad,
     placedPeriods: result.placed
   };
 }
 
 // ---------- checks used before generating ----------
-export function weeklyCapacity(days: string[], slots: AutoSlot[], fridayEnd = '12:30'): number {
+export function weeklyCapacity(days: string[], slots: AutoSlot[], fridayEnd?: string): number {
   return buildDays(days, slots, fridayEnd).reduce((sum, m) => sum + m.lessons.length, 0);
 }
