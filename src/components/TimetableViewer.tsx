@@ -176,7 +176,6 @@ export const TimetableViewer: React.FC = () => {
       let finalName: string = targetName;
       if ((viewType as any)==='my_teaching') { try{ const cur=JSON.parse(localStorage.getItem('sms_current_user')||'null'); if(cur) finalName=cur.name; }catch{} }
       const title = finalName ? `${finalName} Teaching Timetable` : (isClass ? 'Class Teaching Timetable' : 'Teacher Teaching Timetable');
-      const orientation = 'landscape';
       const logo = getConfiguredLogo(schoolLogo);
       const sName = getConfiguredSchoolName(schoolName);
       const district = getConfiguredDistrict();
@@ -367,6 +366,7 @@ export const TimetableViewer: React.FC = () => {
     scheduleUnscheduledLesson(selectedUnscheduledId, un.classId, activeCell.day, activeCell.periodId, selectedRoomId);
     setActiveCell(null);
   };
+  void handlePlaceUnscheduled;
 
   const handleRemoveCell = () => {
     if (!activeCell) return;
@@ -568,7 +568,6 @@ export const TimetableViewer: React.FC = () => {
                           let displaySub = displaySubRaw;
                           try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(displaySubRaw && m[displaySubRaw]) displaySub=m[displaySubRaw]; else if(sub && m[sub.name]) displaySub=m[sub.name]; } catch{}
                           if (!isPS && !isReligion && !isAct && displaySubRaw && displaySub===displaySubRaw) { try{ displaySub=displaySubRaw.substring(0,4).toUpperCase(); }catch{} }
-                          const tchr = teachers.find((teach:any) => teach.id === cell.teacherId);
                           const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, viewType, classes, viewType === 'teacher' ? selectedId : '');
                           const isDouble = (cell as any).isDouble;
                           if (isDouble) {
@@ -853,8 +852,8 @@ export const TimetableViewer: React.FC = () => {
             {existing ? (
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                 <div className="text-xs">
-                  <div className="font-bold text-slate-800">{existing.isActivity ? (existing as any).activity : (existing.subjectId==='ps' ? 'PS - Private Studies' : (findCellSubject(subjects, existing.subjectId, (existing as any).subjectName)?.name || existing.subjectId))} {(existing as any).isDouble ? '(Double 80min)' : (existing as any).isPS ? '(PS)' : ''}</div>
-                  {!existing.isActivity && !(existing as any).isPS && <div className="text-slate-500">Teacher: {teachers.find((t:any)=>t.id===existing.teacherId)?.name || ''}</div>}
+                  <div className="font-bold text-slate-800">{(existing as any).isActivity ? (existing as any).activity : (existing.subjectId==='ps' ? 'PS - Private Studies' : (findCellSubject(subjects, existing.subjectId, (existing as any).subjectName)?.name || existing.subjectId))} {(existing as any).isDouble ? '(Double 80min)' : (existing as any).isPS ? '(PS)' : ''}</div>
+                  {!(existing as any).isActivity && !(existing as any).isPS && <div className="text-slate-500">Teacher: {teachers.find((t:any)=>t.id===existing.teacherId)?.name || ''}</div>}
                 </div>
                 <button onClick={() => { try{ handleRemoveCell(); }catch(e:any){ setCollisionMsg(String(e)); } }} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 border border-red-200 flex flex-col items-center font-bold text-xs"><Trash2 size={14} /><span>Remove</span></button>
               </div>

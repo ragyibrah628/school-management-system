@@ -6,11 +6,17 @@
 //  - Mathematics and Physics doubles are placed before the morning break
 //  - every single (odd) period goes to the last period of the day (after the break)
 //  - subjects the admin combined (e.g. PHY/HST) always share the same periods
-//  - free periods left over become PS (Private Studies), Friday's afternoon is Religion
+//  - PS (Private Studies) only between 12:30 and 14:30, at most 1 per day and 4 per week per class
+//  - other free periods are given as extra lessons to the teachers with the lightest week who are free
+//    (doubles first, singles only after the break); Friday after the break is Religion
 //  - doubles first: 3 periods = double + single, 5 = 2 doubles + single, 6 = 3 doubles ...
 //  - at most 2 periods of one subject per class per day
 //  - a teacher is never in two places at once and the teacher's lessons are spread over the 5 days
 //  - periods left over in a class are filled with Religion (the admin can change them)
+
+export const PS_FROM = '12:30';
+export const PS_MAX_PER_DAY = 1;
+export const PS_MAX_PER_WEEK = 4;
 
 export interface AutoSlot { id: string; name?: string; startTime: string; endTime: string; isBreak?: boolean; isActivity?: boolean }
 export interface AutoClass { id: string; name: string; level: number; roomId?: string }
@@ -35,6 +41,8 @@ export interface AutoResult {
   splitDoubles: number;
   religionPeriods: Record<string, number>;
   psPeriods: Record<string, number>;
+  emptyPeriods: Record<string, number>;
+  extraPeriods: number;
   teacherDayLoad: Record<string, number[]>;
   placedPeriods: number;
 }
@@ -95,7 +103,7 @@ function buildDays(days: string[], slots: AutoSlot[], fridayEndIn?: string): Day
   });
 }
 
-interface Attempt { schedule: AutoResult['schedule']; unplaced: AutoUnplaced[]; splitDoubles: number; score: number; teacherDayLoad: Record<string, number[]>; religion: Record<string, number>; ps: Record<string, number>; placed: number }
+interface Attempt { schedule: AutoResult['schedule']; unplaced: AutoUnplaced[]; splitDoubles: number; score: number; teacherDayLoad: Record<string, number[]>; religion: Record<string, number>; ps: Record<string, number>; empty: Record<string, number>; extra: number; placed: number }
 
 function runAttempt(input: AutoInput, model: DayModel[], seed: number): Attempt {
   const rand = mulberry32(seed);
@@ -261,28 +269,82 @@ function runAttempt(input: AutoInput, model: DayModel[], seed: number): Attempt 
     });
   }));
 
-  // leftover periods: Friday afternoon = Religion, every other free period = PS (Private Studies)
-  const religion: Record<string, number> = {};
+  // ---- PS: only 12:30-14:30, max 1 per day and 4 per week for each class ----
+  const startOf: Record<string, string> = {};
+  slots.forEach(sl => { startOf[sl.id] = sl.startTime; });
+  const psCell = (cid: string) => ({ subjectId: 'ps', subjectName: 'PS', teacherId: '', roomId: '', classId: cid, isPS: true, isReligion: false, isDouble: false, isDoubleSpan: false });
   const ps: Record<string, number> = {};
   classes.forEach(c => {
-    religion[c.id] = 0; ps[c.id] = 0;
-    model.forEach((m, d) => {
-      m.lessons.forEach((pid, idx) => {
-        if (classOcc[c.id][d][idx]) return;
-        cells[c.id][m.day][pid] = { subjectId: 'ps', subjectName: 'PS', teacherId: '', roomId: '', classId: c.id, isPS: true, isReligion: false, isDouble: false, isDoubleSpan: false };
-        ps[c.id]++;
+    ps[c.id] = 0;
+    for (let d = 0; d < D && ps[c.id] < PS_MAX_PER_WEEK; d++) {
+      const m = model[d];
+      let perDay = 0;
+      for (let idx = m.lessons.length - 1; idx >= 0 && perDay < PS_MAX_PER_DAY; idx--) {
+        if (classOcc[c.id][d][idx] || startOf[m.lessons[idx]] < PS_FROM) continue;
+        classOcc[c.id][d][idx] = true;
+        cells[c.id][m.day][m.lessons[idx]] = psCell(c.id);
+        ps[c.id]++; perDay++;
+      }
+    }
+  });
+
+  // ---- extra lessons for the lightest teachers, doubles first ----
+  let extra = 0;
+  const totalLoad = (t: string) => (teacherLoad[t] || []).reduce((a, n) => a + n, 0);
+  const pickExtra = (size: 1 | 2) => {
+    let best: { b: Block; d: number; idx: number; cost: number } | null = null;
+    classes.forEach((c, classIdx) => {
+      const reqs = (requirements[c.id] || []).filter(r => !r.second);
+      model.forEach((m, d) => {
+        const starts = size === 1 ? m.lessons.map((_, i) => i) : m.pairs.map(p => p[0]);
+        starts.forEach(idx => {
+          if (size === 1 && m.morning.has(idx)) return;
+          for (let j = 0; j < size; j++) if (classOcc[c.id][d][idx + j]) return;
+          reqs.forEach(r => {
+            ensureTeacher(r.teacherId);
+            for (let j = 0; j < size; j++) if (teacherOcc[r.teacherId][d][idx + j]) return;
+            const sd = (subjDay[key(c.id, r.subjectName)] || [])[d] || 0;
+            if (sd + size > 2) return;
+            if (size === 2 && isMathOrPhysics(r.subjectName) && !(m.morning.has(idx) && m.morning.has(idx + 1))) return;
+            let cost = totalLoad(r.teacherId) * 10 + sd * 25 + teacherLoad[r.teacherId][d] * 6 + rand() * 4;
+            const a = cells[c.id][m.day][m.lessons[idx - 1]];
+            const z = cells[c.id][m.day][m.lessons[idx + size]];
+            if ((a && a.subjectName === r.subjectName) || (z && z.subjectName === r.subjectName)) cost += 60;
+            if (!best || cost < best.cost) best = { b: { classIdx, req: r, size, priority: 0 }, d, idx, cost };
+          });
+        });
       });
+    });
+    return best as { b: Block; d: number; idx: number; cost: number } | null;
+  };
+  for (const size of [2, 1] as const) {
+    for (let guard = 0; guard < 400; guard++) {
+      const pick = pickExtra(size);
+      if (!pick) break;
+      place(pick.b, pick.d, pick.idx, size);
+      extra += size;
+    }
+  }
+
+  // ---- Friday afternoon = Religion; count what is still empty ----
+  const religion: Record<string, number> = {};
+  const empty: Record<string, number> = {};
+  classes.forEach(c => {
+    religion[c.id] = 0; empty[c.id] = 0;
+    model.forEach((m, d) => {
+      m.lessons.forEach((pid, idx) => { if (!classOcc[c.id][d][idx]) empty[c.id]++; void pid; });
       m.religionSlots.forEach(pid => {
         cells[c.id][m.day][pid] = { subjectId: 'religion', subjectName: 'Religion', teacherId: '', roomId: '', classId: c.id, isPS: false, isReligion: true, isDouble: false, isDoubleSpan: false };
         religion[c.id]++;
       });
     });
   });
+  Object.values(empty).forEach(n => { score += n * 4; });
 
   // teacher spread penalty: busiest day minus lightest day
   Object.values(teacherLoad).forEach(row => { score += (Math.max(...row) - Math.min(...row)) * 25; });
   void slots;
-  return { schedule: cells, unplaced, splitDoubles, score, teacherDayLoad: teacherLoad, religion, ps, placed: placedPeriods };
+  return { schedule: cells, unplaced, splitDoubles, score, teacherDayLoad: teacherLoad, religion, ps, empty, extra, placed: placedPeriods };
 }
 
 export function generateAutoTimetable(input: AutoInput): AutoResult {
@@ -301,6 +363,8 @@ export function generateAutoTimetable(input: AutoInput): AutoResult {
     splitDoubles: result.splitDoubles,
     religionPeriods: result.religion,
     psPeriods: result.ps,
+    emptyPeriods: result.empty,
+    extraPeriods: result.extra,
     teacherDayLoad: result.teacherDayLoad,
     placedPeriods: result.placed
   };

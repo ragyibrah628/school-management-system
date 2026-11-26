@@ -3,7 +3,7 @@ import { Play, X, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useTimetable } from '../context/TimetableContext';
 import * as cloud from '../lib/cloud';
 import { displayClass, levelOfClass, sortClasses } from '../utils/promotion';
-import { generateAutoTimetable, defaultPeriodsPerWeek, weeklyCapacity, AutoRequirement } from '../utils/autoTimetable';
+import { generateAutoTimetable, defaultPeriodsPerWeek, weeklyCapacity, AutoRequirement, PS_FROM, PS_MAX_PER_DAY, PS_MAX_PER_WEEK } from '../utils/autoTimetable';
 
 export const CLASS_SUBJECTS_KEY = 'sms_tt_class_subjects';
 export type ClassSubjectConfig = Record<string, Record<string, number>>;
@@ -264,7 +264,10 @@ export const TimetableAutoPanel: React.FC<Props> = ({ slots, onClose }) => {
           <div className="flex items-center gap-2 font-bold"><CheckCircle2 size={14} /> Timetable generated: {report.placedPeriods} lessons placed.</div>
           {report.splitDoubles > 0 && <div>{report.splitDoubles} double period(s) could not fit and were split into single periods.</div>}
           {report.unplaced.length > 0 && <div className="text-rose-700 font-semibold">Not placed: {report.unplaced.map((u: any) => `${u.className} ${u.subjectName} (${u.periods})`).join('; ')}</div>}
-          <div>Free periods were filled with PS: {Object.entries(report.psPeriods).map(([id, n]) => `${report.names[id]} ${n}`).join(', ')}. Friday after the break is Religion. You can change any cell by clicking it.</div>
+          <div>PS (12:30–14:30, max 1 per day, 4 per week): {Object.entries(report.psPeriods).map(([id, n]) => `${report.names[id]} ${n}`).join(', ')}.</div>
+          {report.extraPeriods > 0 && <div>{report.extraPeriods} extra lesson period(s) were given to teachers with the lightest week.</div>}
+          {Object.values(report.emptyPeriods).some((n: any) => n > 0) && <div>Empty periods left: {Object.entries(report.emptyPeriods).filter(([, n]: any) => n > 0).map(([id, n]) => `${report.names[id]} ${n}`).join(', ')} (click a cell to fill it).</div>}
+          <div>Friday after the break is Religion. You can change any cell by clicking it.</div>
         </div>
       )}
       {report?.error && <div className="text-xs text-rose-700 font-semibold">Generation failed. Please try again.</div>}
@@ -275,7 +278,7 @@ export const TimetableAutoPanel: React.FC<Props> = ({ slots, onClose }) => {
 
 // ---------- side panel: periods per week for the class on screen ----------
 export const PeriodsSidePanel: React.FC<{ classId: string; slots: any[] }> = ({ classId, slots }) => {
-  const { classes, subjects, days, timetableData, updateLessonSlot } = useTimetable() as any;
+  const { classes, subjects, days, timetableData, updateLessonSlot, removeLessonSlot } = useTimetable() as any;
   const [, bump] = useState(0);
   const [msg, setMsg] = useState('');
   const cls = classes.find((c: any) => c.id === classId);
@@ -286,10 +289,11 @@ export const PeriodsSidePanel: React.FC<{ classId: string; slots: any[] }> = ({ 
   const counts: Record<string, number> = {};
   let religion = 0;
   let psCount = 0;
+  let emptyCount = 0;
   const combinedNames = new Set<string>();
   days.forEach((d: string) => lessonSlots.forEach((sl: any) => {
     const cell = schedule[classId]?.[d]?.[sl.id];
-    if (!cell) return;
+    if (!cell) { emptyCount++; return; }
     if (cell.isReligion) { religion++; return; }
     if (cell.isPS || cell.subjectId === 'ps') { psCount++; return; }
     const name = cell.subjectName || subjects.find((x: any) => x.id === cell.subjectId)?.name || '';
@@ -318,14 +322,14 @@ export const PeriodsSidePanel: React.FC<{ classId: string; slots: any[] }> = ({ 
     for (const sl of [...lessonSlots].reverse()) for (const d of days) {
       if (!afterBreak(sl.id)) continue;   // no single period before the break
       const cell = schedule[classId]?.[d]?.[sl.id];
-      if ((cell?.isPS || cell?.subjectId === 'ps') && !teacherBusy(t.id, d, sl.id) && perDay(d) < 2) {
+      if ((!cell || cell.isPS || cell.subjectId === 'ps') && !teacherBusy(t.id, d, sl.id) && perDay(d) < 2) {
         updateLessonSlot(classId, d, sl.id, subj?.id || sub, t.id, '', { subjectName: sub, isDouble: false, isDoubleSpan: false });
         setRequired(sub, (required[sub] ?? counts[sub] ?? 0) + 1);
         setMsg(`${sub}: +1 period (${d}, ${sl.name || sl.id}).`);
         return;
       }
     }
-    setMsg(`${sub}: no free PS period where ${t.name} is free.`);
+    setMsg(`${sub}: no free (PS or empty) period after the break where ${t.name} is free.`);
   };
   const psCell = { subjectId: 'ps', subjectName: 'PS', isPS: true, isReligion: false, isDouble: false, isDoubleSpan: false };
   const removePeriod = (sub: string) => {
@@ -336,16 +340,24 @@ export const PeriodsSidePanel: React.FC<{ classId: string; slots: any[] }> = ({ 
       if (!cell.isDouble && !cell.isDoubleSpan) { if (!single) single = [d, sl.id]; }
       else if (cell.isDoubleSpan && !span) span = [d, sl.id];
     }
-    if (single) updateLessonSlot(classId, single[0], single[1], 'ps', '', '', psCell);
+    const psAllowed = (d: string, pid: string) => {
+      const start = slots.find((x: any) => x.id === pid)?.startTime || '';
+      if (start < PS_FROM) return false;
+      const inDay = lessonSlots.filter((x: any) => schedule[classId]?.[d]?.[x.id]?.isPS).length;
+      const inWeek = days.reduce((a: number, dd: string) => a + lessonSlots.filter((x: any) => schedule[classId]?.[dd]?.[x.id]?.isPS).length, 0);
+      return inDay < PS_MAX_PER_DAY && inWeek < PS_MAX_PER_WEEK;
+    };
+    const free = (d: string, pid: string) => psAllowed(d, pid) ? updateLessonSlot(classId, d, pid, 'ps', '', '', psCell) : removeLessonSlot(classId, d, pid);
+    if (single) free(single[0], single[1]);
     else if (span) {
       const [d, pid] = span;
       const idx = lessonSlots.findIndex((x: any) => x.id === pid);
       const head = schedule[classId]?.[d]?.[lessonSlots[idx - 1]?.id];
       if (head) updateLessonSlot(classId, d, head ? lessonSlots[idx - 1].id : pid, head.subjectId, head.teacherId, head.roomId || '', { ...head, isDouble: false, isDoubleSpan: false });
-      updateLessonSlot(classId, d, pid, 'ps', '', '', psCell);
+      free(d, pid);
     } else { setMsg(`${sub}: nothing to remove.`); return; }
     setRequired(sub, (required[sub] ?? counts[sub] ?? 0) - 1);
-    setMsg(`${sub}: -1 period (now PS).`);
+    setMsg(`${sub}: -1 period.`);
   };
 
   return (
@@ -371,11 +383,12 @@ export const PeriodsSidePanel: React.FC<{ classId: string; slots: any[] }> = ({ 
             );
           })}
           <tr className="border-t border-slate-200"><td className="py-1 font-semibold text-slate-500">PS (free)</td><td className="py-1 text-center font-bold text-slate-500">{psCount}</td><td /></tr>
+          <tr><td className="py-1 font-semibold text-slate-500">Empty</td><td className="py-1 text-center font-bold text-slate-500">{emptyCount}</td><td /></tr>
           <tr><td className="py-1 font-semibold text-slate-500">Religion</td><td className="py-1 text-center font-bold text-slate-500">{religion}</td><td /></tr>
         </tbody>
       </table>
       {msg && <p className="text-[11px] text-slate-600 mt-2">{msg}</p>}
-      <p className="text-[10px] text-slate-400 mt-2">Green = syllabus met or more, red = fewer than syllabus. Click any cell in the timetable to change a subject or its time. + takes a free PS period, − turns a period into PS. Combined subjects are edited by clicking their cell.</p>
+      <p className="text-[10px] text-slate-400 mt-2">Green = syllabus met or more, red = fewer than syllabus. Click any cell in the timetable to change a subject or its time. + takes a free (PS or empty) period after the break, − frees a period. Combined subjects are edited by clicking their cell.</p>
     </aside>
   );
 };
