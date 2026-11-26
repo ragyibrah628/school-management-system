@@ -5,6 +5,8 @@ import { getDistrictLogo, letterheadOpen, letterheadClose } from '../utils/lette
 import { TT_PRINT_CSS, TT_FIT_SCRIPT } from '../utils/timetablePrint';
 import { DayOfWeek, TimetableCell } from '../types';
 import { getTeacherOccupiedSlots } from '../utils/scheduler';
+import { displayClass } from '../utils/promotion';
+import { TimetableAutoPanel, PeriodsSidePanel } from './TimetableAutoPanel';
 import { 
   Printer, Grid, 
   AlertTriangle, X, Trash2, Plus, Play, RefreshCw
@@ -74,7 +76,7 @@ function findTeacherForSubjectClass(subjectName: string, className: string): { i
     const users = JSON.parse(localStorage.getItem('sms_users') || '[]');
     for (const [tid, arr] of Object.entries(ta as any)) {
       const list = arr as any[];
-      if (list.some((a: any) => a.cls === className && String(a.sub || '').trim().toLowerCase() === String(subjectName || '').trim().toLowerCase())) {
+      if (list.some((a: any) => displayClass(String(a.cls || '')) === displayClass(String(className || '')) && String(a.sub || '').trim().toLowerCase() === String(subjectName || '').trim().toLowerCase())) {
         const u = users.find((x: any) => x.id === tid);
         if (u) return { id: tid, name: u.name };
       }
@@ -90,10 +92,13 @@ const normSubject = (value: any) => String(value || '').trim().toLowerCase();
 
 export const TimetableViewer: React.FC = () => {
   const { 
-    timetableData, classes, teachers, subjects, rooms, timeSlots, days, conflicts, classSubjects,
+    timetableData, classes: rawClasses, teachers, subjects, rooms, timeSlots, days, conflicts, classSubjects,
     schoolLogo, schoolName,
-    removeLessonSlot, scheduleUnscheduledLesson, updateLessonSlot, triggerGeneration, isGenerating
+    removeLessonSlot, scheduleUnscheduledLesson, updateLessonSlot, replaceTimetable, isGenerating
   } = useTimetable() as any;
+  // One naming style everywhere: Form I, Form II, Form III, Form IV
+  const classes = React.useMemo(() => (rawClasses as any[]).map(c => ({ ...c, name: displayClass(c.name) })), [rawClasses]);
+  const [showAuto, setShowAuto] = useState(false);
 
   const [viewType, setViewType] = useState<'class' | 'teacher' | 'room' | 'master' | 'all_classes' | 'all_teachers'>('class');
   const [selectedId, setSelectedId] = useState<string>('');
@@ -128,21 +133,28 @@ export const TimetableViewer: React.FC = () => {
 
   if (!timetableData) {
     return (
-      <div className="bg-white p-12 rounded-2xl border border-slate-100 text-center max-w-2xl mx-auto shadow-sm mt-12">
-        {isGenerating ? <RefreshCw size={48} className="mx-auto text-indigo-500 mb-4 animate-spin" /> : <Grid size={48} className="mx-auto text-slate-300 mb-4" />}
-        <h2 className="text-xl font-bold text-slate-800 mb-2">No Timetable Generated Yet</h2>
-        <p className="text-sm text-slate-500 mb-6">Generate the master timetable using the classes, subjects, and teachers registered by the admin.</p>
-        <button
-          onClick={triggerGeneration}
-          disabled={isGenerating || classes.length === 0 || teachers.length === 0}
-          className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 text-white font-semibold shadow-lg shadow-indigo-600/20 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
-        >
-          {isGenerating ? <RefreshCw size={18} className="animate-spin" /> : <Play size={18} fill="currentColor" />}
-          {isGenerating ? 'Generating Timetable...' : 'Generate Timetable'}
-        </button>
-        {(classes.length === 0 || teachers.length === 0) && !isGenerating && (
-          <p className="text-xs text-amber-600 mt-4">Register at least one class and one teacher before generating.</p>
-        )}
+      <div className="space-y-4">
+        <div className="bg-white p-10 rounded-2xl border border-slate-100 text-center max-w-2xl mx-auto shadow-sm mt-8">
+          <Grid size={48} className="mx-auto text-slate-300 mb-4" />
+          <h2 className="text-xl font-bold text-slate-800 mb-2">No Timetable Yet</h2>
+          <p className="text-sm text-slate-500 mb-6">Choose how to create the timetable: fill it by hand, or let the system generate it automatically.</p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <button
+              onClick={() => replaceTimetable({})}
+              disabled={classes.length === 0}
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-800 text-white font-semibold disabled:bg-slate-200 disabled:text-slate-400"
+            ><Plus size={18} /> Create manually</button>
+            <button
+              onClick={() => setShowAuto(true)}
+              disabled={classes.length === 0 || teachers.length === 0}
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 text-white font-semibold shadow-lg shadow-indigo-600/20 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+            ><Play size={18} fill="currentColor" /> Generate Timetable</button>
+          </div>
+          {(classes.length === 0 || teachers.length === 0) && (
+            <p className="text-xs text-amber-600 mt-4">Register at least one class and one teacher first.</p>
+          )}
+        </div>
+        {showAuto && <TimetableAutoPanel slots={activePeriods} onClose={() => setShowAuto(false)} />}
       </div>
     );
   }
@@ -410,6 +422,14 @@ export const TimetableViewer: React.FC = () => {
           )}
         </div>
 
+        <div className="flex items-center gap-2">
+        <button
+          onClick={() => setShowAuto(v => !v)}
+          className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 shadow-md transition-all"
+        >
+          <Play size={16} fill="currentColor" />
+          <span>Generate Timetable</span>
+        </button>
         <button
           onClick={handlePrint}
           className="flex items-center space-x-2 px-4 py-2 bg-slate-800 text-white text-sm font-semibold rounded-xl hover:bg-slate-900 shadow-md transition-all"
@@ -417,7 +437,10 @@ export const TimetableViewer: React.FC = () => {
           <Printer size={16} />
           <span>Print Schedule</span>
         </button>
+        </div>
       </div>
+
+      {showAuto && <TimetableAutoPanel slots={activePeriods} onClose={() => setShowAuto(false)} />}
 
       {/* Conflicts Banner (HIDES ON PRINT) */}
       {viewType !== 'master' && currentConflicts.length > 0 && (
@@ -438,7 +461,8 @@ export const TimetableViewer: React.FC = () => {
 
       {/* TIMETABLE GRID */}
       {!['master', 'all_classes', 'all_teachers'].includes(viewType) ? (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden print:border-none print:shadow-none">
+        <div className="flex flex-col xl:flex-row gap-4 items-start print:block">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden print:border-none print:shadow-none min-w-0 flex-1 w-full">
           {/* Header identifying the schedule (GOOD FOR PRINTING) */}
           <div className="p-4 border-b border-slate-100 hidden print:flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -593,6 +617,8 @@ export const TimetableViewer: React.FC = () => {
             </table>
           </div>
         </div>
+        {viewType === 'class' && selectedId && <PeriodsSidePanel classId={selectedId} slots={activePeriods} />}
+        </div>
       ) : viewType === 'master' || viewType === 'all_classes' ? (
         /* BATCH CLASSES / MASTER VIEW GRID */
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 print:p-0 print:border-none print:shadow-none">
@@ -604,7 +630,7 @@ export const TimetableViewer: React.FC = () => {
               // Subjects of this class come from the admin's Teaching Assignments
               const assignedSubjects = new Set<string>();
               Object.values(readTeachingAssignments()).forEach((list: any) => (list || []).forEach((item: any) => {
-                if (item?.cls === cls.name && item?.sub) assignedSubjects.add(normSubject(item.sub));
+                if (displayClass(String(item?.cls || '')) === displayClass(cls.name) && item?.sub) assignedSubjects.add(normSubject(item.sub));
               }));
               const clsSubs = Array.from(assignedSubjects);
               const totalP = classSubjects

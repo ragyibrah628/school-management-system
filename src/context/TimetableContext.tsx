@@ -49,6 +49,7 @@ interface TimetableContextType {
   
   // Generation and Manual Adjustments
   triggerGeneration: () => void;
+  replaceTimetable: (schedule: any) => void;
   updateLessonSlot: (classId: string, day: string, periodId: string, subjectId: string, teacherId: string, roomId: string, metadata?: Record<string, any>) => void;
   removeLessonSlot: (classId: string, day: string, periodId: string) => void;
   scheduleUnscheduledLesson: (unscheduledId: string, classId: string, day: string, periodId: string, roomId: string) => void;
@@ -404,6 +405,18 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
     }, 800); // Small delay to show generating animation
   };
 
+  // Used by the automatic generator: replace the whole schedule with a new one
+  const replaceTimetable = (schedule: any) => {
+    let conflictsCount = 0;
+    try { conflictsCount = validateSchedule(schedule, days, timeSlots, teachers).stats.conflictsCount; } catch {}
+    setTimetableData(prev => ({
+      unscheduled: [],
+      ...(prev || {}),
+      schedule,
+      generationStats: { ...((prev as any)?.generationStats || { totalLessons: 0, scheduledLessons: 0, unscheduledLessons: 0 }), conflictsCount }
+    } as any));
+  };
+
   // Manual Adjustments
   const updateLessonSlot = (classId: string, day: string, periodId: string, subjectId: string, teacherId: string, roomId: string, metadata: Record<string, any> = {}) => {
     if (!timetableData) return;
@@ -512,7 +525,7 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
       addClass, updateClass, deleteClass,
       addClassSubject, updateClassSubject, deleteClassSubject,
       setTimeSlots, setDays,
-      triggerGeneration, updateLessonSlot, removeLessonSlot, scheduleUnscheduledLesson,
+      triggerGeneration, replaceTimetable, updateLessonSlot, removeLessonSlot, scheduleUnscheduledLesson,
       loadDummyData, clearAllData
     }}>
       {children}
