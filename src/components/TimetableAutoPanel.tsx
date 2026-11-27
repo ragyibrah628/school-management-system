@@ -44,7 +44,8 @@ export function findAssignedTeacher(subjectName: string, className: string): { i
     for (const [tid, arr] of Object.entries(ta as any)) {
       if ((arr as any[]).some(a => displayClass(a.cls) === displayClass(className) && norm(a.sub) === norm(subjectName))) {
         const u = users.find((x: any) => x.id === tid);
-        return { id: tid, name: u?.name || tid };
+        if (!u) continue;                              // the teacher no longer exists
+        return { id: tid, name: u.name };
       }
     }
   } catch {}

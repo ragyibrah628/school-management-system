@@ -366,7 +366,9 @@ function AppInner() {
   const findSubjectOwner = (cls: string, sub: string): { id: string; name: string } | null => {
     const wantCls = displayClass(cls);
     const wantSub = sub.trim().toLowerCase();
+    const liveIds = new Set((users as any[]).filter((u: any) => u.role === 'teacher').map((u: any) => u.id));
     for (const [tid, list] of Object.entries(teachingAssignments)) {
+      if (liveIds.size > 0 && !liveIds.has(tid)) continue;   // assignments of deleted teachers do not block
       if ((list || []).some(a => displayClass(a.cls) === wantCls && a.sub.trim().toLowerCase() === wantSub)) {
         const owner = (users as any[]).find((u: any) => u.id === tid);
         return { id: tid, name: owner?.name || tid };
@@ -2205,18 +2207,33 @@ function AppInner() {
             {(() => {
               // subjects that already have more than one teacher in the same class (older data)
               const owners: Record<string, string[]> = {};
-              Object.entries(teachingAssignments).forEach(([tid, list]) => (list || []).forEach(a => {
+              const liveIds = new Set((users as any[]).filter((u: any) => u.role === 'teacher').map((u: any) => u.id));
+              const orphanIds = users.length > 0 ? Object.keys(teachingAssignments).filter(tid => !liveIds.has(tid) && (teachingAssignments[tid] || []).length > 0) : [];
+              Object.entries(teachingAssignments).forEach(([tid, list]) => (liveIds.has(tid) ? (list || []) : []).forEach(a => {
                 const k = `${displayClass(a.cls)} — ${a.sub.trim()}`;
                 const nm = (users as any[]).find((u: any) => u.id === tid)?.name || tid;
                 (owners[k] = owners[k] || []).push(nm);
               }));
               const dup = Object.entries(owners).filter(([, n]) => n.length > 1);
-              return dup.length > 0 ? (
-                <div className="mb-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-0.5">
-                  <p className="font-bold">These subjects have more than one teacher. Keep one teacher and remove the others (✕):</p>
-                  {dup.map(([k, n]) => <p key={k}>{k}: {n.join(', ')}</p>)}
-                </div>
-              ) : null;
+              return (
+                <>
+                  {orphanIds.length > 0 && (
+                    <div className="mb-3 p-3 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-700 flex flex-wrap items-center justify-between gap-2">
+                      <span>Found {orphanIds.reduce((n, id) => n + (teachingAssignments[id] || []).length, 0)} old assignment(s) that belong to teachers who no longer exist. They are ignored, but you can clear them.</span>
+                      <button
+                        onClick={() => setTeachingAssignments(prev => { const next = { ...prev }; orphanIds.forEach(id => { delete next[id]; }); return next; })}
+                        className="px-3 py-1.5 rounded-lg bg-slate-700 text-white font-semibold"
+                      >Clear old assignments</button>
+                    </div>
+                  )}
+                  {dup.length > 0 && (
+                    <div className="mb-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-0.5">
+                      <p className="font-bold">These subjects have more than one teacher. Keep one teacher and remove the others (✕):</p>
+                      {dup.map(([k, n]) => <p key={k}>{k}: {n.join(', ')}</p>)}
+                    </div>
+                  )}
+                </>
+              );
             })()}
             {teachers.length === 0 ? <p className="text-sm text-slate-500">Create teachers first.</p> :
               teachers.map((t: any) => {
