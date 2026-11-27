@@ -6,6 +6,7 @@ import { TT_PRINT_CSS, TT_FIT_SCRIPT } from '../utils/timetablePrint';
 import { DayOfWeek, TimetableCell } from '../types';
 import { getTeacherOccupiedSlots } from '../utils/scheduler';
 import { displayClass } from '../utils/promotion';
+import { swapPeriods, setLocked } from '../utils/timetableSwap';
 import { TimetableAutoPanel, PeriodsSidePanel } from './TimetableAutoPanel';
 import { 
   Printer, Grid, 
@@ -105,6 +106,8 @@ export const TimetableViewer: React.FC = () => {
   // One naming style everywhere: Form I, Form II, Form III, Form IV
   const classes = React.useMemo(() => rawClasses.map((c: any) => ({ ...c, name: displayClass(c.name) })), [rawClasses]);
   const [showAuto, setShowAuto] = useState(false);
+  const [swapFrom, setSwapFrom] = useState<{ day: string; periodId: string } | null>(null);
+  const [swapMsg, setSwapMsg] = useState('');
 
   const [viewType, setViewType] = useState<'class' | 'teacher' | 'room' | 'master' | 'all_classes' | 'all_teachers'>('class');
   const [selectedId, setSelectedId] = useState<string>('');
@@ -341,6 +344,15 @@ export const TimetableViewer: React.FC = () => {
   // --------------------------------------------------------
   const handleCellClick = (day: DayOfWeek, periodId: string, isBreak: boolean) => {
     if (isBreak || viewType !== 'class') return; // For now, only edit from Class View for simpler UX
+    if (swapFrom) {
+      // swap mode: the second click chooses the period to swap with
+      if (swapFrom.day === day && swapFrom.periodId === periodId) { setSwapFrom(null); setSwapMsg(''); return; }
+      const res = swapPeriods((timetableData as any).schedule, selectedId, { day: swapFrom.day, pid: swapFrom.periodId }, { day, pid: periodId }, activePeriods, (id: string) => classes.find((c: any) => c.id === id)?.name || id);
+      if (res.error) { setSwapMsg(res.error); return; }
+      replaceTimetable(res.schedule);
+      setSwapFrom(null); setSwapMsg('');
+      return;
+    }
     setActiveCell({ day, periodId });
     setSelectedUnscheduledId('');
   };
@@ -447,6 +459,13 @@ export const TimetableViewer: React.FC = () => {
       </div>
 
       {showAuto && <TimetableAutoPanel slots={activePeriods} onClose={() => setShowAuto(false)} />}
+
+      {(swapFrom || swapMsg) && (
+        <div className="print:hidden bg-amber-50 border border-amber-300 rounded-xl px-4 py-2 text-sm text-amber-900 flex flex-wrap items-center justify-between gap-2">
+          <span>{swapFrom ? <>Swap mode: <b>{swapFrom.day}</b> — click the period you want to swap with. </> : null}{swapMsg && <b className="text-rose-700">{swapMsg}</b>}</span>
+          <button onClick={() => { setSwapFrom(null); setSwapMsg(''); }} className="px-3 py-1 rounded-lg bg-white border border-amber-300 font-semibold">Cancel</button>
+        </div>
+      )}
 
       {/* Conflicts Banner (HIDES ON PRINT) */}
       {viewType !== 'master' && currentConflicts.length > 0 && (
@@ -579,6 +598,7 @@ export const TimetableViewer: React.FC = () => {
                                 onClick={() => handleCellClick(d, p.id, false)}
                                 className={`p-2 border-r border-slate-100 align-middle text-center relative group ${viewType === 'class' ? 'cursor-pointer' : ''}`}
                               >
+                                {(cell as any)?.locked && <span className="absolute top-1 right-2 text-[10px] print:hidden" title="Locked">🔒</span>}
                                 <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center ${sub?.color || 'bg-emerald-50 border-emerald-300'} ${hasConflict ? 'ring-2 ring-red-500 animate-pulse' : 'shadow-sm'}`}>
                                   {isPS || isReligion || isAct ? <div className="font-bold text-slate-900 text-[13px] leading-tight">{displaySub}</div> : subjectTeacherLines.map((line:any) => (
                                     <div key={line.code} className="leading-tight mb-0.5">
@@ -596,6 +616,7 @@ export const TimetableViewer: React.FC = () => {
                                 onClick={() => handleCellClick(d, p.id, false)}
                                 className={`p-2 border-r border-slate-100 align-middle text-center relative group ${viewType === 'class' ? 'cursor-pointer' : ''}`}
                               >
+                                {(cell as any)?.locked && <span className="absolute top-1 right-2 text-[10px] print:hidden" title="Locked">🔒</span>}
                                 <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center ${sub?.color || (isPS || isReligion ? 'bg-slate-100 border-slate-300' : isAct ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200')} ${hasConflict ? 'ring-2 ring-red-500 animate-pulse' : 'shadow-sm'}`}>
                                   {isPS || isReligion || isAct ? <div className="font-bold text-slate-900 text-[13px] leading-tight">{isPS ? 'PS' : displaySub}</div> : subjectTeacherLines.map((line:any) => (
                                     <div key={line.code} className="leading-tight mb-0.5">
@@ -1080,6 +1101,7 @@ export const TimetableViewer: React.FC = () => {
                     const isCombined = !!(secondSubjId && secondSubjName);
                     const cellToSave: any = { subjectId: subjId, subjectName: subjName, teacherId, roomId, classId: selectedId, isCombined, secondSubjectId: secondSubjId || undefined, secondSubjectName: secondSubjName || undefined, secondTeacherId: secondTeacherId || undefined, isDouble, isPS: false, isActivity: false };
                     // Store both halves in timetable state so the cloud copy preserves the double period.
+                    if ((existing as any)?.locked) cellToSave.locked = true;
                     (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, subjId, teacherId, roomId, cellToSave);
                     if (isDouble && targetPeriodIds[1]) {
                       (updateLessonSlot as any)(selectedId, activeCell.day, targetPeriodIds[1], subjId, teacherId, roomId, { ...cellToSave, isDoubleSpan: true });
@@ -1103,6 +1125,18 @@ export const TimetableViewer: React.FC = () => {
               </button>
               <button onClick={()=>setActiveCell(null)} className="px-4 py-2.5 bg-slate-100 rounded-xl font-bold text-sm">Close</button>
             </div>
+            {existing && !(existing as any).isActivity && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setSwapFrom({ day: activeCell.day, periodId: activeCell.periodId }); setSwapMsg(''); setActiveCell(null); }}
+                  className="flex-1 py-2 bg-amber-50 border border-amber-300 text-amber-800 rounded-xl font-bold text-xs"
+                >⇄ Swap with another period</button>
+                <button
+                  onClick={() => { replaceTimetable(setLocked((timetableData as any).schedule, selectedId, activeCell.day, activeCell.periodId, activePeriods, !(existing as any).locked)); setActiveCell(null); }}
+                  className="flex-1 py-2 bg-slate-50 border border-slate-300 text-slate-700 rounded-xl font-bold text-xs"
+                >{(existing as any).locked ? '🔓 Unlock this period' : '🔒 Lock this period'}</button>
+              </div>
+            )}
             <p className="text-[10px] text-slate-400 text-center">Collision prevents double-booking. Double merges 2 periods (80 min). PS has no teacher.</p>
           </div>
         </div>

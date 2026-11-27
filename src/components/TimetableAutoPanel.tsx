@@ -3,6 +3,7 @@ import { Play, X, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useTimetable } from '../context/TimetableContext';
 import * as cloud from '../lib/cloud';
 import { displayClass, levelOfClass, sortClasses } from '../utils/promotion';
+import { setAllLocked, countLocked } from '../utils/timetableSwap';
 import { generateAutoTimetable, defaultPeriodsPerWeek, weeklyCapacity, AutoRequirement, PS_FROM, PS_MAX_PER_DAY, PS_MAX_PER_WEEK } from '../utils/autoTimetable';
 
 export const CLASS_SUBJECTS_KEY = 'sms_tt_class_subjects';
@@ -54,6 +55,7 @@ interface Props { slots: any[]; onClose: () => void }
 
 export const TimetableAutoPanel: React.FC<Props> = ({ slots, onClose }) => {
   const { classes, subjects, days, timetableData, replaceTimetable } = useTimetable() as any;
+  const lockedCount = timetableData ? countLocked(timetableData.schedule) : 0;
   const [config, setConfig] = useState<ClassSubjectConfig>(readClassSubjectConfig);
   const [combined, setCombinedState] = useState<CombinedConfig>(readCombined);
   const [pick, setPick] = useState<Record<string, [string, string]>>({});
@@ -252,12 +254,20 @@ export const TimetableAutoPanel: React.FC<Props> = ({ slots, onClose }) => {
           </button>
         ) : (
           <div className="flex flex-wrap items-center gap-2 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2 text-xs text-rose-800">
-            <span className="font-semibold">The current timetable (lessons) will be replaced. Evening activities are kept. Continue?</span>
+            <span className="font-semibold">The current timetable will be re-planned. Locked periods and evening activities are kept. Continue?</span>
             <button onClick={run} className="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-semibold">Yes, generate</button>
             <button onClick={() => setConfirm(false)} className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 font-semibold">Cancel</button>
           </div>
         )}
       </div>
+
+      {timetableData && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+          <span>🔒 Locked periods: <b>{lockedCount}</b> (kept exactly as they are when you generate again).</span>
+          <button onClick={() => replaceTimetable(setAllLocked(timetableData.schedule, true))} className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white font-semibold hover:bg-slate-50">Lock all</button>
+          <button onClick={() => replaceTimetable(setAllLocked(timetableData.schedule, false))} disabled={lockedCount === 0} className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white font-semibold hover:bg-slate-50 disabled:opacity-40">Unlock all</button>
+        </div>
+      )}
 
       {report && !report.error && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 space-y-1">
