@@ -6,9 +6,10 @@
 //  - Mathematics and Physics doubles are placed before the morning break
 //  - every single (odd) period goes to the last period of the day (after the break)
 //  - subjects the admin combined (e.g. PHY/HST) always share the same periods
-//  - PS (Private Studies) only between 12:30 and 14:30, at most 1 per day and 4 per week per class
-//  - other free periods are given as extra lessons to the teachers with the lightest week who are free
-//    (doubles first, singles only after the break); Friday after the break is Religion
+//  - every subject with 2 or more periods gets at least one double (3 = double + single)
+//  - a free period first goes to the free teacher with the lightest week: ONE extra 40-minute period per subject per class
+//  - if nobody can take it it becomes PS (12:30-14:30 only, max 1 per day, 4 per week); otherwise it stays empty for the admin
+//  - Friday after the break is Religion
 //  - doubles first: 3 periods = double + single, 5 = 2 doubles + single, 6 = 3 doubles ...
 //  - at most 2 periods of one subject per class per day
 //  - a teacher is never in two places at once and the teacher's lessons are spread over the 5 days
@@ -211,7 +212,7 @@ function runAttempt(input: AutoInput, model: DayModel[], seed: number): Attempt 
             if (!inMorning) { if (!relaxMorning) continue; cost += 2000; }
           } else {
             if (idx + 1 === m.last) cost += 120;              // keep the last period free for singles
-            if (inMorning) cost += 15;                        // keep the morning for Mathematics/Physics
+            if (!inMorning) cost += 15;                       // doubles fill the morning, singles and PS use the afternoon
           }
         }
         const load = Math.max(teacherLoad[t][d], t2 ? teacherLoad[t2][d] : 0);
@@ -241,7 +242,7 @@ function runAttempt(input: AutoInput, model: DayModel[], seed: number): Attempt 
       if (first.length > 0) {
         place(one, first[0].d, first[0].idx, 1);
         const second = candidates(one, 1, false).concat(candidates(one, 1, true)).sort((x, y) => x.cost - y.cost);
-        if (second.length > 0) { place(one, second[0].d, second[0].idx, 1); splitDoubles++; score += 500; return true; }
+        if (second.length > 0) { place(one, second[0].d, second[0].idx, 1); splitDoubles++; score += 4000; return true; }
         unplaced.push({ classId: classes[b.classIdx].id, className: classes[b.classIdx].name, subjectName: b.req.subjectName, periods: 1 });
         score += 5000;
         return true;
@@ -256,7 +257,7 @@ function runAttempt(input: AutoInput, model: DayModel[], seed: number): Attempt 
   const singles = blocks.filter(b => b.size === 1).sort(byPriority);
   const mathPhysDoubles = blocks.filter(b => b.size === 2 && isMathOrPhysics(b.req.subjectName)).sort(byPriority);
   const otherDoubles = blocks.filter(b => b.size === 2 && !isMathOrPhysics(b.req.subjectName)).sort(byPriority);
-  [...mathPhysDoubles, ...singles, ...otherDoubles].forEach(attemptBlock);
+  [...mathPhysDoubles, ...otherDoubles, ...singles].forEach(attemptBlock);
 
   // keep activities (evening events) chosen by the admin
   const kept = input.keepCells || {};
@@ -268,6 +269,46 @@ function runAttempt(input: AutoInput, model: DayModel[], seed: number): Attempt 
       }
     });
   }));
+
+  // ---- extra lessons for the lightest teachers, doubles first ----
+  let extra = 0;
+  const extraGiven = new Set<string>();
+  const totalLoad = (t: string) => (teacherLoad[t] || []).reduce((a, n) => a + n, 0);
+  const pickExtra = (size: 1 | 2) => {
+    let best: { b: Block; d: number; idx: number; cost: number } | null = null;
+    classes.forEach((c, classIdx) => {
+      const reqs = (requirements[c.id] || []).filter(r => !r.second);
+      model.forEach((m, d) => {
+        const starts = size === 1 ? m.lessons.map((_, i) => i) : m.pairs.map(p => p[0]);
+        starts.forEach(idx => {
+          if (size === 1 && m.morning.has(idx)) return;
+          for (let j = 0; j < size; j++) if (classOcc[c.id][d][idx + j]) return;
+          reqs.forEach(r => {
+            if (extraGiven.has(key(c.id, r.subjectName))) return;
+            ensureTeacher(r.teacherId);
+            for (let j = 0; j < size; j++) if (teacherOcc[r.teacherId][d][idx + j]) return;
+            const sd = (subjDay[key(c.id, r.subjectName)] || [])[d] || 0;
+            if (sd + size > 2) return;
+            if (size === 2 && isMathOrPhysics(r.subjectName) && !(m.morning.has(idx) && m.morning.has(idx + 1))) return;
+            let cost = totalLoad(r.teacherId) * 10 + (m.last - idx) * 2 + sd * 25 + teacherLoad[r.teacherId][d] * 6 + rand() * 4;
+            const a = cells[c.id][m.day][m.lessons[idx - 1]];
+            const z = cells[c.id][m.day][m.lessons[idx + size]];
+            if ((a && a.subjectName === r.subjectName) || (z && z.subjectName === r.subjectName)) cost += 60;
+            if (!best || cost < best.cost) best = { b: { classIdx, req: r, size, priority: 0 }, d, idx, cost };
+          });
+        });
+      });
+    });
+    return best as { b: Block; d: number; idx: number; cost: number } | null;
+  };
+  // one extra 40-minute period per subject per class, then the subject leaves the queue
+  for (let guard = 0; guard < 600; guard++) {
+    const pick = pickExtra(1);
+    if (!pick) break;
+    place(pick.b, pick.d, pick.idx, 1);
+    extraGiven.add(key(classes[pick.b.classIdx].id, pick.b.req.subjectName));
+    extra += 1;
+  }
 
   // ---- PS: only 12:30-14:30, max 1 per day and 4 per week for each class ----
   const startOf: Record<string, string> = {};
@@ -288,43 +329,6 @@ function runAttempt(input: AutoInput, model: DayModel[], seed: number): Attempt 
     }
   });
 
-  // ---- extra lessons for the lightest teachers, doubles first ----
-  let extra = 0;
-  const totalLoad = (t: string) => (teacherLoad[t] || []).reduce((a, n) => a + n, 0);
-  const pickExtra = (size: 1 | 2) => {
-    let best: { b: Block; d: number; idx: number; cost: number } | null = null;
-    classes.forEach((c, classIdx) => {
-      const reqs = (requirements[c.id] || []).filter(r => !r.second);
-      model.forEach((m, d) => {
-        const starts = size === 1 ? m.lessons.map((_, i) => i) : m.pairs.map(p => p[0]);
-        starts.forEach(idx => {
-          if (size === 1 && m.morning.has(idx)) return;
-          for (let j = 0; j < size; j++) if (classOcc[c.id][d][idx + j]) return;
-          reqs.forEach(r => {
-            ensureTeacher(r.teacherId);
-            for (let j = 0; j < size; j++) if (teacherOcc[r.teacherId][d][idx + j]) return;
-            const sd = (subjDay[key(c.id, r.subjectName)] || [])[d] || 0;
-            if (sd + size > 2) return;
-            if (size === 2 && isMathOrPhysics(r.subjectName) && !(m.morning.has(idx) && m.morning.has(idx + 1))) return;
-            let cost = totalLoad(r.teacherId) * 10 + sd * 25 + teacherLoad[r.teacherId][d] * 6 + rand() * 4;
-            const a = cells[c.id][m.day][m.lessons[idx - 1]];
-            const z = cells[c.id][m.day][m.lessons[idx + size]];
-            if ((a && a.subjectName === r.subjectName) || (z && z.subjectName === r.subjectName)) cost += 60;
-            if (!best || cost < best.cost) best = { b: { classIdx, req: r, size, priority: 0 }, d, idx, cost };
-          });
-        });
-      });
-    });
-    return best as { b: Block; d: number; idx: number; cost: number } | null;
-  };
-  for (const size of [2, 1] as const) {
-    for (let guard = 0; guard < 400; guard++) {
-      const pick = pickExtra(size);
-      if (!pick) break;
-      place(pick.b, pick.d, pick.idx, size);
-      extra += size;
-    }
-  }
 
   // ---- Friday afternoon = Religion; count what is still empty ----
   const religion: Record<string, number> = {};

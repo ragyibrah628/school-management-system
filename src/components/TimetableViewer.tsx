@@ -1014,7 +1014,6 @@ export const TimetableViewer: React.FC = () => {
                     let secondSubjId: string | null = null;
                     let secondSubjName: string | null = null;
                     let secondTeacherId: string | null = null;
-                    let secondTeacherName = '';
                     if (selectedSecondSubject && selectedSecondSubject !== '' && selectedSecondSubject !== 'none') {
                       secondSubjName = selectedSecondSubject;
                       secondSubjId = selectedSecondSubject;
@@ -1024,7 +1023,7 @@ export const TimetableViewer: React.FC = () => {
                       // Find teacher for second subject
                       if (!secondTeacherId && secondSubjName) {
                         const res2 = findTeacherForSubjectClass(secondSubjName!, classes.find((c:any)=>c.id===selectedId)?.name || '');
-                        if (res2) { secondTeacherId = res2.id; secondTeacherName = res2.name; }
+                        if (res2) { secondTeacherId = res2.id; }
                       }
                       if (secondSubjName && secondSubjName!=='PS' && !secondTeacherId) {
                         setCollisionMsg('No teacher for second subject ' + secondSubjName + ' in ' + (classes.find((c:any)=>c.id===selectedId)?.name || selectedId) + '.');
@@ -1032,10 +1031,9 @@ export const TimetableViewer: React.FC = () => {
                       }
                     }
                     let teacherId = '';
-                    let teacherName = '';
                     if (!teacherId) {
                       const res = findTeacherForSubjectClass(subjName, classes.find((c:any)=>c.id===selectedId)?.name || '');
-                      if (res) { teacherId = res.id; teacherName = res.name; }
+                      if (res) { teacherId = res.id; }
                     }
                     if (!teacherId) {
                       setCollisionMsg('No teacher assigned to teach ' + subjName + ' in ' + (classes.find((c:any)=>c.id===selectedId)?.name || selectedId) + '. Go to Assign Teaching Classes & Subjects first.');
