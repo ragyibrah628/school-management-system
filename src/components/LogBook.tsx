@@ -5,7 +5,7 @@ import { LESSON_PARTS, resolveLessonSubject, supportedFormsFor } from '../data/L
 import { getDistrictLogo, getSchoolLogo } from '../utils/letterhead';
 import { displayClass, levelOfClass } from '../utils/promotion';
 import { LogRow, LogUnit, MONTH_NAMES, buildUnits, formatDisplayDate, toIso } from '../utils/logbookSchedule';
-import { LogCalendar, emptyCalendar, patternFromStart, planAuto, publicHolidaysOf } from '../utils/logbookAuto';
+import { AutoPlan, LogCalendar, PublicHoliday, RemovedDay, SchoolHoliday, emptyCalendar, patternFromStart, planAuto, publicHolidaysOf } from '../utils/logbookAuto';
 import { createLogbookHtml } from '../utils/logbookPrint';
 
 interface LogBookProps {
@@ -124,7 +124,7 @@ export function LogBook({ teacherId, teacherName, assignments, schoolName, distr
   const perWeek = book ? syllabusPeriodsPerWeek(book.lessonSubject, book.form) : 2;
   const pattern = useMemo(() => patternFromStart(perWeek, startDate), [perWeek, startDate]);
 
-  const plan = useMemo(() => planAuto({
+  const plan: AutoPlan = useMemo(() => planAuto({
     units, start: startDate, upTo: upTo || todayIso, today: todayIso, pattern, calendar, batch: 'auto'
   }), [units, startDate, upTo, todayIso, pattern, calendar]);
 
@@ -162,7 +162,7 @@ export function LogBook({ teacherId, teacherName, assignments, schoolName, distr
   };
   const addRemoved = () => {
     if (!removedDraft.date) { setCalMessage('Choose the date to remove.'); return; }
-    if (calendar.removedDays.some(r => r.date === removedDraft.date)) { setCalMessage('That date is already removed.'); return; }
+    if (calendar.removedDays.some((r: RemovedDay) => r.date === removedDraft.date)) { setCalMessage('That date is already removed.'); return; }
     updateCalendar({ removedDays: [...calendar.removedDays, { id: newId(), date: removedDraft.date, reason: removedDraft.reason.trim() || 'Day removed' }] });
     setRemovedDraft({ date: '', reason: '' });
     setCalMessage('');
@@ -285,7 +285,7 @@ export function LogBook({ teacherId, teacherName, assignments, schoolName, distr
             {[...calendar.holidays].sort((a, b) => a.from.localeCompare(b.from)).map(h => (
               <li key={h.id} className="flex items-center justify-between gap-2 border rounded-lg px-3 py-2 bg-slate-50">
                 <span>{formatDisplayDate(h.from)} - {formatDisplayDate(h.to)} &bull; {h.reason}</span>
-                <button aria-label="Remove holiday" onClick={() => updateCalendar({ holidays: calendar.holidays.filter(x => x.id !== h.id) })} className="text-rose-600"><Trash2 size={14} /></button>
+                <button aria-label="Remove holiday" onClick={() => updateCalendar({ holidays: calendar.holidays.filter((x: SchoolHoliday) => x.id !== h.id) })} className="text-rose-600"><Trash2 size={14} /></button>
               </li>
             ))}
           </ul>
@@ -302,7 +302,7 @@ export function LogBook({ teacherId, teacherName, assignments, schoolName, distr
             {[...calendar.removedDays].sort((a, b) => a.date.localeCompare(b.date)).map(r => (
               <li key={r.id} className="flex items-center justify-between gap-2 border rounded-lg px-3 py-2 bg-slate-50">
                 <span>{formatDisplayDate(r.date)} &bull; {r.reason}</span>
-                <button aria-label="Put the day back" onClick={() => updateCalendar({ removedDays: calendar.removedDays.filter(x => x.id !== r.id) })} className="text-rose-600"><Trash2 size={14} /></button>
+                <button aria-label="Put the day back" onClick={() => updateCalendar({ removedDays: calendar.removedDays.filter((x: RemovedDay) => x.id !== r.id) })} className="text-rose-600"><Trash2 size={14} /></button>
               </li>
             ))}
           </ul>
@@ -314,7 +314,7 @@ export function LogBook({ teacherId, teacherName, assignments, schoolName, distr
           <summary className="cursor-pointer font-bold text-slate-700">Public holidays skipped automatically (tap to check)</summary>
           <p className="text-slate-500 mt-2">Untick a holiday if lessons were held that day. Eid and Maulid change every year, add them under "Remove a single day".</p>
           <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
-            {publicList.map(p => {
+            {publicList.map((p: PublicHoliday) => {
               const on = calendar.publicOn[p.key] !== undefined ? calendar.publicOn[p.key] : p.defaultOn;
               return (
                 <label key={p.key} className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-slate-50">
@@ -350,7 +350,7 @@ export function LogBook({ teacherId, teacherName, assignments, schoolName, distr
                 &bull; {plan.unitsStarted} of {plan.unitsTotal} subtopics reached ({plan.coveredPercent}% of the syllabus)
               </div>
               {saved && record?.upTo && <div>Saved log book is up to {formatDisplayDate(record.upTo)}{record.upTo < todayIso ? '. Press "Update Log Book to today" to bring it forward.' : '.'}</div>}
-              {plan.warnings.map(w => <div key={w} className="text-amber-700">{w}</div>)}
+              {plan.warnings.map((w: string) => <div key={w} className="text-amber-700">{w}</div>)}
             </div>
 
             <div className="flex flex-wrap gap-2 mt-4">
@@ -374,7 +374,7 @@ export function LogBook({ teacherId, teacherName, assignments, schoolName, distr
                     <th className="p-2 text-left">Month</th><th className="p-2">Wk</th><th className="p-2 text-left">Main topic</th><th className="p-2 text-left">Sub topic</th>
                     <th className="p-2">From</th><th className="p-2">To</th>
                   </tr></thead>
-                  <tbody>{plan.rows.map(r => (
+                  <tbody>{plan.rows.map((r: LogRow) => (
                     <tr key={r.id} className="border-t align-top">
                       <td className="p-2">{MONTH_NAMES[r.month]}</td><td className="p-2 text-center">{r.week}</td>
                       <td className="p-2">{r.topic}</td>
