@@ -28,7 +28,7 @@ export function nextClassName(name: string): string | null {
 }
 
 
-export const BASE_FORMS = ['Form 1', 'Form 2', 'Form 3', 'Form 4'];
+export const BASE_FORMS = ['Form I', 'Form II', 'Form III', 'Form IV'];
 
 export function baseOf(name: string): string {
   const parsed = parseClass(name);
@@ -56,9 +56,9 @@ export function sortClasses(list: string[]): string[] {
 // Writing style used by the school's existing classes: "Form 1" (digits) or "Form I" (roman).
 function styleOf(list: string[]): { prefix: string; roman: boolean } {
   const parsed = list.map(parseClass).filter(Boolean) as { prefix: string; roman: boolean }[];
-  if (parsed.length === 0) return { prefix: 'Form ', roman: false };
-  const romans = parsed.filter(x => x.roman).length;
-  return { prefix: parsed[0].prefix, roman: romans > parsed.length / 2 };
+  if (parsed.length === 0) return { prefix: 'Form ', roman: true };
+  const digits = parsed.filter(x => !x.roman).length;
+  return { prefix: parsed[0].prefix, roman: digits <= parsed.length / 2 };
 }
 
 // The class of one level without a stream, written the way the school already writes it.
@@ -84,11 +84,11 @@ export function streamsOf(list: string[], level: number): string[] {
     .map(c => parseClass(c)!.suffix.trim());
 }
 
-// One writing style on screen and on paper: numbers only. "Form IV" -> "Form 4", "Form IIA" -> "Form 2A". Stored names are not changed.
+// One writing style on screen and on paper: Roman numerals. "Form 4" -> "Form IV", "Form 2A" -> "Form IIA". Stored names are not changed.
 export function displayClass(name: string): string {
   const parsed = parseClass(name);
   if (!parsed) return name;
-  return `${parsed.prefix}${parsed.level}${parsed.suffix}`;
+  return `${parsed.prefix}${ROMAN[parsed.level]}${parsed.suffix}`;
 }
 
 
