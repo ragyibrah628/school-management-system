@@ -732,6 +732,7 @@ function AppInner() {
   };
 
   const [newExam, setNewExam] = useState({ name: '', term: 'Term I', deadline: '' });
+  const [openExamIds, setOpenExamIds] = useState<Record<string, boolean>>({});
 
   const createExam = () => {
     if (!newExam.name || !newExam.deadline) return;
@@ -2401,39 +2402,47 @@ function AppInner() {
                 const submittedTeachers = [...new Set(scores.filter((s: any) => s.exam_id === ex.id).map((s: any) => s.teacher_name))];
                 const notSubmitted = teachers.filter((t: any) => !submittedTeachers.includes(t.name));
 
+                const expanded = !!openExamIds[ex.id];
                 return (
-                  <div key={ex.id} className={`border rounded-xl p-4 mb-3 ${isOpen ? 'border-emerald-200 bg-emerald-50/30' : 'border-red-200 bg-red-50/30'}`}>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-bold text-slate-900">{ex.name}</p>
-                        <p className="text-xs text-slate-500">{ex.term} | Deadline: {formatExamDeadline(ex.deadline)}</p>
-                        <p className={`text-xs font-semibold mt-1 ${isOpen ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {isOpen ? `⏰ ${timeLeft}` : '❌ Expired'}
-                        </p>
-                      </div>
+                  <div key={ex.id} className={`border rounded-xl mb-2 ${isOpen ? 'border-emerald-200 bg-emerald-50/30' : 'border-red-200 bg-red-50/30'}`}>
+                    <div className="flex items-center gap-2 px-3 py-2.5">
+                      <button type="button" onClick={() => setOpenExamIds(prev => ({ ...prev, [ex.id]: !prev[ex.id] }))} aria-expanded={expanded} className="flex-1 min-w-0 flex items-center gap-3 text-left">
+                        <span className={`text-slate-400 text-xs transition-transform ${expanded ? 'rotate-90' : ''}`}>▶</span>
+                        <span className="min-w-0">
+                          <span className="block font-bold text-slate-900 truncate">{ex.name}</span>
+                          <span className="block text-xs text-slate-500">{ex.term} | Deadline: {formatExamDeadline(ex.deadline)}</span>
+                        </span>
+                      </button>
+                      <span className={`hidden sm:inline text-xs font-semibold whitespace-nowrap ${isOpen ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {isOpen ? `⏰ ${timeLeft}` : '❌ Expired'}
+                      </span>
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white border text-slate-600 whitespace-nowrap">{submittedTeachers.length}/{teachers.length}</span>
                       <button onClick={() => { if (window.confirm(`Are you sure you want to delete the exam "${ex.name || ex.term || 'this exam'}"?`)) deleteExam(ex.id); }} className="px-2 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-semibold border border-red-200">Delete</button>
                     </div>
+                    <p className={`sm:hidden px-3 pb-2 -mt-1 text-xs font-semibold ${isOpen ? 'text-emerald-600' : 'text-red-600'}`}>{isOpen ? `⏰ ${timeLeft}` : '❌ Expired'}</p>
 
-                    {/* Submission status */}
-                    <div className="mt-3 text-xs">
-                      <p className="font-semibold text-slate-700">Submitted: {submittedTeachers.length}/{teachers.length}</p>
-                      {notSubmitted.length > 0 && (
-                        <div className="mt-2">
-                          <p className="text-slate-500 mb-1">Not submitted:</p>
-                          {notSubmitted.map((t: any) => {
-                            const ext = ex.extensions?.[t.id];
-                            return (
-                              <div key={t.id} className="flex items-center gap-2 mb-1">
-                                <span className="text-red-600">{t.name}</span>
-                                {ext && <span className="text-xs text-indigo-600">Extended to: {new Date(ext).toLocaleString()}</span>}
-                                <input type="datetime-local" className="border px-1 py-0.5 rounded text-xs" onChange={e => { if (e.target.value) extendDeadline(ex.id, t.id, e.target.value); }} />
-                                <span className="text-slate-400 text-[10px]">Extend</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
+                    {/* Submission status: shown only when the exam is opened */}
+                    {expanded && (
+                      <div className="px-4 pb-4 pt-1 text-xs border-t border-slate-200/70">
+                        <p className="font-semibold text-slate-700 mt-2">Submitted: {submittedTeachers.length}/{teachers.length}</p>
+                        {notSubmitted.length > 0 ? (
+                          <div className="mt-2">
+                            <p className="text-slate-500 mb-1">Not submitted:</p>
+                            {notSubmitted.map((t: any) => {
+                              const ext = ex.extensions?.[t.id];
+                              return (
+                                <div key={t.id} className="flex flex-wrap items-center gap-2 mb-1">
+                                  <span className="text-red-600">{t.name}</span>
+                                  {ext && <span className="text-xs text-indigo-600">Extended to: {new Date(ext).toLocaleString()}</span>}
+                                  <input type="datetime-local" className="border px-1 py-0.5 rounded text-xs" onChange={e => { if (e.target.value) extendDeadline(ex.id, t.id, e.target.value); }} />
+                                  <span className="text-slate-400 text-[10px]">Extend</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : <p className="mt-2 text-emerald-700 font-semibold">All teachers have submitted.</p>}
+                      </div>
+                    )}
                   </div>
                 );
               })
