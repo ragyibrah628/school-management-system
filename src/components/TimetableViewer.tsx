@@ -5,9 +5,12 @@ import { getDistrictLogo, letterheadOpen, letterheadClose } from '../utils/lette
 import { TT_PRINT_CSS, TT_FIT_SCRIPT } from '../utils/timetablePrint';
 import { DayOfWeek, TimetableCell } from '../types';
 import { getTeacherOccupiedSlots } from '../utils/scheduler';
+import { displayClass } from '../utils/promotion';
+import { swapPeriods, setLocked, clearLessons } from '../utils/timetableSwap';
+import { TimetableAutoPanel, PeriodsSidePanel } from './TimetableAutoPanel';
 import { 
   Printer, Grid, 
-  AlertTriangle, X, Trash2, Plus, Play, RefreshCw
+  AlertTriangle, X, Trash2, Plus, Play
 } from 'lucide-react';
 
 const NAMBAWALA_SLOTS: any[] = [
@@ -74,7 +77,7 @@ function findTeacherForSubjectClass(subjectName: string, className: string): { i
     const users = JSON.parse(localStorage.getItem('sms_users') || '[]');
     for (const [tid, arr] of Object.entries(ta as any)) {
       const list = arr as any[];
-      if (list.some((a: any) => a.cls === className && String(a.sub || '').trim().toLowerCase() === String(subjectName || '').trim().toLowerCase())) {
+      if (list.some((a: any) => displayClass(String(a.cls || '')) === displayClass(String(className || '')) && String(a.sub || '').trim().toLowerCase() === String(subjectName || '').trim().toLowerCase())) {
         const u = users.find((x: any) => x.id === tid);
         if (u) return { id: tid, name: u.name };
       }
@@ -89,11 +92,22 @@ const readTeachingAssignments = (): Record<string, any[]> => {
 const normSubject = (value: any) => String(value || '').trim().toLowerCase();
 
 export const TimetableViewer: React.FC = () => {
-  const { 
-    timetableData, classes, teachers, subjects, rooms, timeSlots, days, conflicts, classSubjects,
-    schoolLogo, schoolName,
-    removeLessonSlot, scheduleUnscheduledLesson, updateLessonSlot, triggerGeneration, isGenerating
-  } = useTimetable() as any;
+  const ctx = useTimetable() as any;
+  const { timetableData, schoolLogo, schoolName, removeLessonSlot, scheduleUnscheduledLesson, updateLessonSlot, replaceTimetable } = ctx;
+  const rawClasses: any[] = ctx.classes || [];
+  const teachers: any[] = ctx.teachers || [];
+  const subjects: any[] = ctx.subjects || [];
+  const rooms: any[] = ctx.rooms || [];
+  const timeSlots: any[] = ctx.timeSlots || [];
+  const days: any[] = ctx.days || [];
+  const conflicts: any[] = ctx.conflicts || [];
+  const classSubjects: any[] = ctx.classSubjects || [];
+  const [, setRefreshKey] = useState(0);
+  // One naming style everywhere: Form I, Form II, Form III, Form IV
+  const classes = React.useMemo(() => rawClasses.map((c: any) => ({ ...c, name: displayClass(c.name) })), [rawClasses]);
+  const [showAuto, setShowAuto] = useState(false);
+  const [swapFrom, setSwapFrom] = useState<{ day: string; periodId: string } | null>(null);
+  const [swapMsg, setSwapMsg] = useState('');
 
   const [viewType, setViewType] = useState<'class' | 'teacher' | 'room' | 'master' | 'all_classes' | 'all_teachers'>('class');
   const [selectedId, setSelectedId] = useState<string>('');
@@ -121,28 +135,35 @@ export const TimetableViewer: React.FC = () => {
 
   // Auto-select first item when view type changes
   React.useEffect(() => {
-    if (viewType === 'class' && classes.length > 0 && !classes.some(c => c.id === selectedId)) setSelectedId(classes[0].id);
-    else if (viewType === 'teacher' && teachers.length > 0 && !teachers.some(t => t.id === selectedId)) setSelectedId(teachers[0].id);
-    else if (viewType === 'room' && rooms.length > 0 && !rooms.some(r => r.id === selectedId)) setSelectedId(rooms[0].id);
+    if (viewType === 'class' && classes.length > 0 && !classes.some((c: any) => c.id === selectedId)) setSelectedId(classes[0].id);
+    else if (viewType === 'teacher' && teachers.length > 0 && !teachers.some((t: any) => t.id === selectedId)) setSelectedId(teachers[0].id);
+    else if (viewType === 'room' && rooms.length > 0 && !rooms.some((r: any) => r.id === selectedId)) setSelectedId(rooms[0].id);
   }, [viewType, classes, teachers, rooms, selectedId]);
 
   if (!timetableData) {
     return (
-      <div className="bg-white p-12 rounded-2xl border border-slate-100 text-center max-w-2xl mx-auto shadow-sm mt-12">
-        {isGenerating ? <RefreshCw size={48} className="mx-auto text-indigo-500 mb-4 animate-spin" /> : <Grid size={48} className="mx-auto text-slate-300 mb-4" />}
-        <h2 className="text-xl font-bold text-slate-800 mb-2">No Timetable Generated Yet</h2>
-        <p className="text-sm text-slate-500 mb-6">Generate the master timetable using the classes, subjects, and teachers registered by the admin.</p>
-        <button
-          onClick={triggerGeneration}
-          disabled={isGenerating || classes.length === 0 || teachers.length === 0}
-          className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 text-white font-semibold shadow-lg shadow-indigo-600/20 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
-        >
-          {isGenerating ? <RefreshCw size={18} className="animate-spin" /> : <Play size={18} fill="currentColor" />}
-          {isGenerating ? 'Generating Timetable...' : 'Generate Timetable'}
-        </button>
-        {(classes.length === 0 || teachers.length === 0) && !isGenerating && (
-          <p className="text-xs text-amber-600 mt-4">Register at least one class and one teacher before generating.</p>
-        )}
+      <div className="space-y-4">
+        <div className="bg-white p-10 rounded-2xl border border-slate-100 text-center max-w-2xl mx-auto shadow-sm mt-8">
+          <Grid size={48} className="mx-auto text-slate-300 mb-4" />
+          <h2 className="text-xl font-bold text-slate-800 mb-2">No Timetable Yet</h2>
+          <p className="text-sm text-slate-500 mb-6">Choose how to create the timetable: fill it by hand, or let the system generate it automatically.</p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <button
+              onClick={() => replaceTimetable({})}
+              disabled={classes.length === 0}
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-800 text-white font-semibold disabled:bg-slate-200 disabled:text-slate-400"
+            ><Plus size={18} /> Create manually</button>
+            <button
+              onClick={() => setShowAuto(true)}
+              disabled={classes.length === 0 || teachers.length === 0}
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-indigo-600 text-white font-semibold shadow-lg shadow-indigo-600/20 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+            ><Play size={18} fill="currentColor" /> Generate Timetable</button>
+          </div>
+          {(classes.length === 0 || teachers.length === 0) && (
+            <p className="text-xs text-amber-600 mt-4">Register at least one class and one teacher first.</p>
+          )}
+        </div>
+        {showAuto && <TimetableAutoPanel slots={activePeriods} onClose={() => setShowAuto(false)} />}
       </div>
     );
   }
@@ -158,7 +179,6 @@ export const TimetableViewer: React.FC = () => {
       let finalName: string = targetName;
       if ((viewType as any)==='my_teaching') { try{ const cur=JSON.parse(localStorage.getItem('sms_current_user')||'null'); if(cur) finalName=cur.name; }catch{} }
       const title = finalName ? `${finalName} Teaching Timetable` : (isClass ? 'Class Teaching Timetable' : 'Teacher Teaching Timetable');
-      const orientation = 'landscape';
       const logo = getConfiguredLogo(schoolLogo);
       const sName = getConfiguredSchoolName(schoolName);
       const district = getConfiguredDistrict();
@@ -311,7 +331,7 @@ export const TimetableViewer: React.FC = () => {
     return '';
   };
 
-  const currentConflicts = conflicts.filter(c => {
+  const currentConflicts = conflicts.filter((c: any) => {
     if (!c.slot || !c.slot.day) return false;
     if (viewType === 'class' || viewType === 'all_classes') return c.entityIds.includes(selectedId);
     if (viewType === 'teacher' || viewType === 'all_teachers') return c.entityIds.includes(selectedId);
@@ -324,6 +344,15 @@ export const TimetableViewer: React.FC = () => {
   // --------------------------------------------------------
   const handleCellClick = (day: DayOfWeek, periodId: string, isBreak: boolean) => {
     if (isBreak || viewType !== 'class') return; // For now, only edit from Class View for simpler UX
+    if (swapFrom) {
+      // swap mode: the second click chooses the period to swap with
+      if (swapFrom.day === day && swapFrom.periodId === periodId) { setSwapFrom(null); setSwapMsg(''); return; }
+      const res = swapPeriods((timetableData as any).schedule, selectedId, { day: swapFrom.day, pid: swapFrom.periodId }, { day, pid: periodId }, activePeriods, (id: string) => classes.find((c: any) => c.id === id)?.name || id);
+      if (res.error) { setSwapMsg(res.error); return; }
+      replaceTimetable(res.schedule);
+      setSwapFrom(null); setSwapMsg('');
+      return;
+    }
     setActiveCell({ day, periodId });
     setSelectedUnscheduledId('');
   };
@@ -331,24 +360,25 @@ export const TimetableViewer: React.FC = () => {
   const handlePlaceUnscheduled = () => {
     if (!activeCell || !selectedUnscheduledId) return;
     
-    const un = timetableData.unscheduled.find(u => u.id === selectedUnscheduledId);
+    const un = timetableData.unscheduled.find((u: any) => u.id === selectedUnscheduledId);
     if (!un) return;
 
     // To place it, we need a room. Let's find a room of the correct type
-    const sub = subjects.find(s => s.id === un.subjectId);
+    const sub = subjects.find((s: any) => s.id === un.subjectId);
     const roomTypeNeeded = sub?.requiresRoomType || 'regular';
     
     // Find all rooms of this type that are NOT occupied in this slot
     const occupiedRoomIds = Object.keys(schedule).map(cid => schedule[cid]?.[activeCell.day]?.[activeCell.periodId]?.roomId).filter(Boolean);
-    const availRooms = rooms.filter(r => r.type === roomTypeNeeded && !occupiedRoomIds.includes(r.id));
+    const availRooms = rooms.filter((r: any) => r.type === roomTypeNeeded && !occupiedRoomIds.includes(r.id));
     
     const selectedRoomId = availRooms.length > 0 
       ? availRooms[0].id 
-      : (rooms.find(r => r.type === roomTypeNeeded)?.id || rooms[0]?.id || '');
+      : (rooms.find((r: any) => r.type === roomTypeNeeded)?.id || rooms[0]?.id || '');
 
     scheduleUnscheduledLesson(selectedUnscheduledId, un.classId, activeCell.day, activeCell.periodId, selectedRoomId);
     setActiveCell(null);
   };
+  void handlePlaceUnscheduled;
 
   const handleRemoveCell = () => {
     if (!activeCell) return;
@@ -394,12 +424,12 @@ export const TimetableViewer: React.FC = () => {
           {!['master', 'all_classes', 'all_teachers'].includes(viewType) && (
             <select
               value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
+              onChange={(e: any) => setSelectedId(e.target.value)}
               className="text-sm border border-slate-200 px-3 py-1.5 rounded-xl bg-white text-slate-700 font-semibold focus:ring-2 focus:ring-indigo-500"
             >
-              {viewType === 'class' && classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              {viewType === 'teacher' && teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              {viewType === 'room' && rooms.map(r => <option key={r.id} value={r.id}>{r.name} ({r.type})</option>)}
+              {viewType === 'class' && classes.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {viewType === 'teacher' && teachers.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              {viewType === 'room' && rooms.map((r: any) => <option key={r.id} value={r.id}>{r.name} ({r.type})</option>)}
             </select>
           )}
           
@@ -410,6 +440,26 @@ export const TimetableViewer: React.FC = () => {
           )}
         </div>
 
+        <div className="flex items-center gap-2">
+        <button
+          onClick={() => {
+            if (window.confirm('Are you sure you want to clear the timetable?\n\nAll lessons will be removed, including the locked periods. Evening activities stay. This cannot be undone. After clearing you can create a new timetable by hand or press Generate Timetable.')) {
+              replaceTimetable(clearLessons((timetableData as any).schedule));
+              setSwapFrom(null); setSwapMsg(''); setActiveCell(null);
+            }
+          }}
+          className="flex items-center space-x-2 px-4 py-2 bg-white text-rose-600 border border-rose-300 text-sm font-semibold rounded-xl hover:bg-rose-50 transition-all"
+        >
+          <Trash2 size={16} />
+          <span>Clear Timetable</span>
+        </button>
+        <button
+          onClick={() => setShowAuto((v: any) => !v)}
+          className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 shadow-md transition-all"
+        >
+          <Play size={16} fill="currentColor" />
+          <span>Generate Timetable</span>
+        </button>
         <button
           onClick={handlePrint}
           className="flex items-center space-x-2 px-4 py-2 bg-slate-800 text-white text-sm font-semibold rounded-xl hover:bg-slate-900 shadow-md transition-all"
@@ -417,7 +467,17 @@ export const TimetableViewer: React.FC = () => {
           <Printer size={16} />
           <span>Print Schedule</span>
         </button>
+        </div>
       </div>
+
+      {showAuto && <TimetableAutoPanel slots={activePeriods} onClose={() => setShowAuto(false)} />}
+
+      {(swapFrom || swapMsg) && (
+        <div className="print:hidden bg-amber-50 border border-amber-300 rounded-xl px-4 py-2 text-sm text-amber-900 flex flex-wrap items-center justify-between gap-2">
+          <span>{swapFrom ? <>Swap mode: <b>{swapFrom.day}</b> — click the period you want to swap with. </> : null}{swapMsg && <b className="text-rose-700">{swapMsg}</b>}</span>
+          <button onClick={() => { setSwapFrom(null); setSwapMsg(''); }} className="px-3 py-1 rounded-lg bg-white border border-amber-300 font-semibold">Cancel</button>
+        </div>
+      )}
 
       {/* Conflicts Banner (HIDES ON PRINT) */}
       {viewType !== 'master' && currentConflicts.length > 0 && (
@@ -426,7 +486,7 @@ export const TimetableViewer: React.FC = () => {
           <div>
             <h3 className="font-semibold text-amber-800 text-sm">Schedule Issues for this {viewType}</h3>
             <ul className="list-disc ml-4 text-xs text-amber-700 mt-1 space-y-0.5">
-              {currentConflicts.map(c => (
+              {currentConflicts.map((c: any) => (
                 <li key={c.id}>
                   <b>{c.slot.day} {timeSlots.find(s=>s.id===c.slot.periodId)?.name}:</b> {c.description}
                 </li>
@@ -438,7 +498,8 @@ export const TimetableViewer: React.FC = () => {
 
       {/* TIMETABLE GRID */}
       {!['master', 'all_classes', 'all_teachers'].includes(viewType) ? (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden print:border-none print:shadow-none">
+        <div className="flex flex-col xl:flex-row gap-4 items-start print:block">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden print:border-none print:shadow-none min-w-0 flex-1 w-full">
           {/* Header identifying the schedule (GOOD FOR PRINTING) */}
           <div className="p-4 border-b border-slate-100 hidden print:flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -538,7 +599,6 @@ export const TimetableViewer: React.FC = () => {
                           let displaySub = displaySubRaw;
                           try { const m=JSON.parse(localStorage.getItem('sms_subject_codes')||'{}'); if(displaySubRaw && m[displaySubRaw]) displaySub=m[displaySubRaw]; else if(sub && m[sub.name]) displaySub=m[sub.name]; } catch{}
                           if (!isPS && !isReligion && !isAct && displaySubRaw && displaySub===displaySubRaw) { try{ displaySub=displaySubRaw.substring(0,4).toUpperCase(); }catch{} }
-                          const tchr = teachers.find((teach:any) => teach.id === cell.teacherId);
                           const subjectTeacherLines = getCellSubjectTeacherLines(cell, subjects, teachers, viewType, classes, viewType === 'teacher' ? selectedId : '');
                           const isDouble = (cell as any).isDouble;
                           if (isDouble) {
@@ -550,6 +610,7 @@ export const TimetableViewer: React.FC = () => {
                                 onClick={() => handleCellClick(d, p.id, false)}
                                 className={`p-2 border-r border-slate-100 align-middle text-center relative group ${viewType === 'class' ? 'cursor-pointer' : ''}`}
                               >
+                                {(cell as any)?.locked && <span className="absolute top-1 right-2 text-[10px] print:hidden" title="Locked">🔒</span>}
                                 <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center ${sub?.color || 'bg-emerald-50 border-emerald-300'} ${hasConflict ? 'ring-2 ring-red-500 animate-pulse' : 'shadow-sm'}`}>
                                   {isPS || isReligion || isAct ? <div className="font-bold text-slate-900 text-[13px] leading-tight">{displaySub}</div> : subjectTeacherLines.map((line:any) => (
                                     <div key={line.code} className="leading-tight mb-0.5">
@@ -567,6 +628,7 @@ export const TimetableViewer: React.FC = () => {
                                 onClick={() => handleCellClick(d, p.id, false)}
                                 className={`p-2 border-r border-slate-100 align-middle text-center relative group ${viewType === 'class' ? 'cursor-pointer' : ''}`}
                               >
+                                {(cell as any)?.locked && <span className="absolute top-1 right-2 text-[10px] print:hidden" title="Locked">🔒</span>}
                                 <div className={`w-full h-full p-2 rounded-xl border flex flex-col justify-center ${sub?.color || (isPS || isReligion ? 'bg-slate-100 border-slate-300' : isAct ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-200')} ${hasConflict ? 'ring-2 ring-red-500 animate-pulse' : 'shadow-sm'}`}>
                                   {isPS || isReligion || isAct ? <div className="font-bold text-slate-900 text-[13px] leading-tight">{isPS ? 'PS' : displaySub}</div> : subjectTeacherLines.map((line:any) => (
                                     <div key={line.code} className="leading-tight mb-0.5">
@@ -593,6 +655,8 @@ export const TimetableViewer: React.FC = () => {
             </table>
           </div>
         </div>
+        {viewType === 'class' && selectedId && <PeriodsSidePanel classId={selectedId} slots={activePeriods} />}
+        </div>
       ) : viewType === 'master' || viewType === 'all_classes' ? (
         /* BATCH CLASSES / MASTER VIEW GRID */
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 print:p-0 print:border-none print:shadow-none">
@@ -600,16 +664,16 @@ export const TimetableViewer: React.FC = () => {
             {viewType === 'master' ? 'General School Timetable' : 'Print All Class Timetables'}
           </h2>
           <div className="space-y-8 print:space-y-12">
-            {classes.map((cls) => {
+            {classes.map((cls: any) => {
               // Subjects of this class come from the admin's Teaching Assignments
               const assignedSubjects = new Set<string>();
               Object.values(readTeachingAssignments()).forEach((list: any) => (list || []).forEach((item: any) => {
-                if (item?.cls === cls.name && item?.sub) assignedSubjects.add(normSubject(item.sub));
+                if (displayClass(String(item?.cls || '')) === displayClass(cls.name) && item?.sub) assignedSubjects.add(normSubject(item.sub));
               }));
               const clsSubs = Array.from(assignedSubjects);
               const totalP = classSubjects
-                .filter(cs => cs.classId === cls.id && assignedSubjects.has(normSubject(subjects.find((s: any) => s.id === cs.subjectId)?.name)))
-                .reduce((acc, s) => acc + (Number(s.periodsPerWeek) || 0), 0);
+                .filter((cs: any) => cs.classId === cls.id && assignedSubjects.has(normSubject(subjects.find((s: any) => s.id === cs.subjectId)?.name)))
+                .reduce((acc: any, s) => acc + (Number(s.periodsPerWeek) || 0), 0);
               
               return (
                 <div key={cls.id} className="break-after-page print:break-after-page border border-slate-200 rounded-xl p-4 bg-white print:border-slate-300 print:p-6 print:mb-8">
@@ -641,7 +705,7 @@ export const TimetableViewer: React.FC = () => {
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
                           <th className="p-1.5 border-r border-slate-200 w-20 text-center">Slot</th>
-                          {days.map(d => <th key={d} className="p-1.5 border-r border-slate-200 text-center">{d.substring(0,3)}</th>)}
+                          {days.map((d: any) => <th key={d} className="p-1.5 border-r border-slate-200 text-center">{d.substring(0,3)}</th>)}
                         </tr>
                       </thead>
                       <tbody>
@@ -672,7 +736,7 @@ export const TimetableViewer: React.FC = () => {
                           return (
                             <tr key={p.id} className="border-b border-slate-100">
                               <td className="p-1 font-bold text-center border-r bg-slate-50 text-slate-400 text-3xs whitespace-nowrap">{p.name.split(' ')[1] || p.name} ({p.startTime})</td>
-                              {days.map(d => {
+                              {days.map((d: any) => {
                                 const cell = schedule[cls.id]?.[d]?.[p.id];
                                 if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
                                 const sub = findCellSubject(subjects, cell.subjectId, (cell as any).subjectName);
@@ -704,7 +768,7 @@ export const TimetableViewer: React.FC = () => {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 print:p-0 print:border-none print:shadow-none">
           <h2 className="text-lg font-bold text-slate-800 mb-4 print:hidden">Print All Teacher Timetables</h2>
           <div className="space-y-8 print:space-y-12">
-            {teachers.map((t) => {
+            {teachers.map((t: any) => {
               const tSubs = Array.from(new Set(((readTeachingAssignments()[t.id] || []) as any[]).map(item => `${item?.cls}|${normSubject(item?.sub)}`)));
               return (
                 <div key={t.id} className="break-after-page print:break-after-page border border-slate-200 rounded-xl p-4 bg-white print:border-slate-300 print:p-6 print:mb-8">
@@ -736,7 +800,7 @@ export const TimetableViewer: React.FC = () => {
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
                           <th className="p-1.5 border-r border-slate-200 w-20 text-center">Slot</th>
-                          {days.map(d => <th key={d} className="p-1.5 border-r border-slate-200 text-center">{d.substring(0,3)}</th>)}
+                          {days.map((d: any) => <th key={d} className="p-1.5 border-r border-slate-200 text-center">{d.substring(0,3)}</th>)}
                         </tr>
                       </thead>
                       <tbody>
@@ -764,7 +828,7 @@ export const TimetableViewer: React.FC = () => {
                           return (
                             <tr key={p.id} className="border-b border-slate-100">
                               <td className="p-1 font-bold text-center border-r bg-slate-50 text-slate-400 text-3xs whitespace-nowrap">{p.name.split(' ')[1] || p.name} ({p.startTime})</td>
-                              {days.map(d => {
+                              {days.map((d: any) => {
                                 const cell = getCellData(d, p.id, t.id, 'all_teachers');
                                 if (!cell) return <td key={d} className="p-1 border-r border-slate-100 bg-slate-50"></td>;
                                 const sub = findCellSubject(subjects, cell.subjectId, (cell as any).subjectName);
@@ -821,8 +885,8 @@ export const TimetableViewer: React.FC = () => {
             {existing ? (
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                 <div className="text-xs">
-                  <div className="font-bold text-slate-800">{existing.isActivity ? (existing as any).activity : (existing.subjectId==='ps' ? 'PS - Private Studies' : (findCellSubject(subjects, existing.subjectId, (existing as any).subjectName)?.name || existing.subjectId))} {(existing as any).isDouble ? '(Double 80min)' : (existing as any).isPS ? '(PS)' : ''}</div>
-                  {!existing.isActivity && !(existing as any).isPS && <div className="text-slate-500">Teacher: {teachers.find((t:any)=>t.id===existing.teacherId)?.name || ''}</div>}
+                  <div className="font-bold text-slate-800">{(existing as any).isActivity ? (existing as any).activity : (existing.subjectId==='ps' ? 'PS - Private Studies' : (findCellSubject(subjects, existing.subjectId, (existing as any).subjectName)?.name || existing.subjectId))} {(existing as any).isDouble ? '(Double 80min)' : (existing as any).isPS ? '(PS)' : ''}</div>
+                  {!(existing as any).isActivity && !(existing as any).isPS && <div className="text-slate-500">Teacher: {teachers.find((t:any)=>t.id===existing.teacherId)?.name || ''}</div>}
                 </div>
                 <button onClick={() => { try{ handleRemoveCell(); }catch(e:any){ setCollisionMsg(String(e)); } }} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 border border-red-200 flex flex-col items-center font-bold text-xs"><Trash2 size={14} /><span>Remove</span></button>
               </div>
@@ -983,7 +1047,6 @@ export const TimetableViewer: React.FC = () => {
                     let secondSubjId: string | null = null;
                     let secondSubjName: string | null = null;
                     let secondTeacherId: string | null = null;
-                    let secondTeacherName = '';
                     if (selectedSecondSubject && selectedSecondSubject !== '' && selectedSecondSubject !== 'none') {
                       secondSubjName = selectedSecondSubject;
                       secondSubjId = selectedSecondSubject;
@@ -993,7 +1056,7 @@ export const TimetableViewer: React.FC = () => {
                       // Find teacher for second subject
                       if (!secondTeacherId && secondSubjName) {
                         const res2 = findTeacherForSubjectClass(secondSubjName!, classes.find((c:any)=>c.id===selectedId)?.name || '');
-                        if (res2) { secondTeacherId = res2.id; secondTeacherName = res2.name; }
+                        if (res2) { secondTeacherId = res2.id; }
                       }
                       if (secondSubjName && secondSubjName!=='PS' && !secondTeacherId) {
                         setCollisionMsg('No teacher for second subject ' + secondSubjName + ' in ' + (classes.find((c:any)=>c.id===selectedId)?.name || selectedId) + '.');
@@ -1001,10 +1064,9 @@ export const TimetableViewer: React.FC = () => {
                       }
                     }
                     let teacherId = '';
-                    let teacherName = '';
                     if (!teacherId) {
                       const res = findTeacherForSubjectClass(subjName, classes.find((c:any)=>c.id===selectedId)?.name || '');
-                      if (res) { teacherId = res.id; teacherName = res.name; }
+                      if (res) { teacherId = res.id; }
                     }
                     if (!teacherId) {
                       setCollisionMsg('No teacher assigned to teach ' + subjName + ' in ' + (classes.find((c:any)=>c.id===selectedId)?.name || selectedId) + '. Go to Assign Teaching Classes & Subjects first.');
@@ -1025,7 +1087,7 @@ export const TimetableViewer: React.FC = () => {
                         for (const targetTeacherId of targetTeacherIds) {
                           if (cell.teacherId !== targetTeacherId && cell.secondTeacherId !== targetTeacherId) continue;
                           const occupiedPeriodId = getTeacherOccupiedSlots(cell, cellPeriodId, timeSlots)
-                            .find(slotId => targetPeriodIds.includes(slotId));
+                            .find((slotId: any) => targetPeriodIds.includes(slotId));
                           if (occupiedPeriodId) {
                             const clsName = classes.find((c:any)=>c.id===cid)?.name || cid;
                             const teacherName = teachers.find((t:any)=>t.id===targetTeacherId)?.name || targetTeacherId;
@@ -1040,17 +1102,18 @@ export const TimetableViewer: React.FC = () => {
                     const schoolClass = classes.find((c:any)=>c.id===selectedId);
                     let roomId = '';
                     if (roomType === 'regular' && (schoolClass as any)?.assignedRoomId) {
-                      const occupied = targetPeriodIds.some(periodId => Object.keys((timetableData as any).schedule||{}).some(cid => (timetableData as any).schedule[cid]?.[activeCell.day]?.[periodId]?.roomId === (schoolClass as any).assignedRoomId));
+                      const occupied = targetPeriodIds.some((periodId: any) => Object.keys((timetableData as any).schedule||{}).some(cid => (timetableData as any).schedule[cid]?.[activeCell.day]?.[periodId]?.roomId === (schoolClass as any).assignedRoomId));
                       if (!occupied) roomId = (schoolClass as any).assignedRoomId;
                     }
                     if (!roomId) {
-                      const avail = rooms.filter((r:any)=> r.type===roomType && !targetPeriodIds.some(periodId => Object.keys((timetableData as any).schedule||{}).some(cid => (timetableData as any).schedule[cid]?.[activeCell.day]?.[periodId]?.roomId === r.id)));
+                      const avail = rooms.filter((r:any)=> r.type===roomType && !targetPeriodIds.some((periodId: any) => Object.keys((timetableData as any).schedule||{}).some(cid => (timetableData as any).schedule[cid]?.[activeCell.day]?.[periodId]?.roomId === r.id)));
                       roomId = avail[0]?.id || rooms.find((r:any)=>r.type===roomType)?.id || rooms[0]?.id || '';
                     }
                     // If combined, store second subject info too
                     const isCombined = !!(secondSubjId && secondSubjName);
                     const cellToSave: any = { subjectId: subjId, subjectName: subjName, teacherId, roomId, classId: selectedId, isCombined, secondSubjectId: secondSubjId || undefined, secondSubjectName: secondSubjName || undefined, secondTeacherId: secondTeacherId || undefined, isDouble, isPS: false, isActivity: false };
                     // Store both halves in timetable state so the cloud copy preserves the double period.
+                    if ((existing as any)?.locked) cellToSave.locked = true;
                     (updateLessonSlot as any)(selectedId, activeCell.day, activeCell.periodId, subjId, teacherId, roomId, cellToSave);
                     if (isDouble && targetPeriodIds[1]) {
                       (updateLessonSlot as any)(selectedId, activeCell.day, targetPeriodIds[1], subjId, teacherId, roomId, { ...cellToSave, isDoubleSpan: true });
@@ -1074,6 +1137,18 @@ export const TimetableViewer: React.FC = () => {
               </button>
               <button onClick={()=>setActiveCell(null)} className="px-4 py-2.5 bg-slate-100 rounded-xl font-bold text-sm">Close</button>
             </div>
+            {existing && !(existing as any).isActivity && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setSwapFrom({ day: activeCell.day, periodId: activeCell.periodId }); setSwapMsg(''); setActiveCell(null); }}
+                  className="flex-1 py-2 bg-amber-50 border border-amber-300 text-amber-800 rounded-xl font-bold text-xs"
+                >⇄ Swap with another period</button>
+                <button
+                  onClick={() => { replaceTimetable(setLocked((timetableData as any).schedule, selectedId, activeCell.day, activeCell.periodId, activePeriods, !(existing as any).locked)); setActiveCell(null); }}
+                  className="flex-1 py-2 bg-slate-50 border border-slate-300 text-slate-700 rounded-xl font-bold text-xs"
+                >{(existing as any).locked ? '🔓 Unlock this period' : '🔒 Lock this period'}</button>
+              </div>
+            )}
             <p className="text-[10px] text-slate-400 text-center">Collision prevents double-booking. Double merges 2 periods (80 min). PS has no teacher.</p>
           </div>
         </div>

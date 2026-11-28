@@ -638,7 +638,7 @@ const SYNC_KEYS = [
   'sms_school_logo', 'sms_district_logo', 'sms_academic_sig', 'sms_headmaster_sig',
   'tt_timetableData', 'tt_teachers', 'tt_subjects', 'tt_rooms',
   'tt_classes', 'tt_classSubjects', 'tt_timeSlots', 'tt_days',
-  'tt_shared_subjects', 'tt_shared_teachers', 'tt_shared_classes'
+  'tt_shared_subjects', 'tt_shared_teachers', 'tt_shared_classes', 'sms_tt_class_subjects', 'sms_tt_class_combined'
 ];
 
 const ROLE_SYNC_KEYS = ['sms_class_teachers', 'sms_teaching_assignments'];

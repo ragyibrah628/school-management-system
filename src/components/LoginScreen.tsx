@@ -2,6 +2,62 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Eye, EyeOff, GraduationCap, Lock, Quote as QuoteIcon, User, BookOpen, Users } from 'lucide-react';
 import { LOGIN_QUOTES } from './WelcomeBanner';
 
+// School photos for the login page.
+// Put pictures (jpg, png or webp) in the folder  src/assets/login/  and they appear here automatically,
+// changing by themselves. No code change is needed. Name them 01.jpg, 02.jpg ... to control the order.
+// @ts-ignore (import.meta.glob is provided by Vite)
+const PHOTO_MODULES = import.meta.glob('../assets/login/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}', { eager: true, query: '?url', import: 'default' }) as unknown as Record<string, string>;
+const PHOTOS: string[] = Object.keys(PHOTO_MODULES).sort().map(key => PHOTO_MODULES[key]);
+const PHOTO_SECONDS = 5;
+
+function shuffled<T>(items: T[]): T[] {
+  const copy = items.slice();
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = copy[i]; copy[i] = copy[j]; copy[j] = tmp;
+  }
+  return copy;
+}
+
+function PhotoShow() {
+  const [index, setIndex] = useState(0);
+  const [previous, setPrevious] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (PHOTOS.length < 2) return;
+    const timer = setInterval(() => {
+      if (document.hidden) return;
+      setIndex(current => {
+        setPrevious(current);
+        return (current + 1) % PHOTOS.length;
+      });
+    }, PHOTO_SECONDS * 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Load the next picture in advance so the change is smooth.
+  useEffect(() => {
+    if (PHOTOS.length < 2) return;
+    const img = new Image();
+    img.src = PHOTOS[(index + 1) % PHOTOS.length];
+  }, [index]);
+
+  return (
+    <div className="login-show" role="img" aria-label="School photos">
+      {previous !== null && previous !== index && (
+        <img key={'p' + previous} className="login-show__img is-leaving" src={PHOTOS[previous]} alt="" draggable={false} />
+      )}
+      <img key={'c' + index} className={`login-show__img is-active ${index % 2 ? 'zoom-b' : 'zoom-a'}`} src={PHOTOS[index]} alt="" draggable={false} />
+      <div className="login-show__shade" />
+      {PHOTOS.length > 1 && (
+        <div className="login-show__dots" aria-hidden="true">
+          {PHOTOS.map((_, i) => <span key={i} className={i === index ? 'is-on' : ''} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface LoginScreenProps {
   schoolLogo: string;
   schoolName: string;
@@ -63,18 +119,19 @@ function HeroArt() {
 export function LoginScreen(props: LoginScreenProps) {
   const { schoolLogo, schoolName, districtName, mode, username, password, error, loading, showRecovery, recoveryCode } = props;
   const [showPassword, setShowPassword] = useState(false);
+  const [order] = useState(() => shuffled(LOGIN_QUOTES));
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [fading, setFading] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setFading(true);
-      setTimeout(() => { setQuoteIndex(index => (index + 1) % LOGIN_QUOTES.length); setFading(false); }, 450);
-    }, 7000);
+      setTimeout(() => { setQuoteIndex(index => (index + 1) % order.length); setFading(false); }, 450);
+    }, 8000);
     return () => clearInterval(timer);
-  }, []);
+  }, [order.length]);
 
-  const quote = LOGIN_QUOTES[quoteIndex];
+  const quote = order[quoteIndex];
   const submit = (event: FormEvent) => { event.preventDefault(); if (!loading) props.onLogin(); };
 
   return (
@@ -92,8 +149,8 @@ export function LoginScreen(props: LoginScreenProps) {
               <p className="login-hero__district">{districtName}</p>
             </div>
           </div>
-          <HeroArt />
-          <div className={`login-quote ${fading ? 'is-fading' : ''}`}>
+          {PHOTOS.length > 0 ? <PhotoShow /> : <HeroArt />}
+          <div className={`login-quote ${fading ? 'is-fading' : ''} ${quote.text.length > 140 ? 'is-long' : ''}`}>
             <QuoteIcon size={22} className="login-quote__mark" aria-hidden="true" />
             <p className="login-quote__text">{quote.text}</p>
             {quote.by && <p className="login-quote__by">— {quote.by}</p>}
@@ -103,6 +160,7 @@ export function LoginScreen(props: LoginScreenProps) {
       </aside>
 
       <main className="login-panel">
+        {PHOTOS.length > 0 && <div className="login-mobile-show"><PhotoShow /></div>}
         <div className="login-card">
           <div className="login-card__mobile-brand">
             <div className="login-logo-ring login-logo-ring--small">

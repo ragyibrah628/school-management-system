@@ -360,13 +360,39 @@ function AppInner() {
     }
   }, [students]);
 
-  const addTeachingAssignment = (teacherId: string, cls: string, sub: string) => {
-    if (!cls || !sub) return;
+  const [assignNotice, setAssignNotice] = useState('');
+
+  // One teacher per subject per class: returns a message when somebody already teaches it
+  const findSubjectOwner = (cls: string, sub: string): { id: string; name: string } | null => {
+    const wantCls = displayClass(cls);
+    const wantSub = sub.trim().toLowerCase();
+    const liveIds = new Set((users as any[]).filter((u: any) => u.role === 'teacher').map((u: any) => u.id));
+    for (const [tid, list] of Object.entries(teachingAssignments)) {
+      if (liveIds.size > 0 && !liveIds.has(tid)) continue;   // assignments of deleted teachers do not block
+      if ((list || []).some(a => displayClass(a.cls) === wantCls && a.sub.trim().toLowerCase() === wantSub)) {
+        const owner = (users as any[]).find((u: any) => u.id === tid);
+        return { id: tid, name: owner?.name || tid };
+      }
+    }
+    return null;
+  };
+
+  const addTeachingAssignment = (teacherId: string, cls: string, sub: string): boolean => {
+    if (!cls || !sub) return false;
+    const owner = findSubjectOwner(cls, sub);
+    if (owner) {
+      setAssignNotice(owner.id === teacherId
+        ? `${sub} (${displayClass(cls)}) is already assigned to this teacher.`
+        : `${sub} (${displayClass(cls)}) already has a teacher: ${owner.name}. Remove it from ${owner.name} first (click ✕) if you want to assign another teacher.`);
+      return false;
+    }
+    setAssignNotice('');
     setTeachingAssignments(prev => {
       const existing = prev[teacherId] || [];
       if (existing.some(a => a.cls === cls && a.sub.trim().toLowerCase() === sub.trim().toLowerCase())) return prev;
       return { ...prev, [teacherId]: [...existing, { cls, sub }] };
     });
+    return true;
   };
 
   const removeTeachingAssignment = (teacherId: string, cls: string, sub: string) => {
@@ -2172,6 +2198,43 @@ function AppInner() {
           <div className="bg-white p-6 rounded-2xl border">
             <h2 className="font-bold text-lg mb-2">Assign Classes & Subjects to Teachers</h2>
             <p className="text-xs text-slate-500 mb-4">Assign which class and subject each teacher teaches. Teachers will only see their assigned classes when entering scores.</p>
+            {assignNotice && (
+              <div className="mb-3 p-3 rounded-xl bg-amber-50 border border-amber-300 text-sm text-amber-900 flex items-start justify-between gap-3">
+                <span>{assignNotice}</span>
+                <button onClick={() => setAssignNotice('')} className="font-bold text-amber-700" aria-label="Close">✕</button>
+              </div>
+            )}
+            {(() => {
+              // subjects that already have more than one teacher in the same class (older data)
+              const owners: Record<string, string[]> = {};
+              const liveIds = new Set((users as any[]).filter((u: any) => u.role === 'teacher').map((u: any) => u.id));
+              const orphanIds = users.length > 0 ? Object.keys(teachingAssignments).filter(tid => !liveIds.has(tid) && (teachingAssignments[tid] || []).length > 0) : [];
+              Object.entries(teachingAssignments).forEach(([tid, list]) => (liveIds.has(tid) ? (list || []) : []).forEach(a => {
+                const k = `${displayClass(a.cls)} — ${a.sub.trim()}`;
+                const nm = (users as any[]).find((u: any) => u.id === tid)?.name || tid;
+                (owners[k] = owners[k] || []).push(nm);
+              }));
+              const dup = Object.entries(owners).filter(([, n]) => n.length > 1);
+              return (
+                <>
+                  {orphanIds.length > 0 && (
+                    <div className="mb-3 p-3 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-700 flex flex-wrap items-center justify-between gap-2">
+                      <span>Found {orphanIds.reduce((n, id) => n + (teachingAssignments[id] || []).length, 0)} old assignment(s) that belong to teachers who no longer exist. They are ignored, but you can clear them.</span>
+                      <button
+                        onClick={() => setTeachingAssignments(prev => { const next = { ...prev }; orphanIds.forEach(id => { delete next[id]; }); return next; })}
+                        className="px-3 py-1.5 rounded-lg bg-slate-700 text-white font-semibold"
+                      >Clear old assignments</button>
+                    </div>
+                  )}
+                  {dup.length > 0 && (
+                    <div className="mb-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-0.5">
+                      <p className="font-bold">These subjects have more than one teacher. Keep one teacher and remove the others (✕):</p>
+                      {dup.map(([k, n]) => <p key={k}>{k}: {n.join(', ')}</p>)}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
             {teachers.length === 0 ? <p className="text-sm text-slate-500">Create teachers first.</p> :
               teachers.map((t: any) => {
                 const assignments = teachingAssignments[t.id] || [];
@@ -2185,8 +2248,8 @@ function AppInner() {
                       <div className="flex flex-wrap gap-1.5 mb-3">
                         {assignments.map((a, i) => (
                           <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-lg text-xs font-semibold">
-                            {a.cls} — {a.sub}
-                            <button onClick={() => { if (window.confirm(`Are you sure you want to remove ${a.sub} (${a.cls}) from ${t.name}?`)) removeTeachingAssignment(t.id, a.cls, a.sub); }} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
+                            {displayClass(a.cls)} — {a.sub}
+                            <button onClick={() => { if (window.confirm(`Are you sure you want to remove ${a.sub} (${displayClass(a.cls)}) from ${t.name}?`)) removeTeachingAssignment(t.id, a.cls, a.sub); }} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
                           </span>
                         ))}
                       </div>
@@ -2206,9 +2269,10 @@ function AppInner() {
                         const clsEl = document.getElementById(`cls-${t.id}`) as HTMLSelectElement;
                         const subEl = document.getElementById(`sub-${t.id}`) as HTMLSelectElement;
                         if (clsEl?.value && subEl?.value) {
-                          addTeachingAssignment(t.id, clsEl.value, subEl.value);
-                          clsEl.value = '';
-                          subEl.value = '';
+                          if (addTeachingAssignment(t.id, clsEl.value, subEl.value)) {
+                            clsEl.value = '';
+                            subEl.value = '';
+                          }
                         }
                       }} className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap">+ Add</button>
                     </div>
@@ -3145,7 +3209,7 @@ function AppInner() {
                           </div>
                           <div className="flex gap-1">
                             <button onClick={() => beginStudentEdit(s)} className="text-indigo-600 text-xs font-bold hover:text-indigo-800">Edit</button>
-                            <button onClick={() => { if (window.confirm(`Are you sure you want to remove ${s.name} from ${myClass}?`)) removeStudent(myClass, s); }} className="text-red-500 text-xs font-bold hover:text-red-700">✕</button>
+                            <button onClick={() => { if (window.confirm(`Are you sure you want to remove ${s.name} from ${displayClass(myClass)}?`)) removeStudent(myClass, s); }} className="text-red-500 text-xs font-bold hover:text-red-700">✕</button>
                           </div>
                         </div>
                         {editingStudentId === s.id ? (
@@ -3399,10 +3463,10 @@ function AppInner() {
                   return (
                   <div>
                     {subjectStudents.length === 0 ? (
-                      <p className="text-sm text-slate-500">No students taking {examScoreSubject} in {examScoreClass}.</p>
+                      <p className="text-sm text-slate-500">No students taking {examScoreSubject} in {displayClass(examScoreClass)}.</p>
                     ) : (
                       <>
-                        <p className="text-xs text-slate-500 mb-2">{subjectStudents.length} students taking {examScoreSubject} in {examScoreClass}</p>
+                        <p className="text-xs text-slate-500 mb-2">{subjectStudents.length} students taking {examScoreSubject} in {displayClass(examScoreClass)}</p>
                         {effectivePracticalMode ? (
                         <div className="overflow-x-auto">
                           <table className="min-w-[640px] w-full table-fixed border text-[11px] sm:text-sm">
