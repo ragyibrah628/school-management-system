@@ -31,6 +31,16 @@ export function saveTeacherMeta(next: TeacherMetaMap): void {
 
 const capitalise = (word: string): string => word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : '';
 
+// Full names are written with a capital first letter only: "RAJABU ibrahim kijida" -> "Rajabu Ibrahim Kijida".
+export function properName(fullName: string): string {
+  return String(fullName || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(word => word.toLowerCase().replace(/(^|[-'])([a-z\u00e0-\u024f])/g, (_m, sep, ch) => sep + ch.toUpperCase()))
+    .join(' ');
+}
+
 // The last name of the full name (the third name in "Rajabu Ibrahim Kijida").
 export function lastNameOf(fullName: string): string {
   const words = String(fullName || '').trim().split(/\s+/).filter(Boolean);

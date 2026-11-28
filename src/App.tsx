@@ -30,7 +30,7 @@ import { PromoteStudents } from './components/PromoteStudents';
 import { ClassManager } from './components/ClassManager';
 import { LoginScreen } from './components/LoginScreen';
 import { WelcomeBanner } from './components/WelcomeBanner';
-import { Gender, TeacherMetaMap, defaultTitle, formalTitleFor, nameCount, readTeacherMeta, saveTeacherMeta, TITLES_KEY } from './utils/teacherTitle';
+import { Gender, TeacherMetaMap, defaultTitle, formalTitleFor, nameCount, properName, readTeacherMeta, saveTeacherMeta, TITLES_KEY } from './utils/teacherTitle';
 import './theme.css';
 import { PromotionPlan, remainingNames, withBaseForms, baseOf, displayClass, canonicalClass } from './utils/promotion';
 import * as cloud from './lib/cloud';
@@ -520,7 +520,7 @@ function AppInner() {
     if (!editGender) { alert('Choose Male or Female so the system knows if the title is Mr. or Madame.'); return; }
     setLoading(true);
     // Update in cloud/localStorage: full name, username, subjects (title and gender are kept in their own synced key)
-    const updatedUsers = users.map((u: any) => u.id === editingTeacherId ? { ...u, name: editTeacherName.trim(), username: newUsername, subjects: editSubjects } : u);
+    const updatedUsers = users.map((u: any) => u.id === editingTeacherId ? { ...u, name: properName(editTeacherName), username: newUsername, subjects: editSubjects } : u);
     const finalTitle = editTitle.trim() || defaultTitle(editTeacherName, editGender);
     updateTeacherMeta({ ...teacherMeta, [editingTeacherId]: { gender: editGender, title: finalTitle } });
     // Save to cloud if available
@@ -1428,6 +1428,19 @@ function AppInner() {
     return () => { window.removeEventListener('cloud-sync-complete', reload); try { unsubscribe && unsubscribe(); } catch {} };
   }, []);
 
+  // Teacher full names are written with a capital first letter only (done once for names saved earlier)
+  const namesFixedRef = useRef(false);
+  useEffect(() => {
+    if (namesFixedRef.current || user?.role !== 'admin' || users.length === 0) return;
+    namesFixedRef.current = true;
+    const wrong = users.filter((u: any) => u.role === 'teacher' && u.name && u.name !== properName(u.name));
+    if (wrong.length === 0) return;
+    const fixed = users.map((u: any) => wrong.some((w: any) => w.id === u.id) ? { ...u, name: properName(u.name) } : u);
+    localStorage.setItem('sms_users', JSON.stringify(fixed));
+    setUsers(fixed);
+    wrong.forEach((w: any) => { cloud.updateUser(w.id, { ...w, name: properName(w.name) }).catch(() => undefined); });
+  }, [users, user]);
+
   // Sync subjects and teachers to timetable system via localStorage
   useEffect(() => {
     // Share registered subjects with timetable
@@ -1596,7 +1609,7 @@ function AppInner() {
     const newId = 't-' + Date.now();
     await cloud.createUser({
       id: newId,
-      name: newTeacher.name.trim().replace(/\s+/g, ' '),
+      name: properName(newTeacher.name),
       username: newTeacher.username,
       password: 'Teacher@123',
       role: 'teacher',
@@ -2151,7 +2164,7 @@ function AppInner() {
             <h2 className="font-bold text-lg mb-4">Create Teacher Account</h2>
             <p className="text-xs text-slate-500 mb-3">Default password for all new teachers: <strong className="font-mono bg-slate-100 px-2 py-0.5 rounded">Teacher@123</strong></p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <input placeholder="Full Name (three names, e.g. Rajabu Ibrahim Kijida)" value={newTeacher.name} onChange={e => changeNewTeacher({ name: e.target.value })} className="border px-3 py-2.5 rounded-xl" />
+              <input placeholder="Full Name (three names, e.g. Rajabu Ibrahim Kijida)" value={newTeacher.name} onChange={e => changeNewTeacher({ name: e.target.value })} onBlur={() => changeNewTeacher({ name: properName(newTeacher.name) })} className="border px-3 py-2.5 rounded-xl" />
               <input placeholder="Username" value={newTeacher.username} onChange={e => setNewTeacher({...newTeacher, username: e.target.value})} className="border px-3 py-2.5 rounded-xl" />
               <select value={newTeacher.gender} onChange={e => changeNewTeacher({ gender: e.target.value as Gender | '' })} className="border px-3 py-2.5 rounded-xl bg-white">
                 <option value="">-- Male or Female --</option>
@@ -2210,7 +2223,7 @@ function AppInner() {
                     <div className="mt-3 p-3 bg-indigo-50 rounded-xl border border-indigo-200 space-y-3">
                       <div>
                         <p className="text-xs font-semibold text-indigo-700 mb-1">Full name (three names):</p>
-                        <input value={editTeacherName} onChange={e=>changeEditProfile({ name: e.target.value })} placeholder="Full Name" className="w-full border px-3 py-2 rounded-xl text-sm bg-white" />
+                        <input value={editTeacherName} onChange={e=>changeEditProfile({ name: e.target.value })} onBlur={()=>changeEditProfile({ name: properName(editTeacherName) })} placeholder="Full Name" className="w-full border px-3 py-2 rounded-xl text-sm bg-white" />
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
