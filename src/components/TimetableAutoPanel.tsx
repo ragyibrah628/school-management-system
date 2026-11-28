@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Play, X, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useTimetable } from '../context/TimetableContext';
 import * as cloud from '../lib/cloud';
+import { formalTitleFor } from '../utils/teacherTitle';
 import { displayClass, levelOfClass, sortClasses } from '../utils/promotion';
 import { setAllLocked, countLocked } from '../utils/timetableSwap';
 import { generateAutoTimetable, defaultPeriodsPerWeek, weeklyCapacity, AutoRequirement, PS_FROM, PS_MAX_PER_DAY, PS_MAX_PER_WEEK } from '../utils/autoTimetable';
@@ -191,7 +192,7 @@ export const TimetableAutoPanel: React.FC<Props> = ({ slots, onClose }) => {
                         <input type="checkbox" checked={on} onChange={e => setCell(r.cn, s.name, e.target.checked ? defaultPeriodsPerWeek(s.name, levelOfClass(r.cn)) : null)} />
                         {on && <input type="number" min={1} max={10} value={value} onChange={e => setCell(r.cn, s.name, Math.max(1, Math.min(10, Number(e.target.value) || 1)))} className="w-10 border border-slate-300 rounded px-1 py-0.5 text-center" />}
                       </div>
-                      {on && <div className={`mt-0.5 text-[10px] leading-tight max-w-[90px] mx-auto truncate ${teacher ? 'text-slate-500' : 'text-rose-600 font-bold'}`}>{teacher ? teacher.name : 'No teacher'}</div>}
+                      {on && <div className={`mt-0.5 text-[10px] leading-tight max-w-[90px] mx-auto truncate ${teacher ? 'text-slate-500' : 'text-rose-600 font-bold'}`}>{teacher ? formalTitleFor(teacher.id, teacher.name) : 'No teacher'}</div>}
                     </td>
                   );
                 })}

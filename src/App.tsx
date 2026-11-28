@@ -30,6 +30,7 @@ import { PromoteStudents } from './components/PromoteStudents';
 import { ClassManager } from './components/ClassManager';
 import { LoginScreen } from './components/LoginScreen';
 import { WelcomeBanner } from './components/WelcomeBanner';
+import { Gender, TeacherMetaMap, defaultTitle, formalTitleFor, nameCount, readTeacherMeta, saveTeacherMeta, TITLES_KEY } from './utils/teacherTitle';
 import './theme.css';
 import { PromotionPlan, remainingNames, withBaseForms, baseOf, displayClass, canonicalClass } from './utils/promotion';
 import * as cloud from './lib/cloud';
@@ -480,13 +481,30 @@ function AppInner() {
     alert(`Message sent to ${targetPhones.length} parent(s)!`);
   };
   const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
+  const [editUsername, setEditUsername] = useState<string>('');
+  const [editGender, setEditGender] = useState<Gender | ''>('');
+  const [editTitle, setEditTitle] = useState<string>('');
+  const [editTitleEdited, setEditTitleEdited] = useState(false);
   const [editSubjects, setEditSubjects] = useState<string[]>([]);
   const [editTeacherName, setEditTeacherName] = useState<string>('');
 
   const startEditSubjects = (teacher: any) => {
+    const meta = teacherMeta[teacher.id] || {};
     setEditingTeacherId(teacher.id);
     setEditSubjects(teacher.subjects || []);
     setEditTeacherName(teacher.name || '');
+    setEditUsername(teacher.username || '');
+    setEditGender(meta.gender || '');
+    setEditTitle(meta.title || defaultTitle(teacher.name || '', meta.gender || ''));
+    setEditTitleEdited(!!meta.title && meta.title !== defaultTitle(teacher.name || '', meta.gender || ''));
+  };
+  // full name or gender changed in the edit box: the system proposes the title again until the admin types one by hand
+  const changeEditProfile = (patch: { name?: string; gender?: Gender | '' }) => {
+    const name = patch.name !== undefined ? patch.name : editTeacherName;
+    const gender = patch.gender !== undefined ? patch.gender : editGender;
+    if (patch.name !== undefined) setEditTeacherName(patch.name);
+    if (patch.gender !== undefined) setEditGender(patch.gender);
+    if (!editTitleEdited) setEditTitle(defaultTitle(name, gender));
   };
 
   const toggleEditSubject = (sub: string) => {
@@ -496,9 +514,15 @@ function AppInner() {
   const saveEditSubjects = async () => {
     if (!editingTeacherId) return;
     if (!editTeacherName.trim()) { alert('Teacher name required'); return; }
+    const newUsername = editUsername.trim();
+    if (!newUsername) { alert('Username required'); return; }
+    if (users.some((u: any) => u.id !== editingTeacherId && String(u.username).toLowerCase() === newUsername.toLowerCase())) { alert('Username taken!'); return; }
+    if (!editGender) { alert('Choose Male or Female so the system knows if the title is Mr. or Madame.'); return; }
     setLoading(true);
-    // Update in cloud/localStorage — now includes name edit
-    const updatedUsers = users.map((u: any) => u.id === editingTeacherId ? { ...u, name: editTeacherName.trim(), subjects: editSubjects } : u);
+    // Update in cloud/localStorage: full name, username, subjects (title and gender are kept in their own synced key)
+    const updatedUsers = users.map((u: any) => u.id === editingTeacherId ? { ...u, name: editTeacherName.trim(), username: newUsername, subjects: editSubjects } : u);
+    const finalTitle = editTitle.trim() || defaultTitle(editTeacherName, editGender);
+    updateTeacherMeta({ ...teacherMeta, [editingTeacherId]: { gender: editGender, title: finalTitle } });
     // Save to cloud if available
     try {
       const teacher = updatedUsers.find((u: any) => u.id === editingTeacherId);
@@ -511,7 +535,7 @@ function AppInner() {
     setEditSubjects([]);
     await loadData();
     setLoading(false);
-    alert('Subjects updated!');
+    alert('Teacher updated!');
   };
 
   const persistStudents = (next: typeof students) => {
@@ -1394,16 +1418,34 @@ function AppInner() {
     setSchoolSubjectCodes(prev => { const n={...prev}; delete n[sub]; return n; });
   };
 
+  // Formal titles and gender of teachers (kept in the synced key sms_teacher_titles)
+  const [teacherMeta, setTeacherMeta] = useState<TeacherMetaMap>(() => readTeacherMeta());
+  const updateTeacherMeta = (next: TeacherMetaMap) => { setTeacherMeta(next); saveTeacherMeta(next); };
+  useEffect(() => {
+    const reload = () => setTeacherMeta(readTeacherMeta());
+    window.addEventListener('cloud-sync-complete', reload);
+    const unsubscribe = cloud.subscribeToAppDataChanges(TITLES_KEY, reload);
+    return () => { window.removeEventListener('cloud-sync-complete', reload); try { unsubscribe && unsubscribe(); } catch {} };
+  }, []);
+
   // Sync subjects and teachers to timetable system via localStorage
   useEffect(() => {
     // Share registered subjects with timetable
     localStorage.setItem('tt_shared_subjects', JSON.stringify(schoolSubjects));
     // Share registered teachers with timetable
-    localStorage.setItem('tt_shared_teachers', JSON.stringify(users.filter((u: any) => u.role === 'teacher').map((t: any) => ({ id: t.id, name: t.name, subjects: t.subjects }))));
+    // The timetable shows the formal title (Mr. Kijida); everything else uses the full name.
+    localStorage.setItem('tt_shared_teachers', JSON.stringify(users.filter((u: any) => u.role === 'teacher').map((t: any) => ({ id: t.id, name: formalTitleFor(t.id, t.name, teacherMeta), fullName: t.name, subjects: t.subjects }))));
     window.dispatchEvent(new Event('admin-teachers-updated'));
-  }, [schoolSubjects, users]);
+  }, [schoolSubjects, users, teacherMeta]);
 
-  const [newTeacher, setNewTeacher] = useState({ name: '', username: '', password: '', subjects: [] as string[] });
+  const [newTeacher, setNewTeacher] = useState({ name: '', username: '', password: '', subjects: [] as string[], gender: '' as Gender | '', title: '', titleEdited: false });
+  const resetNewTeacher = () => setNewTeacher({ name: '', username: '', password: '', subjects: [], gender: '', title: '', titleEdited: false });
+  // name or gender typed: the system proposes the title until the admin types a title by hand
+  const changeNewTeacher = (patch: Partial<typeof newTeacher>) => setNewTeacher(prev => {
+    const next = { ...prev, ...patch };
+    if (!next.titleEdited) next.title = defaultTitle(next.name, next.gender);
+    return next;
+  });
 
   const toggleSubject = (sub: string) => {
     setNewTeacher(prev => ({
@@ -1544,19 +1586,24 @@ function AppInner() {
   };
 
   const createTeacher = async () => {
-    if (!newTeacher.name || !newTeacher.username) return;
+    if (!newTeacher.name.trim() || !newTeacher.username.trim()) return;
+    if (nameCount(newTeacher.name) < 2) { alert('Write the full name of the teacher (three names, e.g. Rajabu Ibrahim Kijida).'); return; }
+    if (!newTeacher.gender) { alert('Choose Male or Female so the system knows if the title is Mr. or Madame.'); return; }
+    if (nameCount(newTeacher.name) < 3 && !window.confirm('This name has only two words. Full names should have three names. Continue anyway?')) return;
     const allUsers = await cloud.getUsers();
     if (allUsers.some((u: any) => u.username === newTeacher.username)) { alert('Username taken!'); return; }
     setLoading(true);
+    const newId = 't-' + Date.now();
     await cloud.createUser({
-      id: 't-' + Date.now(),
-      name: newTeacher.name,
+      id: newId,
+      name: newTeacher.name.trim().replace(/\s+/g, ' '),
       username: newTeacher.username,
       password: 'Teacher@123',
       role: 'teacher',
       subjects: newTeacher.subjects
     });
-    setNewTeacher({ name: '', username: '', password: '', subjects: [] });
+    updateTeacherMeta({ ...teacherMeta, [newId]: { gender: newTeacher.gender as Gender, title: newTeacher.title.trim() || defaultTitle(newTeacher.name, newTeacher.gender) } });
+    resetNewTeacher();
     await loadData();
     setLoading(false);
     alert('Teacher created!');
@@ -1907,7 +1954,7 @@ function AppInner() {
           </div>
         )}
         <div className="p-6 max-w-6xl mx-auto space-y-6">
-          {welcomeOpen && <WelcomeBanner name={user?.name || ''} onClose={() => setWelcomeOpen(false)} />}
+          {welcomeOpen && <WelcomeBanner name={user?.role === 'teacher' ? formalTitleFor(user?.id || '', user?.name || '', teacherMeta) : (user?.name || '')} onClose={() => setWelcomeOpen(false)} />}
 
           {/* DASHBOARD */}
           {activeMenu === 'dashboard' && (
@@ -2104,8 +2151,17 @@ function AppInner() {
             <h2 className="font-bold text-lg mb-4">Create Teacher Account</h2>
             <p className="text-xs text-slate-500 mb-3">Default password for all new teachers: <strong className="font-mono bg-slate-100 px-2 py-0.5 rounded">Teacher@123</strong></p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <input placeholder="Full Name" value={newTeacher.name} onChange={e => setNewTeacher({...newTeacher, name: e.target.value})} className="border px-3 py-2.5 rounded-xl" />
+              <input placeholder="Full Name (three names, e.g. Rajabu Ibrahim Kijida)" value={newTeacher.name} onChange={e => changeNewTeacher({ name: e.target.value })} className="border px-3 py-2.5 rounded-xl" />
               <input placeholder="Username" value={newTeacher.username} onChange={e => setNewTeacher({...newTeacher, username: e.target.value})} className="border px-3 py-2.5 rounded-xl" />
+              <select value={newTeacher.gender} onChange={e => changeNewTeacher({ gender: e.target.value as Gender | '' })} className="border px-3 py-2.5 rounded-xl bg-white">
+                <option value="">-- Male or Female --</option>
+                <option value="male">Male (Mr.)</option>
+                <option value="female">Female (Madame)</option>
+              </select>
+              <div>
+                <input placeholder="Formal title (filled by the system)" value={newTeacher.title} onChange={e => setNewTeacher(prev => ({ ...prev, title: e.target.value, titleEdited: e.target.value.trim() !== '' }))} className="w-full border px-3 py-2.5 rounded-xl" />
+                <p className="text-[11px] text-slate-500 mt-1">Used on the timetable and in the welcome message. You can change it, e.g. Mr. Kijida or Madame Lulanje. Printed documents use the full name.</p>
+              </div>
             </div>
             <div className="mt-3">
               <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Select Subjects for this Teacher:</p>
@@ -2130,7 +2186,10 @@ function AppInner() {
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="font-semibold">{t.name}</p>
-                      <p className="text-xs text-slate-500">Username: {t.username}{assignedClass ? ` | Class Teacher: ${assignedClass}` : ''}</p>
+                      <p className="text-xs text-slate-500">
+                        Formal title: {teacherMeta[t.id]?.title ? <strong>{teacherMeta[t.id]?.title}</strong> : <span className="text-amber-700 font-semibold">not set (press Edit and choose Male or Female)</span>}
+                      </p>
+                      <p className="text-xs text-slate-500">Username: {t.username}{assignedClass ? ` | Class Teacher: ${displayClass(assignedClass)}` : ''}</p>
                       <p className="text-xs text-slate-500">Subjects: {uniqueSubjectNames(t.subjects || []).join(', ')||'None'}</p>
                     </div>
                     <div className="flex gap-2">
@@ -2150,8 +2209,30 @@ function AppInner() {
                   {isEditing && (
                     <div className="mt-3 p-3 bg-indigo-50 rounded-xl border border-indigo-200 space-y-3">
                       <div>
-                        <p className="text-xs font-semibold text-indigo-700 mb-1">Edit name for {t.name}:</p>
-                        <input value={editTeacherName} onChange={e=>setEditTeacherName(e.target.value)} placeholder="Full Name" className="w-full border px-3 py-2 rounded-xl text-sm bg-white" />
+                        <p className="text-xs font-semibold text-indigo-700 mb-1">Full name (three names):</p>
+                        <input value={editTeacherName} onChange={e=>changeEditProfile({ name: e.target.value })} placeholder="Full Name" className="w-full border px-3 py-2 rounded-xl text-sm bg-white" />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs font-semibold text-indigo-700 mb-1">Username:</p>
+                          <input value={editUsername} onChange={e=>setEditUsername(e.target.value)} placeholder="Username" className="w-full border px-3 py-2 rounded-xl text-sm bg-white" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-indigo-700 mb-1">Male or Female:</p>
+                          <select value={editGender} onChange={e=>changeEditProfile({ gender: e.target.value as Gender | '' })} className="w-full border px-3 py-2 rounded-xl text-sm bg-white">
+                            <option value="">-- Select --</option>
+                            <option value="male">Male (Mr.)</option>
+                            <option value="female">Female (Madame)</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-indigo-700 mb-1">Formal title (timetable and welcome message):</p>
+                        <div className="flex gap-2">
+                          <input value={editTitle} onChange={e=>{ setEditTitle(e.target.value); setEditTitleEdited(true); }} placeholder="e.g. Mr. Kijida" className="flex-1 border px-3 py-2 rounded-xl text-sm bg-white" />
+                          <button type="button" onClick={()=>{ setEditTitleEdited(false); setEditTitle(defaultTitle(editTeacherName, editGender)); }} className="px-3 py-2 rounded-xl border bg-white text-xs font-semibold text-indigo-700">Use system title</button>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1">The system proposes: {defaultTitle(editTeacherName, editGender) || 'choose Male or Female first'}. Printed documents use the full name.</p>
                       </div>
                       <div>
                         <p className="text-xs font-semibold text-indigo-700 mb-2">Edit subjects for {editTeacherName || t.name}:</p>
@@ -2948,7 +3029,7 @@ function AppInner() {
           </div>
         )}
         <div className="p-6 max-w-4xl mx-auto space-y-6">
-          {welcomeOpen && <WelcomeBanner name={user?.name || ''} onClose={() => setWelcomeOpen(false)} />}
+          {welcomeOpen && <WelcomeBanner name={user?.role === 'teacher' ? formalTitleFor(user?.id || '', user?.name || '', teacherMeta) : (user?.name || '')} onClose={() => setWelcomeOpen(false)} />}
 
           {activeMenu === 'lesson_plan' && user?.role === 'teacher' && (
             <Suspense fallback={<PageLoading />}><LessonPlan
@@ -3039,7 +3120,7 @@ function AppInner() {
                 const sName = localStorage.getItem('sms_school_name_setting') || 'NAMBAWALA SECONDARY SCHOOL';
                 const dName = localStorage.getItem('sms_district_name') || 'RUANGWA DISTRICT COUNCIL';
                 const addr = localStorage.getItem('sms_school_address') || 'P.O. Box 51, Ruangwa - Lindi';
-                const title = `${user?.name || ''} Teaching Timetable`;
+                const title = `${formalTitleFor(user?.id || '', user?.name || '', teacherMeta)} Teaching Timetable`;
                 let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>${TT_PRINT_CSS}</style></head><body><div class="header">`;
                 html += letterheadOpen(getDistrictLogo());
                 html += `<div style="font-size:12px;font-weight:700;letter-spacing:1px">${dName}</div><h1>${sName}</h1><div style="font-size:10px;color:#333">${addr}</div><h2>${title}</h2><p>Weekly Teaching Timetable \u2022 Teacher \u2022 A4 Landscape \u2022 ${new Date().toLocaleDateString()}</p>`;
@@ -3712,7 +3793,7 @@ function AppInner() {
           )}
 
           <div className="p-6 max-w-4xl mx-auto space-y-6">
-          {welcomeOpen && <WelcomeBanner name={user?.name || ''} onClose={() => setWelcomeOpen(false)} />}
+          {welcomeOpen && <WelcomeBanner name={user?.role === 'teacher' ? formalTitleFor(user?.id || '', user?.name || '', teacherMeta) : (user?.name || '')} onClose={() => setWelcomeOpen(false)} />}
             {activeMenu === 'report_cards' && (
               <div className="bg-white p-6 rounded-2xl border">
                 <h2 className="font-bold text-lg mb-4">📄 Report Cards — {parentStudentName}</h2>

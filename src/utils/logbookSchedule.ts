@@ -21,6 +21,7 @@ export interface LogRow {
   week: number;        // 1-4 (week of the month of the FROM date)
   concept: string;
   batch: string;       // rows saved together can be undone together
+  partial?: boolean;   // the subtopic is still being taught on the last date of the log book
 }
 
 export type Pattern = number[]; // periods on Monday..Friday
