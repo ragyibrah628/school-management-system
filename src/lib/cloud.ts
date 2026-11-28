@@ -586,6 +586,35 @@ export async function getDutyReportsFull(): Promise<any[]> {
   return saved ? JSON.parse(saved) : [];
 }
 
+// Duty reports are kept for the current year only. When a new year begins the reports of earlier years are deleted
+// (this keeps the database small). Only an admin session does this. A wrong date on the device cannot trigger it:
+// the year must not be later than one year after the newest report stored on the server.
+export async function purgeOldDutyReports(): Promise<number> {
+  const startOfYear = `${new Date().getFullYear()}-01-01`;
+  const currentYear = new Date().getFullYear();
+  let removed = 0;
+  if (IS_CLOUD && isAdminSession()) {
+    try {
+      const newest = await supabaseRequest('duty_reports', 'GET', undefined, '?select=created_at&order=created_at.desc&limit=1');
+      const newestYear = Array.isArray(newest) && newest[0]?.created_at ? new Date(newest[0].created_at).getFullYear() : 0;
+      if (newestYear > 0 && currentYear > newestYear + 1) return 0;
+      const old = await supabaseRequest('duty_reports', 'GET', undefined, `?select=id&date=lt.${startOfYear}&limit=1000`);
+      if (Array.isArray(old) && old.length > 0) {
+        await supabaseRequest('duty_reports', 'DELETE', undefined, `?date=lt.${startOfYear}`);
+        removed = old.length;
+      }
+    } catch (e) {
+      console.error('Cloud purgeOldDutyReports failed:', e);
+    }
+  }
+  try {
+    const local: any[] = JSON.parse(localStorage.getItem('sms_duties') || '[]');
+    const keep = local.filter((d: any) => !d?.date || String(d.date) >= startOfYear);
+    if (keep.length !== local.length) localStorage.setItem('sms_duties', JSON.stringify(keep));
+  } catch {}
+  return removed;
+}
+
 // ==================== RELEASE STATE ====================
 
 export async function getReleased(): Promise<string[]> {

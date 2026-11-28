@@ -1429,6 +1429,17 @@ function AppInner() {
     return () => { window.removeEventListener('cloud-sync-complete', reload); try { unsubscribe && unsubscribe(); } catch {} };
   }, []);
 
+  // Duty reports of earlier years are deleted when the new year begins (admin session, once per visit)
+  const dutyPurgedRef = useRef(false);
+  useEffect(() => {
+    if (dutyPurgedRef.current || user?.role !== 'admin') return;
+    dutyPurgedRef.current = true;
+    const startOfYear = `${new Date().getFullYear()}-01-01`;
+    cloud.purgeOldDutyReports().then(() => {
+      setDuties(prev => prev.filter((d: any) => !d?.date || String(d.date) >= startOfYear));
+    }).catch(() => undefined);
+  }, [user]);
+
   // Teacher full names are written with a capital first letter only (done once for names saved earlier)
   const namesFixedRef = useRef(false);
   useEffect(() => {
@@ -2966,7 +2977,10 @@ function AppInner() {
           {activeMenu === 'duty' && (
           <div className="bg-white p-6 rounded-2xl border">
             <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
-              <h2 className="font-bold text-lg">Duty Reports Archive</h2>
+              <div>
+                <h2 className="font-bold text-lg">Duty Reports Archive</h2>
+                <p className="text-[11px] text-slate-500">Only the reports of the current year are kept. Reports of earlier years are deleted automatically when a new year begins, so print what you need before then.</p>
+              </div>
               <div className="flex gap-2">
                 <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="border px-2 py-1 rounded-lg text-xs">
                   {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
