@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Printer, Save, Undo2 } from 'lucide-react';
+import { BookOpen, Plus, Printer, RefreshCw, Save, Trash2 } from 'lucide-react';
 import * as cloud from '../lib/cloud';
 import { LESSON_PARTS, resolveLessonSubject, supportedFormsFor } from '../data/LessonPlanData';
 import { getDistrictLogo, getSchoolLogo } from '../utils/letterhead';
-import {
-  LogRow, LogUnit, MONTH_NAMES, Pattern, availableMonths, availableWeeks, buildUnits,
-  formatDisplayDate, patternFromWeekly, planFill
-} from '../utils/logbookSchedule';
+import { displayClass, levelOfClass } from '../utils/promotion';
+import { LogRow, LogUnit, MONTH_NAMES, buildUnits, formatDisplayDate, toIso } from '../utils/logbookSchedule';
+import { LogCalendar, emptyCalendar, patternFromStart, planAuto, publicHolidaysOf } from '../utils/logbookAuto';
 import { createLogbookHtml } from '../utils/logbookPrint';
 
 interface LogBookProps {
@@ -19,18 +18,19 @@ interface LogBookProps {
 }
 
 type Book = { key: string; cls: string; sub: string; form: number; lessonSubject: string };
+interface BookRecord { startDate: string; upTo?: string; rows?: LogRow[]; savedAt?: string }
+interface Store {
+  version: 2;
+  books: Record<string, BookRecord>;      // key: <book>|<year>
+  calendars: Record<string, LogCalendar>; // key: year
+  legacy: Record<string, LogRow[]>;       // log books saved with the older method
+}
 
 const storageKey = (teacherId: string) => `sms_logbook_${teacherId}`;
 const norm = (value: unknown) => String(value ?? '').trim().toLowerCase();
+const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
-const formFromClass = (name: string): number => {
-  const digit = String(name).match(/[1-4]/);
-  if (digit) return Number(digit[0]);
-  const roman = String(name).toUpperCase().match(/\b(IV|III|II|I)\b/);
-  return roman ? ({ I: 1, II: 2, III: 3, IV: 4 } as Record<string, number>)[roman[1]] : 0;
-};
-
-// Syllabus periods per week (40 minutes) - only used when the teacher's timetable has no lessons for the book.
+// Syllabus periods per week (40 minutes). The log book follows the syllabus, not the timetable.
 const syllabusPeriodsPerWeek = (subject: string, form: number): number => {
   const upper = form >= 3;
   switch (subject) {
@@ -47,44 +47,25 @@ const syllabusPeriodsPerWeek = (subject: string, form: number): number => {
   }
 };
 
-// Teaching days/periods per weekday taken from the timetable (Monday..Friday).
-const timetablePattern = (teacherId: string, cls: string, sub: string): Pattern | null => {
+const emptyStore = (): Store => ({ version: 2, books: {}, calendars: {}, legacy: {} });
+
+const readStore = (teacherId: string): Store => {
   try {
-    const data = JSON.parse(localStorage.getItem('tt_timetableData') || 'null');
-    const classes = JSON.parse(localStorage.getItem('tt_classes') || '[]');
-    const subjects = JSON.parse(localStorage.getItem('tt_subjects') || '[]');
-    if (!data?.schedule) return null;
-    const classId = classes.find((c: any) => c.name === cls)?.id;
-    if (!classId || !data.schedule[classId]) return null;
-    const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
-    const pattern: Pattern = [0, 0, 0, 0, 0];
-    Object.entries(data.schedule[classId]).forEach(([day, periods]: [string, any]) => {
-      const dayIndex = dayNames.indexOf(norm(day));
-      if (dayIndex < 0) return;
-      Object.values(periods || {}).forEach((cell: any) => {
-        if (!cell || cell.isActivity || cell.isPS || cell.isReligion) return;
-        if (cell.teacherId !== teacherId && cell.secondTeacherId !== teacherId) return;
-        const first = cell.subjectName || subjects.find((s: any) => s.id === cell.subjectId)?.name;
-        const second = cell.secondSubjectName;
-        const teachesSecond = cell.secondTeacherId === teacherId && cell.teacherId !== teacherId;
-        const cellSubject = teachesSecond ? second : first;
-        if (norm(cellSubject) === norm(sub)) pattern[dayIndex] += 1;
-      });
-    });
-    return pattern.some(v => v > 0) ? pattern : null;
+    const parsed = JSON.parse(localStorage.getItem(storageKey(teacherId)) || 'null');
+    if (!parsed || typeof parsed !== 'object') return emptyStore();
+    if (parsed.version === 2) {
+      return { version: 2, books: parsed.books || {}, calendars: parsed.calendars || {}, legacy: parsed.legacy || {} };
+    }
+    const legacy: Record<string, LogRow[]> = {};
+    Object.entries(parsed.books || {}).forEach(([key, value]) => { if (Array.isArray(value) && value.length) legacy[key] = value as LogRow[]; });
+    return { ...emptyStore(), legacy };
   } catch {
-    return null;
+    return emptyStore();
   }
 };
 
-const readRows = (teacherId: string): Record<string, LogRow[]> => {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(storageKey(teacherId)) || 'null');
-    return parsed?.books && typeof parsed.books === 'object' ? parsed.books : {};
-  } catch {
-    return {};
-  }
-};
+const signature = (rows: LogRow[], upTo: string, startDate: string) =>
+  JSON.stringify([startDate, upTo, rows.map(r => [r.unitIndex, r.from, r.to, r.partial ? 1 : 0])]);
 
 export function LogBook({ teacherId, teacherName, assignments, schoolName, districtName, schoolLogo }: LogBookProps) {
   const books: Book[] = useMemo(() => {
@@ -92,99 +73,123 @@ export function LogBook({ teacherId, teacherName, assignments, schoolName, distr
     const result: Book[] = [];
     (assignments || []).forEach(a => {
       const lessonSubject = resolveLessonSubject(a.sub || '');
-      const form = formFromClass(a.cls || '');
+      const form = levelOfClass(a.cls || '');
       if (!lessonSubject || !form || !supportedFormsFor(lessonSubject as any).includes(form)) return;
-      const key = `${norm(a.cls)}|${norm(a.sub)}`;
+      const key = `${norm(displayClass(a.cls))}|${norm(a.sub)}`;
       if (seen.has(key)) return;
       seen.add(key);
-      result.push({ key, cls: a.cls, sub: a.sub, form, lessonSubject });
+      result.push({ key, cls: displayClass(a.cls), sub: a.sub, form, lessonSubject });
     });
     return result;
   }, [assignments]);
 
-  const thisYear = new Date().getFullYear();
+  const now = new Date();
+  const thisYear = now.getFullYear();
   const [bookKey, setBookKey] = useState('');
-  const [stored, setStored] = useState<Record<string, LogRow[]>>(() => readRows(teacherId));
+  const [store, setStore] = useState<Store>(() => readStore(teacherId));
   const [year, setYear] = useState(thisYear);
-  const [month, setMonth] = useState<number | ''>('');
-  const [week, setWeek] = useState<number | ''>('');
-  const [topic, setTopic] = useState('');
-  const [subtopicIndex, setSubtopicIndex] = useState<number | ''>('');
+  const [upTo, setUpTo] = useState('');
   const [message, setMessage] = useState('');
+  const [calMessage, setCalMessage] = useState('');
+  const [holidayDraft, setHolidayDraft] = useState({ from: '', to: '', reason: '' });
+  const [removedDraft, setRemovedDraft] = useState({ date: '', reason: '' });
 
   useEffect(() => {
     if (!books.some(b => b.key === bookKey)) setBookKey(books[0]?.key || '');
   }, [books, bookKey]);
 
   useEffect(() => {
-    const reload = () => setStored(readRows(teacherId));
+    const reload = () => setStore(readStore(teacherId));
     window.addEventListener('cloud-sync-complete', reload);
     return () => window.removeEventListener('cloud-sync-complete', reload);
   }, [teacherId]);
 
   const book = books.find(b => b.key === bookKey) || null;
+  const recordKey = book ? `${book.key}|${year}` : '';
+  const record: BookRecord | undefined = recordKey ? store.books[recordKey] : undefined;
+  const calendar: LogCalendar = store.calendars[String(year)] || emptyCalendar(year);
+  const legacyRows: LogRow[] = (book && (store.legacy[book.key] || [])) || [];
+
+  // Log books never go beyond today. A past year can be completed up to its last date.
+  const todayIso = year < thisYear ? `${year}-12-31` : toIso(now);
+  const startDate = record?.startDate || '';
+
+  useEffect(() => { setUpTo(record?.upTo || todayIso); setMessage(''); /* eslint-disable-next-line */ }, [bookKey, year]);
+
   const units: LogUnit[] = useMemo(() => {
     if (!book) return [];
     return buildUnits(LESSON_PARTS.filter(p => p.subject === book.lessonSubject && p.form === book.form));
   }, [book]);
 
-  const rows: LogRow[] = (book && stored[book.key]) || [];
-  const lastIndex = rows.length ? Math.max(...rows.map(r => r.unitIndex)) : -1;
-  const lastEnd = rows.length ? rows[rows.length - 1].to : null;
-  const remaining = units.filter(u => u.index > lastIndex);
+  const perWeek = book ? syllabusPeriodsPerWeek(book.lessonSubject, book.form) : 2;
+  const pattern = useMemo(() => patternFromStart(perWeek, startDate), [perWeek, startDate]);
 
-  const months = useMemo(() => availableMonths(year, lastEnd), [year, lastEnd]);
-  const weeks = month === '' ? [] : availableWeeks(year, month, lastEnd);
-  const topics = useMemo(() => [...new Set(remaining.map(u => u.topic))], [remaining]);
-  const subtopics = remaining.filter(u => u.topic === topic);
+  const plan = useMemo(() => planAuto({
+    units, start: startDate, upTo: upTo || todayIso, today: todayIso, pattern, calendar, batch: 'auto'
+  }), [units, startDate, upTo, todayIso, pattern, calendar]);
 
-  useEffect(() => { setMonth(''); setWeek(''); setTopic(''); setSubtopicIndex(''); setMessage(''); }, [bookKey, year]);
-  useEffect(() => { setWeek(''); }, [month]);
-  useEffect(() => { setSubtopicIndex(''); }, [topic]);
+  const publicList = useMemo(() => publicHolidaysOf(year), [year]);
+  const saved = !!record?.rows;
+  const dirty = !saved || signature(plan.rows, plan.until, startDate) !== signature(record?.rows || [], record?.upTo || '', record?.startDate || '');
 
-  const pattern: Pattern = useMemo(() => {
-    if (!book) return [1, 0, 0, 1, 0];
-    return timetablePattern(teacherId, book.cls, book.sub) || patternFromWeekly(syllabusPeriodsPerWeek(book.lessonSubject, book.form));
-  }, [book, teacherId, stored]);
-  const usesTimetable = book ? timetablePattern(teacherId, book.cls, book.sub) !== null : false;
-
-  const preview: LogRow[] = useMemo(() => {
-    if (!book || month === '' || week === '' || subtopicIndex === '') return [];
-    return planFill({
-      units, lastIndex, lastEnd, anchorIndex: Number(subtopicIndex), year, month: Number(month), week: Number(week),
-      pattern, batch: `b${Date.now()}`
-    });
-  }, [book, units, lastIndex, lastEnd, subtopicIndex, year, month, week, pattern]);
-
-  const persist = (next: Record<string, LogRow[]>) => {
-    const value = JSON.stringify({ version: 1, books: next });
+  const persist = (next: Store) => {
+    const value = JSON.stringify(next);
     try {
       cloud.markAppDataKeyDirty(storageKey(teacherId), value);
       void cloud.syncToCloud().catch(() => undefined);
     } catch {
       try { localStorage.setItem(storageKey(teacherId), value); } catch {}
     }
-    setStored(next);
+    setStore(next);
+  };
+
+  const updateRecord = (patch: Partial<BookRecord>) => {
+    if (!recordKey) return;
+    persist({ ...store, books: { ...store.books, [recordKey]: { startDate: '', ...(record || {}), ...patch } } });
+  };
+  const updateCalendar = (patch: Partial<LogCalendar>) =>
+    persist({ ...store, calendars: { ...store.calendars, [String(year)]: { ...calendar, ...patch } } });
+
+  const setStart = (value: string) => { setMessage(''); updateRecord({ startDate: value }); };
+
+  const addHoliday = () => {
+    const { from, to, reason } = holidayDraft;
+    if (!from || !to) { setCalMessage('Choose the first and last date of the holiday.'); return; }
+    if (from > to) { setCalMessage('The holiday cannot end before it starts.'); return; }
+    updateCalendar({ holidays: [...calendar.holidays, { id: newId(), from, to, reason: reason.trim() || 'School holiday' }] });
+    setHolidayDraft({ from: '', to: '', reason: '' });
+    setCalMessage('');
+  };
+  const addRemoved = () => {
+    if (!removedDraft.date) { setCalMessage('Choose the date to remove.'); return; }
+    if (calendar.removedDays.some(r => r.date === removedDraft.date)) { setCalMessage('That date is already removed.'); return; }
+    updateCalendar({ removedDays: [...calendar.removedDays, { id: newId(), date: removedDraft.date, reason: removedDraft.reason.trim() || 'Day removed' }] });
+    setRemovedDraft({ date: '', reason: '' });
+    setCalMessage('');
   };
 
   const save = () => {
-    if (!book || preview.length === 0) return;
-    persist({ ...stored, [book.key]: [...rows, ...preview] });
-    setMonth(''); setWeek(''); setTopic(''); setSubtopicIndex('');
-    setMessage(`Saved ${preview.length} subtopic${preview.length > 1 ? 's' : ''} to the log book.`);
+    if (!book || plan.rows.length === 0) return;
+    if (legacyRows.length && !window.confirm('This class has a log book saved with the old method. Saving the new automatic log book will replace it. Continue?')) return;
+    const legacy = { ...store.legacy };
+    delete legacy[book.key];
+    persist({
+      ...store,
+      legacy,
+      books: { ...store.books, [recordKey]: { startDate, upTo: plan.until, rows: plan.rows, savedAt: new Date().toISOString() } }
+    });
+    setMessage(`Log book saved up to ${formatDisplayDate(plan.until)}.`);
   };
 
-  const undo = () => {
+  const removeSaved = () => {
+    if (!book || !saved) return;
+    if (!window.confirm('Delete the saved log book of this class and year? Your dates and holidays stay.')) return;
+    persist({ ...store, books: { ...store.books, [recordKey]: { startDate } } });
+    setMessage('Saved log book deleted.');
+  };
+
+  const print = (rows: LogRow[]) => {
     if (!book || rows.length === 0) return;
-    const lastBatch = rows[rows.length - 1].batch;
-    const count = rows.filter(r => r.batch === lastBatch).length;
-    if (!window.confirm(`Remove the last saved entry (${count} subtopic${count > 1 ? 's' : ''})?`)) return;
-    persist({ ...stored, [book.key]: rows.filter(r => r.batch !== lastBatch) });
-    setMessage('Last entry removed.');
-  };
-
-  const print = () => {
-    if (!book) return;
     const html = createLogbookHtml({
       rows, subject: book.sub, className: book.cls, teacherName, year,
       schoolName, districtName, schoolLogo: schoolLogo || getSchoolLogo(), districtLogo: getDistrictLogo()
@@ -207,138 +212,181 @@ export function LogBook({ teacherId, teacherName, assignments, schoolName, distr
     );
   }
 
-  const selectClass = 'w-full mt-1 border px-3 py-2.5 rounded-xl text-sm bg-white';
-  const progress = units.length ? Math.round(((lastIndex + 1) / units.length) * 100) : 0;
+  const field = 'w-full mt-1 border px-3 py-2.5 rounded-xl text-sm bg-white';
+  const label = 'text-xs font-bold text-slate-700';
+  const smallBtn = 'px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1';
 
   return (
     <div className="space-y-5">
       <div className="bg-white rounded-2xl border p-5">
         <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2"><BookOpen size={20} /> Subject Log Book</h2>
         <p className="text-xs text-slate-500 mt-1">
-          Choose where you have reached; the system fills every subtopic from your last entry, with dates counted on working days (Monday-Friday) only.
+          Enter the date of your first lesson. The system builds the log book from that date up to the day you choose,
+          following the syllabus periods and skipping weekends, holidays and the days you remove.
         </p>
-
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-sm">
           <div className="col-span-2">
-            <label className="text-xs font-bold text-slate-700">Class and subject</label>
-            <select className={selectClass} value={bookKey} onChange={e => setBookKey(e.target.value)}>
+            <label className={label}>Class and subject</label>
+            <select className={field} value={bookKey} onChange={e => setBookKey(e.target.value)}>
               {books.map(b => <option key={b.key} value={b.key}>{b.cls} - {b.sub}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs font-bold text-slate-700">Teacher</label>
+            <label className={label}>Teacher</label>
             <div className="mt-1 border px-3 py-2.5 rounded-xl bg-slate-50 truncate">{teacherName}</div>
           </div>
           <div>
-            <label className="text-xs font-bold text-slate-700">Year</label>
-            <select className={selectClass} value={year} onChange={e => setYear(Number(e.target.value))}>
-              {[thisYear - 1, thisYear, thisYear + 1].map(y => <option key={y} value={y}>{y}</option>)}
+            <label className={label}>Year</label>
+            <select className={field} value={year} onChange={e => setYear(Number(e.target.value))}>
+              {[thisYear - 1, thisYear].map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
         </div>
-
-        <div className="mt-3 text-xs text-slate-500">
-          Progress: {Math.min(lastIndex + 1, units.length)} of {units.length} subtopics ({progress}%)
-          {lastEnd && <> &bull; last recorded date {formatDisplayDate(lastEnd)}</>}
-          {' '}&bull; {usesTimetable ? 'lesson days taken from your timetable' : `lesson days follow the syllabus (${pattern.reduce((a, b) => a + b, 0)} periods per week)`}
-        </div>
+        {legacyRows.length > 0 && !saved && (
+          <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 flex flex-wrap items-center justify-between gap-2">
+            <span>An older log book of {legacyRows.length} subtopics exists for this class. It is replaced when you save the new automatic log book.</span>
+            <button onClick={() => print(legacyRows)} className={smallBtn + ' bg-white'}><Printer size={14} /> Print old log book</button>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border p-5">
-        <h3 className="font-bold text-slate-900 text-sm mb-3">Add progress</h3>
-        {remaining.length === 0 ? (
-          <p className="text-sm text-emerald-700">All subtopics of this class are already in the log book.</p>
-        ) : months.length === 0 ? (
-          <p className="text-sm text-amber-700">All months of {year} are full. Choose another year.</p>
+        <h3 className="font-bold text-slate-900 text-sm mb-3">1. Dates of the year</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div>
+            <label className={label}>Date of your first lesson of {year}</label>
+            <input type="date" className={field} value={startDate} min={`${year}-01-01`} max={`${year}-12-31`} onChange={e => setStart(e.target.value)} />
+          </div>
+          <div>
+            <label className={label}>Date of your last lesson of the year</label>
+            <input type="date" className={field} value={calendar.endDate} min={`${year}-01-01`} max={`${year}-12-31`}
+              onChange={e => updateCalendar({ endDate: e.target.value })} />
+          </div>
+        </div>
+        <p className="text-xs text-slate-500 mt-2">
+          The syllabus gives {book?.sub} {perWeek} periods per week for {book?.cls}. The last lesson date is used to spread all subtopics over the whole year
+          (it starts as 22 November; change it if your school closes on another date).
+        </p>
+      </div>
+
+      <div className="bg-white rounded-2xl border p-5">
+        <h3 className="font-bold text-slate-900 text-sm mb-1">2. Days that are not counted</h3>
+        <p className="text-xs text-slate-500 mb-3">Weekends are never counted. Add school holidays and any other day without lessons. These apply to all your classes for {year}.</p>
+
+        <div className="text-xs font-bold text-slate-700 mb-1">School holidays</div>
+        <div className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_1.4fr_auto] gap-2 text-sm items-end">
+          <div><label className={label}>From</label><input type="date" className={field} value={holidayDraft.from} min={`${year}-01-01`} max={`${year}-12-31`} onChange={e => setHolidayDraft({ ...holidayDraft, from: e.target.value })} /></div>
+          <div><label className={label}>To</label><input type="date" className={field} value={holidayDraft.to} min={holidayDraft.from || `${year}-01-01`} max={`${year}-12-31`} onChange={e => setHolidayDraft({ ...holidayDraft, to: e.target.value })} /></div>
+          <div className="col-span-2 sm:col-span-1"><label className={label}>Reason (optional)</label><input className={field} placeholder="e.g. Term holiday" value={holidayDraft.reason} onChange={e => setHolidayDraft({ ...holidayDraft, reason: e.target.value })} /></div>
+          <button onClick={addHoliday} className="col-span-2 sm:col-span-1 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-semibold flex items-center justify-center gap-1"><Plus size={14} /> Add</button>
+        </div>
+        {calendar.holidays.length > 0 && (
+          <ul className="mt-2 space-y-1 text-xs">
+            {[...calendar.holidays].sort((a, b) => a.from.localeCompare(b.from)).map(h => (
+              <li key={h.id} className="flex items-center justify-between gap-2 border rounded-lg px-3 py-2 bg-slate-50">
+                <span>{formatDisplayDate(h.from)} - {formatDisplayDate(h.to)} &bull; {h.reason}</span>
+                <button aria-label="Remove holiday" onClick={() => updateCalendar({ holidays: calendar.holidays.filter(x => x.id !== h.id) })} className="text-rose-600"><Trash2 size={14} /></button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="text-xs font-bold text-slate-700 mt-4 mb-1">Remove a single day (Eid, sports day, school event...)</div>
+        <div className="grid grid-cols-2 sm:grid-cols-[1fr_1.8fr_auto] gap-2 text-sm items-end">
+          <div><label className={label}>Date</label><input type="date" className={field} value={removedDraft.date} min={`${year}-01-01`} max={`${year}-12-31`} onChange={e => setRemovedDraft({ ...removedDraft, date: e.target.value })} /></div>
+          <div className="col-span-2 sm:col-span-1"><label className={label}>What was it?</label><input className={field} placeholder="e.g. Eid celebration" value={removedDraft.reason} onChange={e => setRemovedDraft({ ...removedDraft, reason: e.target.value })} /></div>
+          <button onClick={addRemoved} className="col-span-2 sm:col-span-1 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-semibold flex items-center justify-center gap-1"><Plus size={14} /> Remove day</button>
+        </div>
+        {calendar.removedDays.length > 0 && (
+          <ul className="mt-2 space-y-1 text-xs">
+            {[...calendar.removedDays].sort((a, b) => a.date.localeCompare(b.date)).map(r => (
+              <li key={r.id} className="flex items-center justify-between gap-2 border rounded-lg px-3 py-2 bg-slate-50">
+                <span>{formatDisplayDate(r.date)} &bull; {r.reason}</span>
+                <button aria-label="Put the day back" onClick={() => updateCalendar({ removedDays: calendar.removedDays.filter(x => x.id !== r.id) })} className="text-rose-600"><Trash2 size={14} /></button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {calMessage && <p className="mt-2 text-xs text-rose-600">{calMessage}</p>}
+
+        <details className="mt-4 text-xs">
+          <summary className="cursor-pointer font-bold text-slate-700">Public holidays skipped automatically (tap to check)</summary>
+          <p className="text-slate-500 mt-2">Untick a holiday if lessons were held that day. Eid and Maulid change every year, add them under "Remove a single day".</p>
+          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
+            {publicList.map(p => {
+              const on = calendar.publicOn[p.key] !== undefined ? calendar.publicOn[p.key] : p.defaultOn;
+              return (
+                <label key={p.key} className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-slate-50">
+                  <input type="checkbox" checked={on} onChange={e => updateCalendar({ publicOn: { ...calendar.publicOn, [p.key]: e.target.checked } })} />
+                  <span>{formatDisplayDate(p.date)} &bull; {p.name}</span>
+                </label>
+              );
+            })}
+          </div>
+        </details>
+      </div>
+
+      <div className="bg-white rounded-2xl border p-5">
+        <h3 className="font-bold text-slate-900 text-sm mb-3">3. Log book</h3>
+        {!startDate ? (
+          <p className="text-sm text-amber-700">Enter the date of your first lesson above to create the log book.</p>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end text-sm">
               <div>
-                <label className="text-xs font-bold text-slate-700">Month (when you started the subtopic)</label>
-                <select className={selectClass} value={month} onChange={e => setMonth(e.target.value === '' ? '' : Number(e.target.value))}>
-                  <option value="">-- Select month --</option>
-                  {months.map(m => <option key={m} value={m}>{MONTH_NAMES[m]}</option>)}
-                </select>
+                <label className={label}>Make the log book up to (not later than today)</label>
+                <input type="date" className={field} value={plan.until} min={startDate} max={todayIso <= calendar.endDate ? todayIso : calendar.endDate}
+                  onChange={e => { setMessage(''); setUpTo(e.target.value); }} />
               </div>
-              <div>
-                <label className="text-xs font-bold text-slate-700">Week</label>
-                <select className={selectClass} value={week} disabled={month === ''} onChange={e => setWeek(e.target.value === '' ? '' : Number(e.target.value))}>
-                  <option value="">-- Select week --</option>
-                  {weeks.map(w => <option key={w} value={w}>Week {w}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-700">Main topic</label>
-                <select className={selectClass} value={topic} onChange={e => setTopic(e.target.value)}>
-                  <option value="">-- Select topic --</option>
-                  {topics.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-700">Sub topic (where you have reached)</label>
-                <select className={selectClass} value={subtopicIndex} disabled={!topic} onChange={e => setSubtopicIndex(e.target.value === '' ? '' : Number(e.target.value))}>
-                  <option value="">-- Select subtopic --</option>
-                  {subtopics.map(u => <option key={u.index} value={u.index}>{u.subtopic} ({u.periods} {u.periods === 1 ? "period" : "periods"})</option>)}
-                </select>
-              </div>
+              <button onClick={() => { setMessage(''); setUpTo(todayIso); }} className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold flex items-center justify-center gap-1">
+                <RefreshCw size={14} /> Update Log Book to today
+              </button>
             </div>
 
-            {preview.length > 0 && (
-              <div className="mt-4">
-                <div className="text-xs font-bold text-slate-700 mb-1">These rows will be saved:</div>
-                <div className="overflow-x-auto border rounded-xl">
-                  <table className="w-full text-xs">
-                    <thead className="bg-slate-100"><tr>
-                      <th className="p-2 text-left">Month</th><th className="p-2">Wk</th><th className="p-2 text-left">Sub topic</th>
-                      <th className="p-2">From</th><th className="p-2">To</th>
-                    </tr></thead>
-                    <tbody>{preview.map(r => (
-                      <tr key={r.id} className="border-t">
-                        <td className="p-2">{MONTH_NAMES[r.month]}</td><td className="p-2 text-center">{r.week}</td>
-                        <td className="p-2">{r.subtopic}</td>
-                        <td className="p-2 text-center whitespace-nowrap">{formatDisplayDate(r.from)}</td>
-                        <td className="p-2 text-center whitespace-nowrap">{formatDisplayDate(r.to)}</td>
-                      </tr>))}
-                    </tbody>
-                  </table>
-                </div>
-                <button onClick={save} className="mt-3 w-full bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2">
-                  <Save size={16} /> Save to Log Book
-                </button>
+            <div className="mt-3 text-xs text-slate-600 space-y-1">
+              <div>
+                {plan.totalSlots} teaching periods in the year ({perWeek} per week, after removing weekends and holidays) &bull; {plan.usedSlots} used up to {formatDisplayDate(plan.until)}
+                &bull; {plan.unitsStarted} of {plan.unitsTotal} subtopics reached ({plan.coveredPercent}% of the syllabus)
+              </div>
+              {saved && record?.upTo && <div>Saved log book is up to {formatDisplayDate(record.upTo)}{record.upTo < todayIso ? '. Press "Update Log Book to today" to bring it forward.' : '.'}</div>}
+              {plan.warnings.map(w => <div key={w} className="text-amber-700">{w}</div>)}
+            </div>
+
+            <div className="flex flex-wrap gap-2 mt-4">
+              <button onClick={save} disabled={plan.rows.length === 0 || (!dirty && saved)}
+                className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold flex items-center gap-1 disabled:opacity-40">
+                <Save size={14} /> {saved ? (dirty ? 'Save changes' : 'Saved') : 'Save Log Book'}
+              </button>
+              <button onClick={() => print(plan.rows)} disabled={plan.rows.length === 0} className="px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-semibold flex items-center gap-1 disabled:opacity-40">
+                <Printer size={14} /> Print (A4 landscape)
+              </button>
+              {saved && <button onClick={removeSaved} className={smallBtn + ' text-rose-700'}><Trash2 size={14} /> Delete saved log book</button>}
+            </div>
+            {message && <p className="mt-3 text-sm text-emerald-700">{message}</p>}
+
+            {plan.rows.length === 0 ? (
+              <p className="text-sm text-slate-500 mt-4">No lessons yet up to this date.</p>
+            ) : (
+              <div className="overflow-x-auto border rounded-xl mt-4">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-100"><tr>
+                    <th className="p-2 text-left">Month</th><th className="p-2">Wk</th><th className="p-2 text-left">Main topic</th><th className="p-2 text-left">Sub topic</th>
+                    <th className="p-2">From</th><th className="p-2">To</th>
+                  </tr></thead>
+                  <tbody>{plan.rows.map(r => (
+                    <tr key={r.id} className="border-t align-top">
+                      <td className="p-2">{MONTH_NAMES[r.month]}</td><td className="p-2 text-center">{r.week}</td>
+                      <td className="p-2">{r.topic}</td>
+                      <td className="p-2">{r.subtopic}{r.partial && <span className="ml-1 text-[10px] text-amber-700">(in progress)</span>}</td>
+                      <td className="p-2 text-center whitespace-nowrap">{formatDisplayDate(r.from)}</td>
+                      <td className="p-2 text-center whitespace-nowrap">{formatDisplayDate(r.to)}</td>
+                    </tr>))}
+                  </tbody>
+                </table>
               </div>
             )}
           </>
-        )}
-        {message && <p className="mt-3 text-sm text-emerald-700">{message}</p>}
-      </div>
-
-      <div className="bg-white rounded-2xl border p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <h3 className="font-bold text-slate-900 text-sm">Saved log book ({rows.length} subtopics)</h3>
-          <div className="flex gap-2">
-            <button onClick={undo} disabled={rows.length === 0} className="px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1 disabled:opacity-40"><Undo2 size={14} /> Undo last entry</button>
-            <button onClick={print} className="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold flex items-center gap-1"><Printer size={14} /> Print (A4 landscape)</button>
-          </div>
-        </div>
-        {rows.length === 0 ? (
-          <p className="text-sm text-slate-500">Nothing saved yet.</p>
-        ) : (
-          <div className="overflow-x-auto border rounded-xl">
-            <table className="w-full text-xs">
-              <thead className="bg-slate-100"><tr>
-                <th className="p-2 text-left">Month</th><th className="p-2">Wk</th><th className="p-2 text-left">Main topic</th><th className="p-2 text-left">Sub topic</th>
-                <th className="p-2">From</th><th className="p-2">To</th>
-              </tr></thead>
-              <tbody>{rows.map(r => (
-                <tr key={r.id} className="border-t align-top">
-                  <td className="p-2">{MONTH_NAMES[r.month]}</td><td className="p-2 text-center">{r.week}</td>
-                  <td className="p-2">{r.topic}</td><td className="p-2">{r.subtopic}</td>
-                  <td className="p-2 text-center whitespace-nowrap">{formatDisplayDate(r.from)}</td>
-                  <td className="p-2 text-center whitespace-nowrap">{formatDisplayDate(r.to)}</td>
-                </tr>))}
-              </tbody>
-            </table>
-          </div>
         )}
       </div>
     </div>
