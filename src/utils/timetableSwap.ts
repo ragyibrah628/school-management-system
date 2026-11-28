@@ -115,3 +115,18 @@ export function countLocked(schedule: any): number {
   Object.values(schedule || {}).forEach((byDay: any) => Object.values(byDay || {}).forEach((row: any) => Object.values(row || {}).forEach((c: any) => { if (c?.locked) n++; })));
   return n;
 }
+
+// Clear Timetable: every lesson goes (locked ones too). Evening activities stay.
+export function clearLessons(schedule: any): any {
+  const next: any = {};
+  Object.entries(schedule || {}).forEach(([classId, byDay]: [string, any]) => {
+    next[classId] = {};
+    Object.entries(byDay || {}).forEach(([day, row]: [string, any]) => {
+      next[classId][day] = {};
+      Object.entries(row || {}).forEach(([pid, cell]: [string, any]) => {
+        if (cell?.isActivity) next[classId][day][pid] = cell;
+      });
+    });
+  });
+  return next;
+}

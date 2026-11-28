@@ -6,7 +6,7 @@ import { TT_PRINT_CSS, TT_FIT_SCRIPT } from '../utils/timetablePrint';
 import { DayOfWeek, TimetableCell } from '../types';
 import { getTeacherOccupiedSlots } from '../utils/scheduler';
 import { displayClass } from '../utils/promotion';
-import { swapPeriods, setLocked } from '../utils/timetableSwap';
+import { swapPeriods, setLocked, clearLessons } from '../utils/timetableSwap';
 import { TimetableAutoPanel, PeriodsSidePanel } from './TimetableAutoPanel';
 import { 
   Printer, Grid, 
@@ -441,6 +441,18 @@ export const TimetableViewer: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+        <button
+          onClick={() => {
+            if (window.confirm('Are you sure you want to clear the timetable?\n\nAll lessons will be removed, including the locked periods. Evening activities stay. This cannot be undone. After clearing you can create a new timetable by hand or press Generate Timetable.')) {
+              replaceTimetable(clearLessons((timetableData as any).schedule));
+              setSwapFrom(null); setSwapMsg(''); setActiveCell(null);
+            }
+          }}
+          className="flex items-center space-x-2 px-4 py-2 bg-white text-rose-600 border border-rose-300 text-sm font-semibold rounded-xl hover:bg-rose-50 transition-all"
+        >
+          <Trash2 size={16} />
+          <span>Clear Timetable</span>
+        </button>
         <button
           onClick={() => setShowAuto((v: any) => !v)}
           className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 shadow-md transition-all"

@@ -2248,8 +2248,8 @@ function AppInner() {
                       <div className="flex flex-wrap gap-1.5 mb-3">
                         {assignments.map((a, i) => (
                           <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-lg text-xs font-semibold">
-                            {a.cls} — {a.sub}
-                            <button onClick={() => { if (window.confirm(`Are you sure you want to remove ${a.sub} (${a.cls}) from ${t.name}?`)) removeTeachingAssignment(t.id, a.cls, a.sub); }} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
+                            {displayClass(a.cls)} — {a.sub}
+                            <button onClick={() => { if (window.confirm(`Are you sure you want to remove ${a.sub} (${displayClass(a.cls)}) from ${t.name}?`)) removeTeachingAssignment(t.id, a.cls, a.sub); }} className="text-red-500 font-bold hover:text-red-700 ml-1">✕</button>
                           </span>
                         ))}
                       </div>
@@ -3209,7 +3209,7 @@ function AppInner() {
                           </div>
                           <div className="flex gap-1">
                             <button onClick={() => beginStudentEdit(s)} className="text-indigo-600 text-xs font-bold hover:text-indigo-800">Edit</button>
-                            <button onClick={() => { if (window.confirm(`Are you sure you want to remove ${s.name} from ${myClass}?`)) removeStudent(myClass, s); }} className="text-red-500 text-xs font-bold hover:text-red-700">✕</button>
+                            <button onClick={() => { if (window.confirm(`Are you sure you want to remove ${s.name} from ${displayClass(myClass)}?`)) removeStudent(myClass, s); }} className="text-red-500 text-xs font-bold hover:text-red-700">✕</button>
                           </div>
                         </div>
                         {editingStudentId === s.id ? (
@@ -3463,10 +3463,10 @@ function AppInner() {
                   return (
                   <div>
                     {subjectStudents.length === 0 ? (
-                      <p className="text-sm text-slate-500">No students taking {examScoreSubject} in {examScoreClass}.</p>
+                      <p className="text-sm text-slate-500">No students taking {examScoreSubject} in {displayClass(examScoreClass)}.</p>
                     ) : (
                       <>
-                        <p className="text-xs text-slate-500 mb-2">{subjectStudents.length} students taking {examScoreSubject} in {examScoreClass}</p>
+                        <p className="text-xs text-slate-500 mb-2">{subjectStudents.length} students taking {examScoreSubject} in {displayClass(examScoreClass)}</p>
                         {effectivePracticalMode ? (
                         <div className="overflow-x-auto">
                           <table className="min-w-[640px] w-full table-fixed border text-[11px] sm:text-sm">

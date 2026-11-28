@@ -33,8 +33,8 @@ function getSchoolClasses(): string[] {
       const saved = JSON.parse(savedValue);
       if (Array.isArray(saved)) return saved;
     }
-  } catch { return ['Form I', 'Form II', 'Form III', 'Form IV']; }
-  return ['Form I', 'Form II', 'Form III', 'Form IV'];
+  } catch { return ['Form 1', 'Form 2', 'Form 3', 'Form 4']; }
+  return ['Form 1', 'Form 2', 'Form 3', 'Form 4'];
 }
 
 const SECTION_OPTIONS: Record<string, string[]> = {

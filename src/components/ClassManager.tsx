@@ -62,7 +62,7 @@ export function ClassManager({ schoolClasses, studentCounts, onSave }: ClassMana
   return (
     <div className="bg-white p-6 rounded-2xl border mt-4">
       <h2 className="font-bold text-lg mb-1">School Classes</h2>
-      <p className="text-xs text-slate-500 mb-3">Form I to Form IV always exist. Tap a class to say whether it has streams. Results of a class add up all its streams.</p>
+      <p className="text-xs text-slate-500 mb-3">Form 1 to Form 4 always exist. Tap a class to say whether it has streams. Results of a class add up all its streams.</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {[1, 2, 3, 4].map(level => {
           const base = baseFor(level, schoolClasses);
